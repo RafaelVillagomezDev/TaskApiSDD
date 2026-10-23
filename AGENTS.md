@@ -114,7 +114,7 @@ docker compose -f docker-compose.dev.yml exec api pnpm test:coverage        # Te
 | **Plan (SDD)** | `sdd/[NNN]-[funcionalidad]/plan.md` | `sdd/001-taskApiSDD-mvp/plan.md` |
 | **Tasks (SDD)** | `sdd/[NNN]-[funcionalidad]/tasks.md` | `sdd/001-taskApiSDD-mvp/tasks.md` |
 
-> **Trazabilidad SDD:** `[NNN]` es un número secuencial de tres dígitos (`001`, `002`, …). Cada funcionalidad nueva usa el siguiente número libre y agrupa su spec, plan y tasks en su propia carpeta.
+> **Trazabilidad SDD:** `[NNN]` es un número secuencial con **mínimo** tres dígitos, rellenado con ceros a la izquierda (`001`, `002`, … `999`, `1000`, `1001`, …). No hay límite: al superar `999` se sigue numerando sin renombrar las carpetas existentes. Cada funcionalidad nueva usa el siguiente número libre y agrupa su spec, plan y tasks en su propia carpeta.
 
 ### 4. Convención de Idioma 
 
