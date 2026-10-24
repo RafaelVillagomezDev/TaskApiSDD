@@ -1,8 +1,8 @@
 # CONSTITUTION.md — TaskApiSDD
 
-- **Versión:** 1.0.0
+- **Versión:** 1.2.0
 - **Ratificada:** 2026-10-23
-- **Última enmienda:** 2026-10-23
+- **Última enmienda:** 2026-10-24
 
 TaskApiSDD es una API REST para registrar tareas diarias y seguir la racha de productividad (días consecutivos) de cada usuario. Se desarrolla con Spec-Driven Development: primero se especifica, después se construye.
 
@@ -12,44 +12,43 @@ Esta constitución es la ley suprema del proyecto. Prevalece sobre `AGENTS.md`, 
 
 ## Principios
 
-### I. Stack cerrado y mínimo
-Solo se usan las tecnologías del stack declarado en `AGENTS.md`. Toda dependencia nueva debe estar justificada en el `plan.md` de la funcionalidad, con la alternativa sin dependencia descartada, antes de añadirse.
-- **Verificable:** cada dependencia nueva en `package.json` aparece justificada en un `plan.md`.
-- **Excepción:** actualizar la versión de una dependencia existente por un parche de seguridad.
-- **Por qué:** cada dependencia añade mantenimiento, superficie de ataque y conocimiento que hay que tener.
+### I. Stack cerrado
+Prohibido añadir a `package.json` una dependencia de producción o desarrollo que no esté justificada en el `plan.md` de su funcionalidad, con la alternativa sin dependencia descartada por escrito. Prohibido introducir una herramienta que solape con el stack de `AGENTS.md` (otro ORM o query builder además de Prisma, otro validador además de Zod, otro framework HTTP además de Express, otro runner de tests además de Jest).
+- **Verificable:** cada dependencia de `package.json` aparece justificada en algún `plan.md`.
+- **Excepción:** subir la versión de una dependencia existente (parche de seguridad o corrección de bugs) no requiere plan.
+- **Por qué:** dos herramientas para lo mismo obligan a mantener dos patrones en paralelo; el agente acabaría mezclándolos según el fichero que tenga delante.
 
-### II. La spec manda sobre el código
-El flujo es siempre `spec.md` → `plan.md` → `tasks.md` → código. No se escribe un plan sin spec aprobada, ni tareas sin plan, ni código sin tarea. Si el código y la spec discrepan, la spec tiene razón y el código es un defecto. Cambiar un comportamiento observable (endpoints, formato del JSON, reglas de racha) exige actualizar antes la spec.
-- **Verificable:** todo cambio de código se puede rastrear hasta una tarea de un `tasks.md`.
-- **Excepción:** corrección urgente de un fallo en producción. La spec se actualiza antes de la siguiente funcionalidad.
+### II. Sin spec no hay cambio de comportamiento
+Prohibido cambiar un comportamiento observable (endpoints, códigos de estado, formato del JSON, reglas de racha) sin haber actualizado antes la `spec.md`. El orden es `spec.md` → clarificación → `plan.md` → `tasks.md` → código. Si el código y la spec discrepan, la spec tiene razón y el código es un defecto.
+- **Verificable:** todo commit que cambie comportamiento observable referencia una tarea de un `tasks.md`.
+- **Excepción:** no requieren spec ni tarea los cambios sin efecto observable (erratas, renombrados internos, refactors con los tests en verde, comentarios, documentación) ni la corrección urgente de un fallo en producción; en este último caso la spec se actualiza antes de empezar la siguiente funcionalidad.
+- **Por qué:** la spec es la única fuente que comparten humano y agente; si el código cambia sin ella, la siguiente sesión del agente partirá de una spec falsa.
 
-### III. Los tests son el contrato
-Cada caso de uso y cada regla de dominio (especialmente el cálculo de rachas) tiene tests. Al terminar cualquier tarea se ejecuta la suite completa dentro del contenedor de desarrollo y se informa del resultado:
-- **Si pasan:** se confirma con el resumen de la ejecución.
-- **Si fallan:** no se corrigen ni se vuelven a ejecutar por iniciativa propia. Se informa al usuario de qué tests fallan (fichero y nombre) y por qué, y el usuario decide cómo seguir.
-- **Si no se pueden ejecutar:** se dice explícitamente. Nunca se afirma que los tests pasan sin haberlos ejecutado.
-- **Verificable:** la respuesta final de cada tarea incluye el resultado real de `pnpm test`.
-- **Excepción:** tareas que solo modifican documentación (`*.md`).
+### III. Los tests no se negocian
+Mínimo: cada fichero `*.use-case.ts` y cada fichero de `domain/` con lógica (en particular el cálculo de rachas) tiene su fichero de test. Al terminar una tarea se ejecuta `pnpm test` dentro del contenedor de desarrollo y se informa del resultado real. Si fallan, prohibido corregirlos o volver a ejecutarlos por iniciativa propia: se informa de qué tests fallan (fichero y nombre) y por qué, y decide el usuario. Prohibido afirmar que pasan sin haberlos ejecutado; si no se pueden ejecutar, se dice.
+- **Verificable:** la respuesta final de cada tarea incluye la salida resumida de `pnpm test`, y ningún `*.use-case.ts` carece de test.
+- **Excepción:** las tareas que solo modifican ficheros `*.md` no ejecutan tests.
+- **Por qué:** un agente que arregla tests por su cuenta tiende a adaptar el test al código en lugar del código al contrato, y el fallo desaparece sin que nadie lo vea.
 
-### IV. Los datos se cambian solo con migraciones
-El esquema de la base de datos solo cambia mediante migraciones de Prisma versionadas en `prisma/`. Una migración ya aplicada no se edita: se corrige con una nueva. Toda entrada externa se valida con Zod antes de llegar a la capa de aplicación. Los secretos viven solo en `.env.dev` y `.env.prod`, nunca en el repositorio.
-- **Verificable:** no hay cambios de esquema fuera de `prisma/migrations/`, ni secretos en el historial de git.
+### IV. El esquema solo cambia con migraciones
+Prohibido cambiar el esquema de la base de datos fuera de una migración de Prisma versionada en `prisma/migrations/`. Prohibido editar una migración ya aplicada: se corrige con una nueva. Prohibido versionar secretos; viven solo en `.env.dev` y `.env.prod`.
+- **Verificable:** no hay cambios de esquema fuera de `prisma/migrations/`, ni ficheros `.env*` con valores en el historial de git.
 - **Excepción:** `prisma migrate reset` y los datos de prueba están permitidos solo en desarrollo.
 - **Por qué:** las rachas son datos históricos de los usuarios; perderlos o corromperlos no tiene arreglo.
 
-### V. Separación de responsabilidades (hexagonal)
+### V. Separación hexagonal
 - `domain/` no importa Express, Prisma, Zod ni ningún otro framework.
-- `application/` depende solo de `domain/` y de los puertos que este define.
-- `infrastructure/` es el único sitio donde viven los frameworks.
-- Un módulo no importa el código interno de otro módulo; se comunican mediante la capa de aplicación o mediante `src/shared/`.
-- **Verificable:** una búsqueda de `express`, `@prisma/client` o `zod` dentro de cualquier `domain/` no devuelve resultados.
-- **Excepción:** `src/shared/` puede ser usado por todos los módulos.
-- **Por qué:** el dominio (reglas de rachas) debe poder probarse y evolucionar sin base de datos ni servidor HTTP.
+- `application/` importa solo de `domain/` y de `src/shared/`.
+- Toda entrada externa (body, params, query) se valida con un schema Zod en `infrastructure/` antes de llegar a `application/`.
+- Un módulo no importa ficheros internos de otro módulo.
+- **Verificable:** buscar `express`, `@prisma/client` o `zod` dentro de cualquier `domain/` o `application/` no devuelve resultados, y ninguna ruta llega a un controlador sin pasar por un schema.
+- **Excepción:** `src/shared/` puede ser importado desde cualquier capa de cualquier módulo.
+- **Por qué:** las reglas de rachas deben poder probarse con Jest sin levantar base de datos ni servidor HTTP.
 
 ### VI. Clarificar antes de suponer
-Ante un requisito ambiguo, incompleto o contradictorio, no se inventa la respuesta: se marca en la spec como `[NEEDS CLARIFICATION: <pregunta>]` y se pregunta al usuario. Una spec con marcas pendientes no puede pasar a plan.
-- **Verificable:** ningún `plan.md` se basa en una `spec.md` con marcas `[NEEDS CLARIFICATION]` abiertas.
-- **Excepción:** decisiones de implementación que ya resuelve una convención de `AGENTS.md` (nombres, estructura, comandos).
+Prohibido rellenar con una suposición un requisito ambiguo, incompleto o contradictorio: se marca en la spec como `[NEEDS CLARIFICATION: <pregunta>]` y se pregunta al usuario. La clarificación es una fase propia entre la spec y el plan: se repite hasta que no queda ninguna marca y la spec pasa la revisión de QA; solo entonces su estado pasa a *Clarificada*. Prohibido escribir un `plan.md` sobre una spec que no esté en estado *Clarificada* o *Aprobada*.
+- **Verificable:** todo `plan.md` se basa en una `spec.md` con estado *Clarificada* o *Aprobada* y sin marcas `[NEEDS CLARIFICATION]`.
+- **Excepción:** decisiones que ya resuelve una convención de `AGENTS.md` (nombres, estructura, comandos) no se preguntan.
 - **Por qué:** un supuesto silencioso se convierte en código que nadie pidió y que luego hay que deshacer.
 
 ---
@@ -58,9 +57,10 @@ Ante un requisito ambiguo, incompleto o contradictorio, no se inventa la respues
 
 1. **Supremacía:** en caso de conflicto, esta constitución prevalece sobre `AGENTS.md`, las specs, los planes y las tareas.
 2. **Cumplimiento:** cada `plan.md` incluye una sección *Comprobación constitucional* que repasa los principios I–VI y declara cualquier excepción que se use y su motivo.
-3. **Enmiendas:** solo el usuario (responsable del proyecto) puede aprobar cambios en esta constitución. Un agente puede proponer enmiendas, pero nunca aplicarlas sin aprobación explícita.
-4. **Versionado** (SemVer):
+3. **Forma de los principios:** cada principio es una prohibición o un mínimo comprobable (nunca una aspiración), con su excepción explícita y su porqué cuando no es obvio. Máximo 7 principios: si hace falta uno nuevo, se fusiona o se elimina otro informando siempre al usuario de la decision. Es necesario confirmación por parte del usuario
+4. **Enmiendas:** solo el usuario (responsable del proyecto) puede aprobar cambios en esta constitución. Un agente puede proponer enmiendas, pero nunca aplicarlas sin aprobación explícita.
+5. **Versionado** (SemVer):
    - **MAJOR:** se elimina o redefine un principio de forma incompatible.
-   - **MINOR:** se añade un principio o se amplía una regla de forma significativa.
+   - **MINOR:** se añade un principio o se amplía una regla o excepción de forma significativa.
    - **PATCH:** aclaraciones, redacción o erratas sin cambio de significado.
-5. **Registro:** cada enmienda actualiza la versión y la fecha de *Última enmienda* de la cabecera.
+6. **Registro:** cada enmienda actualiza la versión y la fecha de *Última enmienda* de la cabecera.
