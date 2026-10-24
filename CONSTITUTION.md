@@ -1,6 +1,6 @@
 # CONSTITUTION.md — TaskApiSDD
 
-- **Versión:** 1.2.0
+- **Versión:** 1.3.0
 - **Ratificada:** 2026-10-23
 - **Última enmienda:** 2026-10-24
 
@@ -51,12 +51,22 @@ Prohibido rellenar con una suposición un requisito ambiguo, incompleto o contra
 - **Excepción:** decisiones que ya resuelve una convención de `AGENTS.md` (nombres, estructura, comandos) no se preguntan.
 - **Por qué:** un supuesto silencioso se convierte en código que nadie pidió y que luego hay que deshacer.
 
+### VII. Formato de respuesta único
+Prohibido que un endpoint responda con un cuerpo distinto de estos dos sobres:
+- Éxito: `{ "success": true, "status": <código HTTP>, "message": <texto>, "data": <objeto | array | null> }`
+- Error: `{ "success": false, "status": <código HTTP>, "error": { "code": <CÓDIGO>, "message": <texto>, "details"?: [ { "field": <campo>, "message": <texto> } ] } }`
+
+`status` siempre coincide con el código HTTP de la respuesta. `error.details` solo aparece en los errores de validación. Lo que cambia entre endpoints es solo el contenido de `data`. Las rutas inexistentes, los cuerpos mal formados y los errores inesperados también responden con el sobre de error.
+- **Verificable:** todo ejemplo de respuesta en una `spec.md` y toda respuesta comprobada en los tests de los controladores usa uno de los dos sobres.
+- **Excepción:** ninguna. Por eso ningún endpoint responde `204 No Content`, que no admite cuerpo.
+- **Por qué:** el cliente procesa todas las respuestas con el mismo código, sin casos especiales por endpoint.
+
 ---
 
 ## Gobierno
 
 1. **Supremacía:** en caso de conflicto, esta constitución prevalece sobre `AGENTS.md`, las specs, los planes y las tareas.
-2. **Cumplimiento:** cada `plan.md` incluye una sección *Comprobación constitucional* que repasa los principios I–VI y declara cualquier excepción que se use y su motivo.
+2. **Cumplimiento:** cada `plan.md` incluye una sección *Comprobación constitucional* que repasa los principios I–VII y declara cualquier excepción que se use y su motivo.
 3. **Forma de los principios:** cada principio es una prohibición o un mínimo comprobable (nunca una aspiración), con su excepción explícita y su porqué cuando no es obvio. Máximo 7 principios: si hace falta uno nuevo, se fusiona o se elimina otro informando siempre al usuario de la decision. Es necesario confirmación por parte del usuario
 4. **Enmiendas:** solo el usuario (responsable del proyecto) puede aprobar cambios en esta constitución. Un agente puede proponer enmiendas, pero nunca aplicarlas sin aprobación explícita.
 5. **Versionado** (SemVer):
