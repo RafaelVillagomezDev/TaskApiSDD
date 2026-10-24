@@ -73,18 +73,27 @@ Como usuario, quiero que el sistema registre un aviso cuando tengo tareas pendie
 
 ### Tareas
 - **RF-03** — Cuando un usuario crea una tarea con título y fecha válidos, el sistema deberá registrarla como pendiente, asociada a ese usuario y a ese día.
-- **RF-04** — Si el título está vacío o supera la longitud máxima, entonces el sistema deberá rechazar la petición con el error `VALIDATION_ERROR`. [NEEDS CLARIFICATION: ¿longitud máxima del título? Propuesta: 200 caracteres.]
-- **RF-05** — Si la descripción supera la longitud máxima, entonces el sistema deberá rechazar la petición con el error `VALIDATION_ERROR`. [NEEDS CLARIFICATION: ¿longitud máxima de la descripción? Propuesta: 1000 caracteres.]
+- **RF-04** — Si el título, tras recortar los espacios del principio y del final, está vacío o tiene más de 200 caracteres, entonces el sistema deberá rechazar la petición con el error `VALIDATION_ERROR`.
+- **RF-05** — Si la descripción, tras recortar los espacios del principio y del final, tiene más de 1000 caracteres, entonces el sistema deberá rechazar la petición con el error `VALIDATION_ERROR`.
+- **RF-38** — El sistema deberá guardar el título y la descripción sin los espacios del principio y del final, y una descripción vacía o con solo espacios como `null`.
+  - *Ejemplo:* `"  Comprar pan  "` se guarda como `"Comprar pan"`; la descripción `"   "` se guarda como `null`.
 - **RF-06** — Si la fecha no es un día de calendario válido en formato `AAAA-MM-DD`, entonces el sistema deberá rechazar la petición con el error `VALIDATION_ERROR`.
 - **RF-07** — Si la fecha de una tarea nueva es anterior al día actual, entonces el sistema deberá rechazar la petición con el error `DAY_CLOSED`. Las fechas del día actual y de días futuros se aceptan sin límite.
   - *Ejemplo:* día actual 2026-10-24 → crear para 2026-10-23 responde `DAY_CLOSED`; crear para 2026-10-24 o para 2027-03-01 se acepta.
 - **RF-08** — Cuando un usuario consulta sus tareas de un día, el sistema deberá devolver todas sus tareas de ese día con su estado.
-- **RF-09** — Cuando un usuario consulta sus tareas sin indicar día, el sistema deberá devolver todas sus tareas con su estado. [NEEDS CLARIFICATION: ¿se necesita filtrar por rango de fechas? ¿Se pagina el resultado y con qué tamaño de página? Propuesta: rango opcional y páginas de 50.]
+- **RF-09** — Cuando un usuario consulta sus tareas sin indicar día, el sistema deberá devolver sus tareas con su estado, paginadas (RF-39) y opcionalmente acotadas por rango de fechas (RF-40).
 - **RF-10** — Cuando un usuario consulta sus tareas filtrando por estado, el sistema deberá devolver solo las tareas completadas o solo las pendientes, según el filtro.
 - **RF-11** — Cuando un usuario marca una tarea como completada, el sistema deberá cambiar su estado a completada.
 - **RF-12** — Cuando un usuario desmarca una tarea completada, el sistema deberá volver a ponerla como pendiente (limitado por RF-14).
   - *Ejemplo:* día actual 2026-10-24, con la única tarea completada de hoy → al desmarcarla, hoy deja de ser productivo y la racha actual pasa de 2 a 1 (RF-20).
 - **RF-13** — Cuando un usuario edita una tarea, el sistema deberá actualizar solo su título y su descripción.
+- **RF-39** — Cuando un usuario consulta una lista de tareas o de avisos, el sistema deberá devolver la página `page` (por defecto 1) de tamaño `pageSize` (por defecto 50) junto con `page`, `pageSize`, `totalItems` y `totalPages`.
+  - *Ejemplo:* 230 tareas, `page=5`, `pageSize=50` → 30 tareas, `totalItems` 230, `totalPages` 5. Con `page=6` → `items` vacío y los mismos totales.
+- **RF-42** — Si `page` o `pageSize` no son enteros positivos, o `pageSize` es mayor que 100, entonces el sistema deberá rechazar la petición con el error `VALIDATION_ERROR`.
+- **RF-40** — Cuando un usuario consulta sus tareas con `from` y/o `to`, el sistema deberá devolver solo las tareas con fecha dentro de ese rango, ambos días incluidos.
+  - *Ejemplo:* `from=2026-10-20&to=2026-10-24` → tareas del 20 al 24, ambos incluidos.
+- **RF-43** — Si `from` es posterior a `to`, o la consulta combina `date` con `from` o `to`, entonces el sistema deberá rechazar la petición con el error `VALIDATION_ERROR`.
+- **RF-41** — El sistema deberá ordenar las listas de tareas por fecha ascendente y, dentro de cada fecha, por orden de creación.
 - **RF-37** — Si una petición de edición incluye un campo distinto de `title`, `description` o `completed`, incluido `date`, entonces el sistema deberá rechazarla con el error `VALIDATION_ERROR`. Para cambiar una tarea de día, se borra y se crea de nuevo.
 - **RF-14** — Si un usuario intenta completar, desmarcar, editar o borrar una tarea cuya fecha es anterior al día actual, entonces el sistema deberá rechazar la petición con el error `DAY_CLOSED`.
   - *Ejemplo:* día actual 2026-10-24 → completar una tarea del 2026-10-23 responde `DAY_CLOSED`; la misma tarea se sigue pudiendo consultar.
@@ -117,8 +126,9 @@ Los avisos son anticipados: solo incluyen tareas pendientes que aún se pueden c
   - *Ejemplo:* 2026-10-29 a las 22:00, con tareas pendientes el 29 y el 31 → aviso mensual con ambas; `periodStart` 2026-10-01 y `periodEnd` 2026-10-31. En febrero de 2027 se dispara el 26.
 - **RF-27** — Si en el momento de disparo el usuario no tiene tareas pendientes en el periodo, entonces el sistema deberá omitir el aviso de ese periodo.
 - **RF-28** — El sistema deberá registrar como máximo un aviso de cada tipo por usuario y periodo.
-- **RF-29** — Cuando un usuario consulta sus avisos, el sistema deberá devolverlos ordenados del más reciente al más antiguo.
-- **RF-30** — Cuando un usuario completa una tarea incluida en un aviso ya registrado, el sistema deberá [NEEDS CLARIFICATION: ¿mantener el aviso tal cual como histórico, quitar la tarea del aviso o marcar el aviso como resuelto?].
+- **RF-29** — Cuando un usuario consulta sus avisos, el sistema deberá devolverlos ordenados del más reciente al más antiguo y paginados (RF-39).
+- **RF-30** — Cuando un usuario completa, desmarca o borra una tarea incluida en un aviso ya registrado, el sistema deberá mantener el aviso sin cambios, con el `id`, el título y la fecha que tenía cada tarea en el momento del aviso.
+  - *Ejemplo:* aviso semanal del viernes 2026-10-23 con 3 tareas; el sábado el usuario completa una y borra otra → el aviso sigue mostrando las 3 tareas con los datos del viernes.
 
 ## Contrato de la API
 
@@ -127,11 +137,11 @@ Los avisos son anticipados: solo incluyen tareas pendientes que aún se pueden c
 | Método | Ruta | Descripción | RF |
 | :--- | :--- | :--- | :--- |
 | POST | `/tasks` | Crear una tarea | RF-03 a RF-07 |
-| GET | `/tasks` | Consultar tareas (de un día o todas, con filtro de estado) | RF-08 a RF-10 |
+| GET | `/tasks` | Consultar tareas (de un día o todas, con filtros de estado y rango, paginadas) | RF-08 a RF-10, RF-39 a RF-43 |
 | PATCH | `/tasks/{id}` | Editar, completar o desmarcar una tarea | RF-11 a RF-14, RF-16, RF-37 |
 | DELETE | `/tasks/{id}` | Borrar una tarea | RF-15, RF-16 |
 | GET | `/streak` | Consultar la racha actual y la mejor racha | RF-17 a RF-23 |
-| GET | `/alerts` | Consultar los avisos | RF-24 a RF-30 |
+| GET | `/alerts` | Consultar los avisos, paginados | RF-24 a RF-30, RF-39, RF-42 |
 
 Todas las peticiones requieren las cabeceras `X-User-Id` (RF-01, RF-02), `X-Client-Time` y `X-Timezone` (RF-23, RF-31 a RF-34).
 
@@ -159,7 +169,7 @@ Todas las respuestas, de éxito o de error, usan uno de estos dos sobres. En cad
 }
 ```
 
-`data` es un objeto, un array (en las listas) o `null` (cuando no hay nada que devolver).
+`data` es un objeto, `null` (cuando no hay nada que devolver) o, en las listas, un objeto paginado con `items`, `page`, `pageSize`, `totalItems` y `totalPages` (RF-39).
 
 **Error:**
 
@@ -214,8 +224,8 @@ En `VALIDATION_ERROR`, `error` incluye además `details`:
 
 | Campo | Tipo | Obligatorio | Restricciones |
 | :--- | :--- | :--- | :--- |
-| `title` | string | Sí | No vacío tras recortar espacios; longitud máxima según RF-04 |
-| `description` | string \| null | No | Longitud máxima según RF-05 |
+| `title` | string | Sí | 1–200 caracteres tras recortar espacios (RF-04, RF-38) |
+| `description` | string \| null | No | 0–1000 caracteres tras recortar espacios; vacía se guarda como `null` (RF-05, RF-38) |
 | `date` | string | Sí | Día válido `AAAA-MM-DD`; restricción de pasado/futuro según RF-07 |
 
 **Respuestas:**
@@ -241,27 +251,37 @@ En `VALIDATION_ERROR`, `error` incluye además `details`:
 
 | Parámetro | Tipo | Obligatorio | Restricciones |
 | :--- | :--- | :--- | :--- |
-| `date` | string | No | Día válido `AAAA-MM-DD`. Si se envía, solo devuelve las tareas de ese día |
+| `date` | string | No | Día válido `AAAA-MM-DD`. Si se envía, solo devuelve las tareas de ese día. No se combina con `from`/`to` (RF-43) |
+| `from` | string | No | Día válido `AAAA-MM-DD`, inclusivo (RF-40) |
+| `to` | string | No | Día válido `AAAA-MM-DD`, inclusivo; no anterior a `from` (RF-40, RF-43) |
 | `status` | string | No | `all` (por defecto), `completed`, `pending` |
+| `page` | integer | No | ≥ 1; por defecto 1 (RF-39, RF-42) |
+| `pageSize` | integer | No | 1–100; por defecto 50 (RF-39, RF-42) |
 
-[NEEDS CLARIFICATION: parámetros de rango de fechas y paginación, ver RF-09.]
+Orden: fecha ascendente y, dentro de cada fecha, orden de creación (RF-41).
 
 **Respuestas:**
-- `200 OK` → `data`: array de recursos `Task` (vacío si no hay tareas).
+- `200 OK` → `data`: página de recursos `Task` (RF-39).
 
 ```json
 {
   "success": true,
   "status": 200,
   "message": "Operación realizada con éxito",
-  "data": [
-    { "id": "…", "title": "Comprar pan", "description": null, "date": "2026-10-24", "completed": true, "createdAt": "…", "updatedAt": "…" },
-    { "id": "…", "title": "Llamar al banco", "description": null, "date": "2026-10-24", "completed": false, "createdAt": "…", "updatedAt": "…" }
-  ]
+  "data": {
+    "items": [
+      { "id": "…", "title": "Comprar pan", "description": null, "date": "2026-10-24", "completed": true, "createdAt": "…", "updatedAt": "…" },
+      { "id": "…", "title": "Llamar al banco", "description": null, "date": "2026-10-24", "completed": false, "createdAt": "…", "updatedAt": "…" }
+    ],
+    "page": 1,
+    "pageSize": 50,
+    "totalItems": 2,
+    "totalPages": 1
+  }
 }
 ```
 
-- `400 Bad Request` → `VALIDATION_ERROR` (fecha o estado no válidos).
+- `400 Bad Request` → `VALIDATION_ERROR` (fecha, rango, estado o paginación no válidos).
 - `400 Bad Request` → `INVALID_CLIENT_TIME` o `INVALID_TIMEZONE`.
 - `401 Unauthorized` → `MISSING_USER`.
 
@@ -275,8 +295,8 @@ En `VALIDATION_ERROR`, `error` incluye además `details`:
 
 | Campo | Tipo | Obligatorio | Restricciones |
 | :--- | :--- | :--- | :--- |
-| `title` | string | No | Mismas reglas que en la creación |
-| `description` | string \| null | No | Mismas reglas que en la creación; `null` la borra |
+| `title` | string | No | 1–200 caracteres tras recortar espacios (RF-04, RF-38) |
+| `description` | string \| null | No | 0–1000 caracteres tras recortar espacios; `null` o vacía la borra (RF-05, RF-38) |
 | `completed` | boolean | No | Pasar a `false` según RF-12 |
 
 Cualquier otro campo, incluido `date`, responde `VALIDATION_ERROR` (RF-37).
@@ -327,29 +347,47 @@ Cualquier otro campo, incluido `date`, responde `VALIDATION_ERROR` (RF-37).
 
 ### GET `/alerts`
 
+**Query:**
+
+| Parámetro | Tipo | Obligatorio | Restricciones |
+| :--- | :--- | :--- | :--- |
+| `page` | integer | No | ≥ 1; por defecto 1 (RF-39, RF-42) |
+| `pageSize` | integer | No | 1–100; por defecto 50 (RF-39, RF-42) |
+
+Orden: del más reciente al más antiguo (RF-29).
+
 **Respuestas:**
-- `200 OK` → `data`: array de avisos (vacío si no hay avisos).
+- `200 OK` → `data`: página de avisos (RF-39).
 
 ```json
 {
   "success": true,
   "status": 200,
   "message": "Operación realizada con éxito",
-  "data": [
-    {
-      "id": "…",
-      "type": "daily",
-      "periodStart": "2026-10-24",
-      "periodEnd": "2026-10-24",
-      "tasks": [ { "id": "…", "title": "Llamar al banco", "date": "2026-10-24" } ],
-      "createdAt": "2026-10-24T22:00:00Z"
-    }
-  ]
+  "data": {
+    "items": [
+      {
+        "id": "…",
+        "type": "daily",
+        "periodStart": "2026-10-24",
+        "periodEnd": "2026-10-24",
+        "tasks": [ { "id": "…", "title": "Llamar al banco", "date": "2026-10-24" } ],
+        "createdAt": "2026-10-24T22:00:00Z"
+      }
+    ],
+    "page": 1,
+    "pageSize": 50,
+    "totalItems": 1,
+    "totalPages": 1
+  }
 }
 ```
 
 `type`: `daily`, `weekly` o `monthly`. `periodStart` y `periodEnd` delimitan el día, la semana o el mes del aviso.
 
+`tasks` es una copia de las tareas pendientes en el momento del aviso, no su estado actual (RF-30). Para el estado actual se usa `GET /tasks`.
+
+- `400 Bad Request` → `VALIDATION_ERROR` (paginación no válida).
 - `400 Bad Request` → `INVALID_CLIENT_TIME` o `INVALID_TIMEZONE`.
 - `401 Unauthorized` → `MISSING_USER`.
 
@@ -359,7 +397,7 @@ Todos se devuelven con el sobre de error. `details` solo aparece en `VALIDATION_
 
 | Código | HTTP | Cuándo |
 | :--- | :--- | :--- |
-| `VALIDATION_ERROR` | 400 | Cuerpo, parámetros o query no válidos, incluido un cuerpo con JSON mal formado (RF-04 a RF-06, RF-10, RF-37) |
+| `VALIDATION_ERROR` | 400 | Cuerpo, parámetros o query no válidos, incluido un cuerpo con JSON mal formado (RF-04 a RF-06, RF-10, RF-37, RF-42, RF-43) |
 | `INVALID_CLIENT_TIME` | 400 | Falta `X-Client-Time`, tiene mal formato o se desvía más de 5 minutos del reloj del sistema (RF-31) |
 | `INVALID_TIMEZONE` | 400 | Falta `X-Timezone`, no es una zona IANA válida o no coincide con el desfase de `X-Client-Time` (RF-32, RF-33) |
 | `MISSING_USER` | 401 | Falta la cabecera `X-User-Id` o está vacía (RF-01) |
@@ -370,25 +408,34 @@ Todos se devuelven con el sobre de error. `details` solo aparece en `VALIDATION_
 
 ## Requisitos no funcionales (RNF-xx, sin tecnología)
 
-- **RNF-01** — Tiempo de respuesta de cualquier endpoint. [NEEDS CLARIFICATION: ¿objetivo? Propuesta: el 95 % de las peticiones en menos de 300 ms con hasta 10 000 tareas por usuario.]
+- **RNF-01** — El 95 % de las peticiones a cualquier endpoint responde en menos de 300 ms con un usuario de hasta 10 000 tareas, medido desde que la petición llega a la API hasta que sale la respuesta, sin contar la red del cliente.
 - **RNF-02** — Retraso máximo entre el momento de disparo de un aviso y su aparición en la consulta de avisos. [NEEDS CLARIFICATION: ¿objetivo? Propuesta: 5 minutos.]
 - **RNF-03** — El 100 % de las respuestas lleva el campo `message` en español, tanto en éxitos como en errores.
 
 ## Casos límite
 
 - Petición sin cabecera `X-User-Id` o con ella vacía → `MISSING_USER` (RF-01).
-- Usuario sin ninguna tarea → `GET /tasks` devuelve `200` con `data: []`; `GET /streak` devuelve `200` con `data: { "current": 0, "best": 0 }`.
+- Usuario sin ninguna tarea → `GET /tasks` devuelve `200` con `items: []`, `totalItems: 0` y `totalPages: 0`; `GET /streak` devuelve `200` con `data: { "current": 0, "best": 0 }`.
 - Ruta o método inexistente (ej. `GET /foo`, `PUT /tasks`) → `ROUTE_NOT_FOUND` con el sobre de error.
 - Cuerpo con JSON mal formado → `VALIDATION_ERROR` con el sobre de error.
 - Error inesperado del servidor → `INTERNAL_ERROR` con el sobre de error, sin exponer detalles internos.
 - Varias tareas completadas el mismo día cuentan como un único día productivo (RF-17).
 - La racha cruza meses y años: 2026-12-31 y 2027-01-01 productivos cuentan como 2 días consecutivos; en años bisiestos, el 29 de febrero es un día más de la secuencia.
 - Fecha inexistente, como `2026-02-30` → `VALIDATION_ERROR` (RF-06).
+- `pageSize=101` o `page=0` → `VALIDATION_ERROR` (RF-42).
+- `from` posterior a `to`, o `date` junto con `from` → `VALIDATION_ERROR` (RF-43).
+- `page` mayor que `totalPages` → `200` con `items: []` y los totales reales (RF-39).
+- Título de exactamente 200 caracteres → se acepta; de 201 → `VALIDATION_ERROR` (RF-04).
+- Descripción de exactamente 1000 caracteres → se acepta; de 1001 → `VALIDATION_ERROR` (RF-05).
+- Título con solo espacios → `VALIDATION_ERROR` (RF-04).
+- Texto con espacios al principio o al final → la respuesta lo devuelve ya recortado (RF-38).
 - `PATCH` sin ningún campo → `VALIDATION_ERROR`.
 - Marcar como completada una tarea que ya lo está → `200` sin cambios (idempotente).
 - Desmarcar una tarea que ya está pendiente → `200` sin cambios (idempotente).
 - `PATCH` con `date` → `VALIDATION_ERROR` (RF-37).
-- Desmarcar una tarea después de que haya aparecido en un aviso: el aviso ya registrado no cambia; el efecto de completar tareas sobre los avisos depende de RF-30.
+- Desmarcar una tarea después de que haya aparecido en un aviso → el aviso no cambia (RF-30).
+- Completar todas las tareas de un aviso → el aviso sigue igual (RF-30).
+- Borrar una tarea después de que haya aparecido en un aviso → el aviso la sigue mostrando con sus datos de entonces; `GET /tasks` ya no la devuelve y un `PATCH` sobre ella responde `TASK_NOT_FOUND` (RF-15, RF-16, RF-30).
 - Borrar la única tarea completada de un día pasado → `DAY_CLOSED`; la racha no cambia (RF-14, RF-22).
 - Completar una tarea de hoy a las 23:59 hora local se acepta; la misma petición a las 00:01 del día siguiente → `DAY_CLOSED` (RF-14, RF-23).
 - Petición a las 23:59 y siguiente a las 00:01 hora local: el día actual cambia entre ambas según `X-Client-Time` (RF-23).
@@ -414,6 +461,7 @@ Todos se devuelven con el sobre de error. `details` solo aparece en `VALIDATION_
 - **CE-02** — El 100 % de los ejemplos de RF-17 a RF-21 devuelven la racha esperada.
 - **CE-03** — 0 casos en los que un usuario lea o modifique tareas, racha o avisos de otro usuario.
 - **CE-04** — Para cada periodo con tareas pendientes en el momento de disparo existe exactamente un aviso de su tipo, y para cada periodo sin pendientes no existe ninguno.
+- **CE-05** — En una prueba con un usuario de 10 000 tareas repartidas en 3 años, el 95 % de las peticiones a cada endpoint, incluido `GET /streak`, responde en menos de 300 ms (RNF-01).
 
 ## Supuestos
 
@@ -435,6 +483,10 @@ Todos se devuelven con el sobre de error. `details` solo aparece en `VALIDATION_
 - **2026-10-24** — ¿Cambios en días pasados (RF-07, RF-14, RF-22)? → Los días pasados quedan cerrados: no se pueden crear, completar, desmarcar, editar ni borrar sus tareas; error `DAY_CLOSED` (`409`). Los días futuros se aceptan sin límite (C).
 - **2026-10-24** — ¿Momento y contenido de los avisos (RF-24 a RF-26)? → Avisos anticipados con tareas aún completables: diario a las 22:00 con las pendientes de hoy; semanal el viernes a las 22:00 con las pendientes de viernes a domingo; mensual a las 22:00 del primero de los 3 últimos días del mes con las pendientes de esos 3 días. Semana de lunes a domingo (A).
 - **2026-10-24** — ¿Desmarcar y cambiar la fecha (RF-12, RF-13)? → Se puede desmarcar una tarea de hoy o futura; la fecha no se puede cambiar: en edición solo se aceptan `title`, `description` y `completed`, y cualquier otro campo responde `VALIDATION_ERROR` (B).
+- **2026-10-24** — ¿Qué pasa con un aviso si se completa una de sus tareas (RF-30)? → El aviso es histórico y no cambia al completar, desmarcar o borrar sus tareas; conserva el `id`, el título y la fecha de cada tarea en el momento del aviso (A).
+- **2026-10-24** — ¿Longitud máxima de título y descripción (RF-04, RF-05)? → Título 1–200 caracteres y descripción hasta 1000, contados tras recortar espacios; la descripción vacía se guarda como `null` (A).
+- **2026-10-24** — ¿Rango de fechas y paginación (RF-09)? → Listas de tareas y avisos paginadas dentro de `data` (`items`, `page`, `pageSize`, `totalItems`, `totalPages`; por defecto 50, máximo 100). Sustituye la decisión anterior de que en las listas `data` fuera el array. `GET /tasks` admite `from`/`to` inclusivos, no combinables con `date`; tareas ordenadas por fecha y creación; página fuera de rango → `items` vacío (B).
+- **2026-10-24** — ¿Tiempo de respuesta (RNF-01)? → El 95 % de las peticiones en menos de 300 ms con hasta 10 000 tareas por usuario, medido en la API sin la red del cliente; se añade CE-05 (A).
 
 ## Registro de cambios
 
@@ -445,3 +497,7 @@ Todos se devuelven con el sobre de error. `details` solo aparece en `VALIDATION_
 - **2026-10-24** — Clarificación 3 (días pasados): RF-07, RF-14 y RF-22 resueltos con la opción C; añadido `DAY_CLOSED` (`409`) al contrato y a la tabla de códigos; casos límite actualizados.
 - **2026-10-24** — Clarificación 4 (avisos): RF-24 a RF-26 resueltos con la opción A, con ejemplos; nuevos casos límite de avisos simultáneos y tareas creadas tras el disparo.
 - **2026-10-24** — Clarificación 5 (desmarcar y fecha): RF-12 y RF-13 resueltos con la opción B; añadido RF-37; quitado `date` del cuerpo de `PATCH`; nuevos casos límite.
+- **2026-10-24** — Clarificación 6 (avisos históricos): RF-30 resuelto con la opción A; nota en `GET /alerts` sobre la copia de tareas; casos límite actualizados.
+- **2026-10-24** — Clarificación 7 (longitudes): RF-04 y RF-05 resueltos con la opción A; añadido RF-38; límites en las tablas de `POST` y `PATCH`; casos límite de frontera.
+- **2026-10-24** — Clarificación 8 (paginación): RF-09 y RF-29 reescritos; añadidos RF-39 a RF-43; contrato de `GET /tasks` y `GET /alerts` con query de paginación y `data` paginado; sustituida la decisión de `data` como array en las listas; casos límite nuevos.
+- **2026-10-24** — Clarificación 9 (rendimiento): RNF-01 resuelto con la opción A; añadido CE-05.
