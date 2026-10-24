@@ -1,5 +1,5 @@
 # Feature: TaskApiSDD MVP — tareas diarias, rachas y avisos
-Rama: 001-taskApiSDD-mvp · Estado: Clarificada · Fecha: 2026-10-24
+Rama: 001-taskApiSDD-mvp · Estado: Aprobada · Fecha: 2026-10-24
 
 ## Contexto y objetivo
 
@@ -67,7 +67,7 @@ Como usuario, quiero que el sistema registre un aviso cuando tengo tareas pendie
 - **Escenarios:**
   - Dada una tarea pendiente para hoy, cuando llega el momento de disparo del aviso diario, entonces aparece un aviso diario con esa tarea.
   - Dado un día sin tareas pendientes, cuando llega el momento de disparo, entonces no se registra ningún aviso.
-- **RF:** RF-24 a RF-30, RF-35, RF-36.
+- **RF:** RF-24 a RF-30, RF-35, RF-36, RF-47.
 
 ## Requisitos funcionales (EARS, con ID RF-xx)
 
@@ -144,6 +144,8 @@ Los avisos son anticipados: solo incluyen tareas pendientes que aún se pueden c
   - *Ejemplo:* viernes 2026-10-23 a las 22:00, con tareas pendientes el 23, el 24 y el 25 → aviso semanal con las tres; `periodStart` 2026-10-19 y `periodEnd` 2026-10-25.
 - **RF-26** — Cuando son las 22:00 hora local del primero de los 3 últimos días del mes y el usuario tiene tareas pendientes con fecha en esos 3 días, el sistema deberá registrar un aviso mensual con esas tareas.
   - *Ejemplo:* 2026-10-29 a las 22:00, con tareas pendientes el 29 y el 31 → aviso mensual con ambas; `periodStart` 2026-10-01 y `periodEnd` 2026-10-31. En febrero de 2027 se dispara el 26.
+- **RF-47** — Si el sistema no estaba en funcionamiento en el momento de disparo de un aviso, entonces el sistema deberá registrarlo en cuanto vuelva a funcionar mientras su ventana siga abierta (diario: hasta el fin de ese día; semanal: hasta el fin del domingo; mensual: hasta el fin de mes), solo con las tareas pendientes de días que aún se pueden completar.
+  - *Ejemplo:* el servidor está parado de 21:50 a 23:15 del 2026-10-24 → a las 23:15 se registra el aviso diario con las tareas de ese día que sigan pendientes. Si vuelve a las 00:10 del 2026-10-25, el aviso diario del 24 se descarta.
 - **RF-27** — Si en el momento de disparo el usuario no tiene tareas pendientes en el periodo, entonces el sistema deberá omitir el aviso de ese periodo.
 - **RF-28** — El sistema deberá registrar como máximo un aviso de cada tipo por usuario y periodo.
 - **RF-29** — Cuando un usuario consulta sus avisos, el sistema deberá devolverlos ordenados del más reciente al más antiguo y paginados (RF-39).
@@ -162,7 +164,7 @@ Los avisos son anticipados: solo incluyen tareas pendientes que aún se pueden c
 | GET | `/tasks/{id}` | Consultar una tarea por su id | RF-16, RF-44 |
 | DELETE | `/tasks/{id}` | Borrar una tarea | RF-15, RF-16 |
 | GET | `/streak` | Consultar la racha actual y la mejor racha | RF-17 a RF-23 |
-| GET | `/alerts` | Consultar los avisos, paginados | RF-24 a RF-30, RF-35, RF-36, RF-39, RF-42 |
+| GET | `/alerts` | Consultar los avisos, paginados | RF-24 a RF-30, RF-35, RF-36, RF-39, RF-42, RF-47 |
 
 Todas las peticiones requieren las cabeceras `X-User-Id` (RF-01, RF-02), `X-Client-Time` y `X-Timezone` (RF-23, RF-31 a RF-34). Si una petición tiene varios fallos, se responde según la precedencia de RF-46.
 
@@ -450,7 +452,7 @@ Todos se devuelven con el sobre de error. `details` solo aparece en `VALIDATION_
 ## Requisitos no funcionales (RNF-xx, sin tecnología)
 
 - **RNF-01** — El 95 % de las peticiones a cualquier endpoint responde en menos de 300 ms con un usuario de hasta 10 000 tareas, medido desde que la petición llega a la API hasta que sale la respuesta, sin contar la red del cliente.
-- **RNF-02** — Todo aviso aparece en la consulta de avisos como máximo 5 minutos después de su momento de disparo (antes de las 22:05 hora local); su `createdAt` refleja el instante real en que se registró.
+- **RNF-02** — Mientras el sistema está en funcionamiento, todo aviso aparece en la consulta de avisos como máximo 5 minutos después de su momento de disparo (antes de las 22:05 hora local); su `createdAt` refleja el instante real en que se registró. Los avisos de un momento de disparo en que el sistema estaba parado se rigen por RF-47.
 - **RNF-03** — El 100 % de las respuestas lleva el campo `message` en español, tanto en éxitos como en errores.
 
 ## Casos límite
@@ -486,6 +488,7 @@ Todos se devuelven con el sobre de error. `details` solo aparece en `VALIDATION_
 - Usuario que viaja y cambia de zona: el día actual sigue a cada petición (RF-23) y los avisos pasan a usar la nueva zona desde su siguiente petición aceptada (RF-34, RF-35).
 - Noche del cambio de horario de verano: el fin del día para los avisos se calcula con la zona IANA, no con un desfase fijo (RF-35).
 - Usuario que nunca ha hecho una petición aceptada: no tiene zona recordada y no recibe avisos (RF-36).
+- Servidor parado durante el disparo del aviso semanal del viernes y de vuelta el sábado → se registra el aviso semanal solo con las tareas pendientes de sábado y domingo (RF-47).
 - Una semana que cruza dos meses genera su aviso semanal y no altera el mensual de ninguno de los dos meses.
 - Un mismo día puede generar a la vez aviso diario, semanal y mensual (ej. viernes 2027-02-26, que es además el primero de los 3 últimos días de febrero de 2027): son avisos independientes y una tarea puede aparecer en varios.
 - Tarea creada para hoy después de las 22:00 → no entra en el aviso diario ya registrado (RF-28).
@@ -512,7 +515,7 @@ Todos se devuelven con el sobre de error. `details` solo aparece en `VALIDATION_
 - **CE-01** — Un usuario nuevo puede crear una tarea, completarla y ver racha actual 1 con 3 peticiones.
 - **CE-02** — El 100 % de los ejemplos de RF-17 a RF-21 devuelven la racha esperada.
 - **CE-03** — 0 casos en los que un usuario lea o modifique tareas, racha o avisos de otro usuario.
-- **CE-04** — Para cada periodo con tareas pendientes en el momento de disparo existe exactamente un aviso de su tipo, registrado como máximo 5 minutos después del disparo, y para cada periodo sin pendientes no existe ninguno.
+- **CE-04** — Con el sistema en funcionamiento, para cada periodo con tareas pendientes en el momento de disparo existe exactamente un aviso de su tipo, registrado como máximo 5 minutos después del disparo, y para cada periodo sin pendientes no existe ninguno.
 - **CE-05** — En una prueba con un usuario de 10 000 tareas repartidas en 3 años, el 95 % de las peticiones a cada endpoint, incluido `GET /streak`, responde en menos de 300 ms (RNF-01).
 
 ## Supuestos
@@ -543,6 +546,9 @@ Todos se devuelven con el sobre de error. `details` solo aparece en `VALIDATION_
 - **2026-10-24** — ¿Qué queda fuera del MVP? → Fuera: tareas recurrentes, compartir tareas, categorías o etiquetas, prioridad, estadísticas más allá de la racha, hora límite dentro del día y borrar o marcar avisos. Dentro: consultar una tarea por su id.
 - **2026-10-24** — ¿Se pueden completar tareas de días futuros? (detectado en la revisión de QA) → No: solo se completan tareas del día actual; completar una futura responde `DAY_NOT_STARTED` (`409`). Las futuras se pueden crear, editar, borrar y consultar (A).
 - **2026-10-24** — ¿Qué error se devuelve si hay varios a la vez? (detectado en la revisión de QA) → Solo el primero en el orden `ROUTE_NOT_FOUND` → `MISSING_USER` → `INVALID_CLIENT_TIME` → `INVALID_TIMEZONE` → `VALIDATION_ERROR` (con todos los campos en `details`) → `TASK_NOT_FOUND` → `DAY_CLOSED`/`DAY_NOT_STARTED`; `INTERNAL_ERROR` fuera del orden (A).
+- **2026-10-24** — ¿Cuándo se considera "aceptada" una petición para recordar la zona (RF-34)? (detectado al planificar) → En cuanto `X-User-Id`, `X-Client-Time` y `X-Timezone` son válidas (pasos 2 a 4 de RF-46), aunque la petición falle después por `VALIDATION_ERROR`, `TASK_NOT_FOUND`, `DAY_CLOSED` o `DAY_NOT_STARTED` (A).
+- **2026-10-24** — ¿Qué pasa con un aviso cuyo momento de disparo coincide con una parada del servidor (RF-24 a RF-26)? (detectado al planificar) → Se recupera en cuanto el sistema vuelve a funcionar, siempre que la ventana del aviso siga abierta (diario: hasta el fin de ese día; semanal: hasta el fin del domingo; mensual: hasta el fin de mes), solo con tareas pendientes de días que aún se pueden completar y sin duplicar avisos (RF-28). Si la ventana ya terminó, el aviso se descarta (A).
+- **2026-10-24** — ¿Se acepta `Z` como desfase en `X-Client-Time` (RF-31)? (detectado al planificar) → No: el desfase debe ser siempre `±HH:MM`; una hora con `Z` se rechaza con `INVALID_CLIENT_TIME`. Un usuario en UTC envía `+00:00`.
 
 ## Registro de cambios
 
@@ -563,3 +569,8 @@ Todos se devuelven con el sobre de error. `details` solo aparece en `VALIDATION_
 - **2026-10-24** — Clarificación 12 (tareas futuras): añadido RF-45 y el código `DAY_NOT_STARTED` (`409`); escenario en HU-02; nuevo caso límite.
 - **2026-10-24** — Clarificación 13 (precedencia de errores): añadido RF-46; tabla de códigos con columna de orden; nota de RF transversales actualizada; nuevos casos límite.
 - **2026-10-24** — Revisión de QA 2: RF-46 citado en el contrato; escenario de HU-02 precisado ("tarea pendiente de hoy"). Todas las comprobaciones pasan; estado → *Clarificada*.
+- **2026-10-24** — Spec aprobada por el responsable del proyecto; estado → *Clarificada y Aprobada*.
+- **2026-10-24** — Añadidas a *Clarificaciones* dos decisiones detectadas al planificar: cuándo se recuerda la zona (RF-34) y recuperación de avisos tras una parada (RF-24 a RF-26).
+- **2026-10-24** — Añadida a *Clarificaciones* la decisión de exigir el desfase `±HH:MM` en `X-Client-Time` y rechazar `Z` (RF-31).
+- **2026-10-24** — Auditoría del plan (aprobado por el usuario): añadido RF-47 (recuperación de avisos tras una parada, antes solo en *Clarificaciones*); RNF-02 y CE-04 acotados a "mientras el sistema está en funcionamiento"; nuevo caso límite.
+- **2026-10-24** — Estado normalizado a *Aprobada*, uno de los valores de la plantilla (antes "Clarificada y Aprobada").

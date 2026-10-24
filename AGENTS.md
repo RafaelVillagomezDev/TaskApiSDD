@@ -146,7 +146,7 @@ sdd/
 ---
 
 ## 6. Al terminar cualquier tarea
-Ejecutar la suite de tests dentro del contenedor de desarrollo y confirma en tu respuesta que todo pasa .:
+Ejecutar la suite de tests dentro del contenedor de desarrollo y confirma en tu respuesta que todo pasa, salvo en las tareas que solo modifican ficheros `.md` (CONSTITUTION.md, principio III):
 
 ```bash
 docker compose -f docker-compose.dev.yml exec api pnpm test
@@ -156,5 +156,5 @@ docker compose -f docker-compose.dev.yml exec api pnpm test
 
 ## 7. Reglas
 - Lee `CONSTITUTION.md` y la spec activa (`sdd/[NNN]-[funcionalidad]/spec.md`) antes de tocar código.
-- No añadas dependencias ni cambies el formato del JSON sin actualizar antes la spec.
+- No añadas dependencias sin justificarlas antes en el `plan.md` de la funcionalidad (CONSTITUTION.md, principio I), ni cambies el formato del JSON sin actualizar antes la spec.
 - No modifiques ningún `spec.md` dentro de `sdd/` salvo petición explícita.

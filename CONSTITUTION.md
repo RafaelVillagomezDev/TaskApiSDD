@@ -1,6 +1,6 @@
 # CONSTITUTION.md — TaskApiSDD
 
-- **Versión:** 1.3.0
+- **Versión:** 1.5.0
 - **Ratificada:** 2026-10-23
 - **Última enmienda:** 2026-10-24
 
@@ -40,8 +40,8 @@ Prohibido cambiar el esquema de la base de datos fuera de una migración de Pris
 - `domain/` no importa Express, Prisma, Zod ni ningún otro framework.
 - `application/` importa solo de `domain/` y de `src/shared/`.
 - Toda entrada externa (body, params, query) se valida con un schema Zod en `infrastructure/` antes de llegar a `application/`.
-- Un módulo no importa ficheros internos de otro módulo.
-- **Verificable:** buscar `express`, `@prisma/client` o `zod` dentro de cualquier `domain/` o `application/` no devuelve resultados, y ninguna ruta llega a un controlador sin pasar por un schema.
+- Un módulo no importa ficheros internos de otro módulo: solo su fachada pública `[entidad].facade.ts` (en singular según `AGENTS.md`; ej. `task.facade.ts` en `modules/tasks/`), que expone los casos de uso que otros módulos pueden usar.
+- **Verificable:** buscar `express`, `@prisma/client` o `zod` dentro de cualquier `domain/` o `application/` no devuelve resultados, ninguna ruta llega a un controlador sin pasar por un schema, y ningún módulo importa `domain/`, `application/` ni `infrastructure/` de otro módulo.
 - **Excepción:** `src/shared/` puede ser importado desde cualquier capa de cualquier módulo.
 - **Por qué:** las reglas de rachas deben poder probarse con Jest sin levantar base de datos ni servidor HTTP.
 
@@ -58,7 +58,7 @@ Prohibido que un endpoint responda con un cuerpo distinto de estos dos sobres:
 
 `status` siempre coincide con el código HTTP de la respuesta. `error.details` solo aparece en los errores de validación. Lo que cambia entre endpoints es solo el contenido de `data`. Las rutas inexistentes, los cuerpos mal formados y los errores inesperados también responden con el sobre de error.
 - **Verificable:** todo ejemplo de respuesta en una `spec.md` y toda respuesta comprobada en los tests de los controladores usa uno de los dos sobres.
-- **Excepción:** ninguna. Por eso ningún endpoint responde `204 No Content`, que no admite cuerpo.
+- **Excepción:** las respuestas a `HEAD` no llevan cuerpo, por norma de HTTP. Fuera de eso, ninguna: por eso ningún endpoint responde `204 No Content`, que no admite cuerpo.
 - **Por qué:** el cliente procesa todas las respuestas con el mismo código, sin casos especiales por endpoint.
 
 ---
