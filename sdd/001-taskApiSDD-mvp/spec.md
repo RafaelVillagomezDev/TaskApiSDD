@@ -1,11 +1,13 @@
 # Feature: TaskApiSDD MVP — tareas diarias, rachas y avisos
-Rama: 001-taskApiSDD-mvp · Estado: Borrador · Fecha: 2026-10-24
+Rama: 001-taskApiSDD-mvp · Estado: Clarificada · Fecha: 2026-10-24
 
 ## Contexto y objetivo
 
 Quien organiza su trabajo en tareas diarias pierde la constancia porque no ve si está cumpliendo día a día ni se entera a tiempo de lo que se le va a quedar sin hacer. El MVP permite registrar tareas por día, ver cuáles están hechas, medir la constancia como racha de días productivos consecutivos y avisar de las tareas que van a quedar pendientes al cerrar el día, la semana y el mes.
 
 ## Historias de usuario (con prioridad y prueba independiente)
+
+RF-01, RF-02, RF-31 a RF-34 y RF-46 (identificación del usuario, hora local, zona horaria y precedencia de errores) son transversales: aplican a todas las historias.
 
 ### HU-01 — Planificar y consultar las tareas de un día (P1)
 Como usuario, quiero crear tareas para un día concreto y consultarlas, para saber qué tengo que hacer ese día.
@@ -15,14 +17,19 @@ Como usuario, quiero crear tareas para un día concreto y consultarlas, para sab
   - Dado un usuario sin tareas, cuando crea la tarea "Comprar pan" para 2026-10-24, entonces la consulta de 2026-10-24 devuelve esa tarea como pendiente.
   - Dado un usuario con tareas los días 2026-10-24 y 2026-10-25, cuando consulta 2026-10-24, entonces solo recibe las tareas de ese día.
   - Dado un usuario, cuando intenta crear una tarea sin título, entonces la petición se rechaza con un error de validación.
+- **RF:** RF-03 a RF-08, RF-38.
 
 ### HU-02 — Completar tareas (P1)
 Como usuario, quiero marcar una tarea como completada, para registrar mi progreso.
 - **Por qué P1:** completar tareas es lo que alimenta la racha.
 - **Prueba independiente:** marcar una tarea como completada y consultarla devuelve su estado completada.
 - **Escenarios:**
-  - Dada una tarea pendiente, cuando el usuario la marca como completada, entonces la consulta la devuelve completada.
+  - Dada una tarea pendiente de hoy, cuando el usuario la marca como completada, entonces la consulta la devuelve completada.
   - Dada una tarea de otro usuario, cuando el usuario intenta completarla, entonces recibe "tarea no encontrada".
+  - Dada una tarea de hoy completada, cuando el usuario la desmarca, entonces vuelve a estar pendiente.
+  - Dada una tarea de un día pasado, cuando el usuario intenta completarla, entonces la petición se rechaza porque el día está cerrado.
+  - Dada una tarea de mañana, cuando el usuario intenta completarla, entonces la petición se rechaza porque el día aún no ha empezado.
+- **RF:** RF-11, RF-12, RF-14, RF-16, RF-45.
 
 ### HU-03 — Ver mi racha actual y mi mejor racha (P1)
 Como usuario, quiero ver cuántos días consecutivos llevo siendo productivo y cuál ha sido mi mejor racha, para mantener la constancia.
@@ -31,6 +38,7 @@ Como usuario, quiero ver cuántos días consecutivos llevo siendo productivo y c
 - **Escenarios:**
   - Dado un usuario sin tareas completadas, cuando consulta su racha, entonces recibe racha actual 0 y mejor racha 0.
   - Dado un usuario con al menos una tarea completada en cada día de 2026-10-20 a 2026-10-23, y hoy 2026-10-23, cuando consulta su racha, entonces recibe racha actual 4.
+- **RF:** RF-17 a RF-23.
 
 ### HU-04 — Consultar todas mis tareas por estado (P2)
 Como usuario, quiero consultar todas mis tareas y distinguir las realizadas de las pendientes, para tener una visión global.
@@ -39,6 +47,8 @@ Como usuario, quiero consultar todas mis tareas y distinguir las realizadas de l
 - **Escenarios:**
   - Dado un usuario con 3 tareas completadas y 2 pendientes en días distintos, cuando consulta todas sus tareas, entonces recibe las 5, cada una con su estado.
   - Dado el mismo usuario, cuando filtra por pendientes, entonces recibe solo las 2 pendientes.
+  - Dada una tarea existente, cuando el usuario la consulta por su id, entonces recibe esa tarea con su estado.
+- **RF:** RF-09, RF-10, RF-39 a RF-44.
 
 ### HU-05 — Editar y borrar tareas (P2)
 Como usuario, quiero corregir o eliminar tareas, para que mi lista refleje lo que realmente quiero hacer.
@@ -47,6 +57,8 @@ Como usuario, quiero corregir o eliminar tareas, para que mi lista refleje lo qu
 - **Escenarios:**
   - Dada una tarea "Comprar pan", cuando el usuario cambia el título a "Comprar pan integral", entonces la consulta devuelve el nuevo título.
   - Dada una tarea existente, cuando el usuario la borra, entonces deja de aparecer en cualquier consulta.
+  - Dada una tarea de un día pasado, cuando el usuario intenta editarla o borrarla, entonces la petición se rechaza porque el día está cerrado.
+- **RF:** RF-13 a RF-16, RF-37.
 
 ### HU-06 — Recibir avisos de tareas que van a quedar sin completar (P3)
 Como usuario, quiero que el sistema registre un aviso cuando tengo tareas pendientes a punto de cerrar el día, la semana o el mes, para reaccionar a tiempo.
@@ -55,11 +67,12 @@ Como usuario, quiero que el sistema registre un aviso cuando tengo tareas pendie
 - **Escenarios:**
   - Dada una tarea pendiente para hoy, cuando llega el momento de disparo del aviso diario, entonces aparece un aviso diario con esa tarea.
   - Dado un día sin tareas pendientes, cuando llega el momento de disparo, entonces no se registra ningún aviso.
+- **RF:** RF-24 a RF-30, RF-35, RF-36.
 
 ## Requisitos funcionales (EARS, con ID RF-xx)
 
 ### Identificación del usuario
-- **RF-01** — Si una petición no incluye el identificador de usuario, entonces el sistema deberá rechazarla con el error `MISSING_USER`.
+- **RF-01** — Si una petición no incluye la cabecera `X-User-Id` o la incluye vacía, entonces el sistema deberá rechazarla con el error `MISSING_USER`.
 - **RF-02** — El sistema deberá limitar cada operación a las tareas, la racha y los avisos del usuario identificado en la petición.
 
 ### Hora local y zona horaria del usuario
@@ -71,14 +84,18 @@ Como usuario, quiero que el sistema registre un aviso cuando tengo tareas pendie
 - **RF-35** — El sistema deberá calcular el fin del día, de la semana y del mes de cada usuario para los avisos según su última zona horaria recordada, incluidos los cambios de horario de verano.
 - **RF-36** — Mientras un usuario no tenga ninguna zona horaria recordada, el sistema deberá omitir sus avisos.
 
+### Precedencia de errores
+- **RF-46** — Si una petición incumple varias reglas a la vez, entonces el sistema deberá responder solo con el primer error de este orden: `ROUTE_NOT_FOUND`, `MISSING_USER`, `INVALID_CLIENT_TIME`, `INVALID_TIMEZONE`, `VALIDATION_ERROR` (con todos los campos erróneos en `details`), `TASK_NOT_FOUND`, y `DAY_CLOSED` o `DAY_NOT_STARTED`.
+  - *Ejemplo:* `POST /tasks` sin `X-User-Id`, con el reloj desviado y con fecha pasada → `401 MISSING_USER`. Fecha pasada y título de 300 caracteres → `VALIDATION_ERROR`, no `DAY_CLOSED`. `PATCH` con `date` sobre una tarea de otro usuario → `VALIDATION_ERROR`, no `TASK_NOT_FOUND`.
+
 ### Tareas
-- **RF-03** — Cuando un usuario crea una tarea con título y fecha válidos, el sistema deberá registrarla como pendiente, asociada a ese usuario y a ese día.
+- **RF-03** — Cuando un usuario crea una tarea con título válido y fecha igual o posterior al día actual, sin límite hacia el futuro, el sistema deberá registrarla como pendiente, asociada a ese usuario y a ese día.
 - **RF-04** — Si el título, tras recortar los espacios del principio y del final, está vacío o tiene más de 200 caracteres, entonces el sistema deberá rechazar la petición con el error `VALIDATION_ERROR`.
 - **RF-05** — Si la descripción, tras recortar los espacios del principio y del final, tiene más de 1000 caracteres, entonces el sistema deberá rechazar la petición con el error `VALIDATION_ERROR`.
 - **RF-38** — El sistema deberá guardar el título y la descripción sin los espacios del principio y del final, y una descripción vacía o con solo espacios como `null`.
   - *Ejemplo:* `"  Comprar pan  "` se guarda como `"Comprar pan"`; la descripción `"   "` se guarda como `null`.
 - **RF-06** — Si la fecha no es un día de calendario válido en formato `AAAA-MM-DD`, entonces el sistema deberá rechazar la petición con el error `VALIDATION_ERROR`.
-- **RF-07** — Si la fecha de una tarea nueva es anterior al día actual, entonces el sistema deberá rechazar la petición con el error `DAY_CLOSED`. Las fechas del día actual y de días futuros se aceptan sin límite.
+- **RF-07** — Si la fecha de una tarea nueva es anterior al día actual, entonces el sistema deberá rechazar la petición con el error `DAY_CLOSED`.
   - *Ejemplo:* día actual 2026-10-24 → crear para 2026-10-23 responde `DAY_CLOSED`; crear para 2026-10-24 o para 2027-03-01 se acepta.
 - **RF-08** — Cuando un usuario consulta sus tareas de un día, el sistema deberá devolver todas sus tareas de ese día con su estado.
 - **RF-09** — Cuando un usuario consulta sus tareas sin indicar día, el sistema deberá devolver sus tareas con su estado, paginadas (RF-39) y opcionalmente acotadas por rango de fechas (RF-40).
@@ -94,9 +111,12 @@ Como usuario, quiero que el sistema registre un aviso cuando tengo tareas pendie
   - *Ejemplo:* `from=2026-10-20&to=2026-10-24` → tareas del 20 al 24, ambos incluidos.
 - **RF-43** — Si `from` es posterior a `to`, o la consulta combina `date` con `from` o `to`, entonces el sistema deberá rechazar la petición con el error `VALIDATION_ERROR`.
 - **RF-41** — El sistema deberá ordenar las listas de tareas por fecha ascendente y, dentro de cada fecha, por orden de creación.
+- **RF-44** — Cuando un usuario consulta una tarea por su id, el sistema deberá devolverla con su estado, también si su fecha es anterior al día actual.
 - **RF-37** — Si una petición de edición incluye un campo distinto de `title`, `description` o `completed`, incluido `date`, entonces el sistema deberá rechazarla con el error `VALIDATION_ERROR`. Para cambiar una tarea de día, se borra y se crea de nuevo.
 - **RF-14** — Si un usuario intenta completar, desmarcar, editar o borrar una tarea cuya fecha es anterior al día actual, entonces el sistema deberá rechazar la petición con el error `DAY_CLOSED`.
   - *Ejemplo:* día actual 2026-10-24 → completar una tarea del 2026-10-23 responde `DAY_CLOSED`; la misma tarea se sigue pudiendo consultar.
+- **RF-45** — Si un usuario intenta marcar como completada una tarea cuya fecha es posterior al día actual, entonces el sistema deberá rechazar la petición con el error `DAY_NOT_STARTED`.
+  - *Ejemplo:* día actual 2026-10-24 → completar una tarea del 2026-10-25 responde `DAY_NOT_STARTED`; editar su título o borrarla se acepta.
 - **RF-15** — Cuando un usuario borra una tarea, el sistema deberá dejar de devolverla en cualquier consulta.
 - **RF-16** — Si la tarea indicada no existe o pertenece a otro usuario, entonces el sistema deberá responder con el error `TASK_NOT_FOUND`.
 
@@ -114,7 +134,7 @@ Como usuario, quiero que el sistema registre un aviso cuando tengo tareas pendie
 - **RF-22** — El sistema deberá mantener sin cambios la productividad de todo día anterior al día actual, ya que sus tareas no se pueden modificar (RF-07, RF-14).
   - *Ejemplo:* el 2026-10-22 terminó sin tareas completadas → seguirá siendo no productivo para siempre, y las rachas que lo atraviesan no cambian.
 - **RF-23** — El sistema deberá tomar como día actual del usuario la fecha local indicada en la cabecera `X-Client-Time` de la petición.
-  - *Ejemplo:* con `X-Client-Time: 2026-10-24T23:30:00+02:00`, el día actual es 2026-10-24 aunque en UTC ya sean las 21:30 del mismo día; con `2026-10-25T00:10:00+02:00`, el día actual es 2026-10-25.
+  - *Ejemplo:* con `X-Client-Time: 2026-10-25T01:30:00+02:00`, el día actual es 2026-10-25 aunque en UTC aún sean las 23:30 del 2026-10-24.
 
 ### Avisos
 Los avisos son anticipados: solo incluyen tareas pendientes que aún se pueden completar. La semana va de lunes a domingo. Todas las horas son locales según la zona recordada del usuario (RF-35).
@@ -136,14 +156,15 @@ Los avisos son anticipados: solo incluyen tareas pendientes que aún se pueden c
 
 | Método | Ruta | Descripción | RF |
 | :--- | :--- | :--- | :--- |
-| POST | `/tasks` | Crear una tarea | RF-03 a RF-07 |
+| POST | `/tasks` | Crear una tarea | RF-03 a RF-07, RF-38 |
 | GET | `/tasks` | Consultar tareas (de un día o todas, con filtros de estado y rango, paginadas) | RF-08 a RF-10, RF-39 a RF-43 |
-| PATCH | `/tasks/{id}` | Editar, completar o desmarcar una tarea | RF-11 a RF-14, RF-16, RF-37 |
+| PATCH | `/tasks/{id}` | Editar, completar o desmarcar una tarea | RF-11 a RF-14, RF-16, RF-37, RF-38, RF-45 |
+| GET | `/tasks/{id}` | Consultar una tarea por su id | RF-16, RF-44 |
 | DELETE | `/tasks/{id}` | Borrar una tarea | RF-15, RF-16 |
 | GET | `/streak` | Consultar la racha actual y la mejor racha | RF-17 a RF-23 |
-| GET | `/alerts` | Consultar los avisos, paginados | RF-24 a RF-30, RF-39, RF-42 |
+| GET | `/alerts` | Consultar los avisos, paginados | RF-24 a RF-30, RF-35, RF-36, RF-39, RF-42 |
 
-Todas las peticiones requieren las cabeceras `X-User-Id` (RF-01, RF-02), `X-Client-Time` y `X-Timezone` (RF-23, RF-31 a RF-34).
+Todas las peticiones requieren las cabeceras `X-User-Id` (RF-01, RF-02), `X-Client-Time` y `X-Timezone` (RF-23, RF-31 a RF-34). Si una petición tiene varios fallos, se responde según la precedencia de RF-46.
 
 ### Convenciones
 - **Cabecera de usuario:** `X-User-Id`, cadena no vacía.
@@ -285,6 +306,24 @@ Orden: fecha ascendente y, dentro de cada fecha, orden de creación (RF-41).
 - `400 Bad Request` → `INVALID_CLIENT_TIME` o `INVALID_TIMEZONE`.
 - `401 Unauthorized` → `MISSING_USER`.
 
+### GET `/tasks/{id}`
+
+**Respuestas:**
+- `200 OK` → `data`: recurso `Task` (RF-44).
+
+```json
+{
+  "success": true,
+  "status": 200,
+  "message": "Operación realizada con éxito",
+  "data": { "id": "…", "title": "Comprar pan", "description": null, "date": "2026-10-24", "completed": false, "createdAt": "…", "updatedAt": "…" }
+}
+```
+
+- `400 Bad Request` → `INVALID_CLIENT_TIME` o `INVALID_TIMEZONE`.
+- `401 Unauthorized` → `MISSING_USER`.
+- `404 Not Found` → `TASK_NOT_FOUND` (RF-16).
+
 ### PATCH `/tasks/{id}`
 
 **Cuerpo** (al menos un campo):
@@ -308,6 +347,7 @@ Cualquier otro campo, incluido `date`, responde `VALIDATION_ERROR` (RF-37).
 - `401 Unauthorized` → `MISSING_USER`.
 - `404 Not Found` → `TASK_NOT_FOUND`.
 - `409 Conflict` → `DAY_CLOSED` (tarea de un día pasado, RF-14).
+- `409 Conflict` → `DAY_NOT_STARTED` (completar una tarea de un día futuro, RF-45).
 
 ### DELETE `/tasks/{id}`
 
@@ -393,23 +433,24 @@ Orden: del más reciente al más antiguo (RF-29).
 
 ### Códigos de error
 
-Todos se devuelven con el sobre de error. `details` solo aparece en `VALIDATION_ERROR`.
+Todos se devuelven con el sobre de error. `details` solo aparece en `VALIDATION_ERROR`, con todos los campos erróneos. Si una petición tiene varios fallos, se devuelve solo el de menor orden (RF-46). `INTERNAL_ERROR` queda fuera del orden: aparece en cualquier momento ante un fallo inesperado.
 
-| Código | HTTP | Cuándo |
-| :--- | :--- | :--- |
-| `VALIDATION_ERROR` | 400 | Cuerpo, parámetros o query no válidos, incluido un cuerpo con JSON mal formado (RF-04 a RF-06, RF-10, RF-37, RF-42, RF-43) |
-| `INVALID_CLIENT_TIME` | 400 | Falta `X-Client-Time`, tiene mal formato o se desvía más de 5 minutos del reloj del sistema (RF-31) |
-| `INVALID_TIMEZONE` | 400 | Falta `X-Timezone`, no es una zona IANA válida o no coincide con el desfase de `X-Client-Time` (RF-32, RF-33) |
-| `MISSING_USER` | 401 | Falta la cabecera `X-User-Id` o está vacía (RF-01) |
-| `TASK_NOT_FOUND` | 404 | La tarea no existe o es de otro usuario (RF-16) |
-| `ROUTE_NOT_FOUND` | 404 | La ruta o el método pedidos no existen en la API |
-| `DAY_CLOSED` | 409 | Se intenta crear una tarea en un día pasado o modificar o borrar una tarea de un día pasado (RF-07, RF-14) |
-| `INTERNAL_ERROR` | 500 | Error inesperado del servidor |
+| Orden | Código | HTTP | Cuándo |
+| :--- | :--- | :--- | :--- |
+| 1 | `ROUTE_NOT_FOUND` | 404 | La ruta o el método pedidos no existen en la API |
+| 2 | `MISSING_USER` | 401 | Falta la cabecera `X-User-Id` o está vacía (RF-01) |
+| 3 | `INVALID_CLIENT_TIME` | 400 | Falta `X-Client-Time`, tiene mal formato o se desvía más de 5 minutos del reloj del sistema (RF-31) |
+| 4 | `INVALID_TIMEZONE` | 400 | Falta `X-Timezone`, no es una zona IANA válida o no coincide con el desfase de `X-Client-Time` (RF-32, RF-33) |
+| 5 | `VALIDATION_ERROR` | 400 | Cuerpo, parámetros o query no válidos, incluido un cuerpo con JSON mal formado (RF-04 a RF-06, RF-10, RF-37, RF-42, RF-43) |
+| 6 | `TASK_NOT_FOUND` | 404 | La tarea no existe o es de otro usuario (RF-16) |
+| 7 | `DAY_CLOSED` | 409 | Se intenta crear una tarea en un día pasado o modificar o borrar una tarea de un día pasado (RF-07, RF-14) |
+| 7 | `DAY_NOT_STARTED` | 409 | Se intenta completar una tarea de un día futuro (RF-45) |
+| — | `INTERNAL_ERROR` | 500 | Error inesperado del servidor |
 
 ## Requisitos no funcionales (RNF-xx, sin tecnología)
 
 - **RNF-01** — El 95 % de las peticiones a cualquier endpoint responde en menos de 300 ms con un usuario de hasta 10 000 tareas, medido desde que la petición llega a la API hasta que sale la respuesta, sin contar la red del cliente.
-- **RNF-02** — Retraso máximo entre el momento de disparo de un aviso y su aparición en la consulta de avisos. [NEEDS CLARIFICATION: ¿objetivo? Propuesta: 5 minutos.]
+- **RNF-02** — Todo aviso aparece en la consulta de avisos como máximo 5 minutos después de su momento de disparo (antes de las 22:05 hora local); su `createdAt` refleja el instante real en que se registró.
 - **RNF-03** — El 100 % de las respuestas lleva el campo `message` en español, tanto en éxitos como en errores.
 
 ## Casos límite
@@ -435,8 +476,9 @@ Todos se devuelven con el sobre de error. `details` solo aparece en `VALIDATION_
 - `PATCH` con `date` → `VALIDATION_ERROR` (RF-37).
 - Desmarcar una tarea después de que haya aparecido en un aviso → el aviso no cambia (RF-30).
 - Completar todas las tareas de un aviso → el aviso sigue igual (RF-30).
-- Borrar una tarea después de que haya aparecido en un aviso → el aviso la sigue mostrando con sus datos de entonces; `GET /tasks` ya no la devuelve y un `PATCH` sobre ella responde `TASK_NOT_FOUND` (RF-15, RF-16, RF-30).
+- Borrar una tarea después de que haya aparecido en un aviso → el aviso la sigue mostrando con sus datos de entonces; `GET /tasks` ya no la devuelve, y `GET /tasks/{id}` o un `PATCH` sobre ella responden `TASK_NOT_FOUND` (RF-15, RF-16, RF-30).
 - Borrar la única tarea completada de un día pasado → `DAY_CLOSED`; la racha no cambia (RF-14, RF-22).
+- Tarea creada ayer para hoy: completarla hoy a las 00:01 hora local se acepta, porque ya es del día actual (RF-23, RF-45).
 - Completar una tarea de hoy a las 23:59 hora local se acepta; la misma petición a las 00:01 del día siguiente → `DAY_CLOSED` (RF-14, RF-23).
 - Petición a las 23:59 y siguiente a las 00:01 hora local: el día actual cambia entre ambas según `X-Client-Time` (RF-23).
 - Reloj del dispositivo desviado 6 minutos respecto al del sistema → `INVALID_CLIENT_TIME` (RF-31).
@@ -445,22 +487,32 @@ Todos se devuelven con el sobre de error. `details` solo aparece en `VALIDATION_
 - Noche del cambio de horario de verano: el fin del día para los avisos se calcula con la zona IANA, no con un desfase fijo (RF-35).
 - Usuario que nunca ha hecho una petición aceptada: no tiene zona recordada y no recibe avisos (RF-36).
 - Una semana que cruza dos meses genera su aviso semanal y no altera el mensual de ninguno de los dos meses.
-- Un mismo día puede generar a la vez aviso diario, semanal y mensual (ej. viernes 2026-10-30, que es además uno de los 3 últimos días de octubre): son avisos independientes y una tarea puede aparecer en varios.
+- Un mismo día puede generar a la vez aviso diario, semanal y mensual (ej. viernes 2027-02-26, que es además el primero de los 3 últimos días de febrero de 2027): son avisos independientes y una tarea puede aparecer en varios.
 - Tarea creada para hoy después de las 22:00 → no entra en el aviso diario ya registrado (RF-28).
+- Tarea completada entre las 22:00 y el instante real en que se registra el aviso → no entra en él: el aviso solo incluye las tareas pendientes al registrarse (RNF-02).
 - Identificador de tarea con formato extraño o inexistente → `TASK_NOT_FOUND` (RF-16).
+- `POST /tasks` sin `X-User-Id`, con el reloj desviado y con fecha pasada → `MISSING_USER` (RF-46).
+- Fecha pasada con título vacío → `VALIDATION_ERROR`, no `DAY_CLOSED` (RF-46).
+- Sin cabeceras de hora y con un id de tarea inexistente → `INVALID_CLIENT_TIME`, no `TASK_NOT_FOUND` (RF-46).
 
 ## Fuera de alcance
 
 - Autenticación real: registro, login, contraseñas y tokens (decisión 1B).
 - Avisos enviados fuera de la API (email, push, SMS); los avisos solo se consultan por la API (decisión 8A).
-- [NEEDS CLARIFICATION: ¿quedan fuera también las tareas recurrentes, compartir tareas, categorías o etiquetas, prioridad y estadísticas más allá de la racha?]
+- Tareas recurrentes: cambian cómo se crean las tareas y cómo se calcula la racha.
+- Compartir tareas con otros usuarios: requiere permisos entre usuarios y no hay autenticación real.
+- Categorías o etiquetas: no afectan a la racha ni a los avisos.
+- Prioridad de las tareas: no afecta a la racha ni a los avisos.
+- Estadísticas más allá de la racha actual y la mejor racha (porcentajes, gráficas, históricos).
+- Hora o fecha límite dentro del día: una tarea pertenece a un día entero y los avisos van por día, semana y mes.
+- Borrar avisos o marcarlos como leídos: los avisos son históricos y no cambian (RF-30).
 
 ## Criterios de éxito (CE-xx)
 
 - **CE-01** — Un usuario nuevo puede crear una tarea, completarla y ver racha actual 1 con 3 peticiones.
 - **CE-02** — El 100 % de los ejemplos de RF-17 a RF-21 devuelven la racha esperada.
 - **CE-03** — 0 casos en los que un usuario lea o modifique tareas, racha o avisos de otro usuario.
-- **CE-04** — Para cada periodo con tareas pendientes en el momento de disparo existe exactamente un aviso de su tipo, y para cada periodo sin pendientes no existe ninguno.
+- **CE-04** — Para cada periodo con tareas pendientes en el momento de disparo existe exactamente un aviso de su tipo, registrado como máximo 5 minutos después del disparo, y para cada periodo sin pendientes no existe ninguno.
 - **CE-05** — En una prueba con un usuario de 10 000 tareas repartidas en 3 años, el 95 % de las peticiones a cada endpoint, incluido `GET /streak`, responde en menos de 300 ms (RNF-01).
 
 ## Supuestos
@@ -487,6 +539,10 @@ Todos se devuelven con el sobre de error. `details` solo aparece en `VALIDATION_
 - **2026-10-24** — ¿Longitud máxima de título y descripción (RF-04, RF-05)? → Título 1–200 caracteres y descripción hasta 1000, contados tras recortar espacios; la descripción vacía se guarda como `null` (A).
 - **2026-10-24** — ¿Rango de fechas y paginación (RF-09)? → Listas de tareas y avisos paginadas dentro de `data` (`items`, `page`, `pageSize`, `totalItems`, `totalPages`; por defecto 50, máximo 100). Sustituye la decisión anterior de que en las listas `data` fuera el array. `GET /tasks` admite `from`/`to` inclusivos, no combinables con `date`; tareas ordenadas por fecha y creación; página fuera de rango → `items` vacío (B).
 - **2026-10-24** — ¿Tiempo de respuesta (RNF-01)? → El 95 % de las peticiones en menos de 300 ms con hasta 10 000 tareas por usuario, medido en la API sin la red del cliente; se añade CE-05 (A).
+- **2026-10-24** — ¿Retraso máximo de los avisos (RNF-02)? → Como máximo 5 minutos tras el disparo; `createdAt` es el instante real de registro; el aviso incluye las tareas pendientes en ese instante (A).
+- **2026-10-24** — ¿Qué queda fuera del MVP? → Fuera: tareas recurrentes, compartir tareas, categorías o etiquetas, prioridad, estadísticas más allá de la racha, hora límite dentro del día y borrar o marcar avisos. Dentro: consultar una tarea por su id.
+- **2026-10-24** — ¿Se pueden completar tareas de días futuros? (detectado en la revisión de QA) → No: solo se completan tareas del día actual; completar una futura responde `DAY_NOT_STARTED` (`409`). Las futuras se pueden crear, editar, borrar y consultar (A).
+- **2026-10-24** — ¿Qué error se devuelve si hay varios a la vez? (detectado en la revisión de QA) → Solo el primero en el orden `ROUTE_NOT_FOUND` → `MISSING_USER` → `INVALID_CLIENT_TIME` → `INVALID_TIMEZONE` → `VALIDATION_ERROR` (con todos los campos en `details`) → `TASK_NOT_FOUND` → `DAY_CLOSED`/`DAY_NOT_STARTED`; `INTERNAL_ERROR` fuera del orden (A).
 
 ## Registro de cambios
 
@@ -501,3 +557,9 @@ Todos se devuelven con el sobre de error. `details` solo aparece en `VALIDATION_
 - **2026-10-24** — Clarificación 7 (longitudes): RF-04 y RF-05 resueltos con la opción A; añadido RF-38; límites en las tablas de `POST` y `PATCH`; casos límite de frontera.
 - **2026-10-24** — Clarificación 8 (paginación): RF-09 y RF-29 reescritos; añadidos RF-39 a RF-43; contrato de `GET /tasks` y `GET /alerts` con query de paginación y `data` paginado; sustituida la decisión de `data` como array en las listas; casos límite nuevos.
 - **2026-10-24** — Clarificación 9 (rendimiento): RNF-01 resuelto con la opción A; añadido CE-05.
+- **2026-10-24** — Clarificación 10 (retraso de avisos): RNF-02 resuelto con la opción A; CE-04 ampliado; nuevo caso límite.
+- **2026-10-24** — Clarificación 11 (alcance): *Fuera de alcance* completado; añadidos RF-44, el endpoint `GET /tasks/{id}` y un escenario en HU-04.
+- **2026-10-24** — Revisión de QA 1, correcciones de redacción: trazabilidad HU → RF y nota de RF transversales; escenarios de desmarcar y día cerrado en HU-02 y HU-05; RF-01 cubre la cabecera vacía; la regla de fechas futuras pasa de RF-07 a RF-03; corregidos el ejemplo de RF-23 y el del caso límite de avisos simultáneos; completadas las referencias de la tabla de endpoints.
+- **2026-10-24** — Clarificación 12 (tareas futuras): añadido RF-45 y el código `DAY_NOT_STARTED` (`409`); escenario en HU-02; nuevo caso límite.
+- **2026-10-24** — Clarificación 13 (precedencia de errores): añadido RF-46; tabla de códigos con columna de orden; nota de RF transversales actualizada; nuevos casos límite.
+- **2026-10-24** — Revisión de QA 2: RF-46 citado en el contrato; escenario de HU-02 precisado ("tarea pendiente de hoy"). Todas las comprobaciones pasan; estado → *Clarificada*.
