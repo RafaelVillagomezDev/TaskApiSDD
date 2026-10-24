@@ -1,0 +1,20 @@
+#!/bin/sh
+# README vivo (CONSTITUTION.md, Gobierno 7): un commit que toca CONSTITUTION.md, AGENTS.md o sdd/
+# debe tocar también README.md. Activar una vez por clon: git config core.hooksPath .githooks
+
+watched=$(git diff --cached --name-only -- CONSTITUTION.md AGENTS.md sdd/)
+[ -z "$watched" ] && exit 0
+
+if git diff --cached --name-only -- README.md | grep -q .; then
+  exit 0
+fi
+
+{
+  echo "✖ README vivo (CONSTITUTION.md, Gobierno 7): este commit modifica:"
+  echo "$watched" | sed 's/^/    - /'
+  echo "  pero no actualiza README.md."
+  echo "  Revisa qué ha cambiado y actualiza las secciones afectadas del README:"
+  echo "    git diff \$(git log -1 --format=%H -- README.md) -- CONSTITUTION.md AGENTS.md sdd/"
+  echo "  Después: git add README.md y repite el commit."
+} >&2
+exit 1

@@ -33,6 +33,9 @@ El código fuente se organiza en módulos de negocio independientes bajo `src/mo
 ├── .env.prod                     # Variables de producción (no versionado), cargado por docker-compose.prod.yml
 ├── prisma/                       # schema.prisma y migraciones
 ├── tests/                        # Soporte común de tests: fakes (support/), setup de integración (integration/) y rendimiento (performance/)
+├── .githooks/                    # Hooks de git versionados (pre-commit: README vivo); activar con git config core.hooksPath .githooks
+├── .claude/settings.json         # Configuración de Claude Code del proyecto (hook que recuerda actualizar README.md)
+├── README.md                     # Documentación general del proyecto; se mantiene al día (CONSTITUTION.md, Gobierno 7)
 └── src/
     ├── shared/                   # Infraestructura global, errores base (AppError) y utilidades
     └── modules/
@@ -165,6 +168,23 @@ Ejecutar la suite de tests dentro del contenedor de desarrollo y confirma en tu 
 ```bash
 docker compose -f docker-compose.dev.yml exec api pnpm test
 ```
+
+### README vivo (CONSTITUTION.md, Gobierno 7)
+Si la tarea ha modificado `CONSTITUTION.md`, la estructura, los comandos o las convenciones de este fichero, o un `spec.md`, `plan.md` o `tasks.md` de `sdd/`, actualiza `README.md` **en el mismo cambio**:
+
+```bash
+# 1. Qué ha cambiado en los ficheros vigilados desde el último commit que tocó README.md
+git diff $(git log -1 --format=%H -- README.md) -- CONSTITUTION.md AGENTS.md sdd/
+# 2. Lo que aún no está commiteado
+git status --short CONSTITUTION.md AGENTS.md sdd/
+```
+
+3. Actualiza las secciones afectadas del README: estado del proyecto, endpoints, reglas de negocio, estructura de carpetas, comandos, convenciones, decisiones…
+4. Indica en tu respuesta qué secciones has cambiado y por qué.
+
+Dos hooks lo refuerzan:
+- **`.claude/settings.json`** (Claude Code): tras editar cualquiera de esos ficheros, inyecta al agente un recordatorio.
+- **`.githooks/pre-commit`** (git): rechaza el commit que toque esos ficheros sin tocar también `README.md`. Se activa una vez por clon con `git config core.hooksPath .githooks`. Saltárselo con `git commit --no-verify` está prohibido.
 
 ---
 

@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r \".tool_input.file_path // .tool_response.filePath // empty\" | { read -r f; case \"$f\" in */CONSTITUTION.md|*/AGENTS.md|*/sdd/*) jq -n --arg f \"$f\" \"{hookSpecificOutput:{hookEventName:\\\"PostToolUse\\\",additionalContext:(\\\"README vivo (CONSTITUTION.md, Gobierno 7): se ha modificado \\\" + \\$f + \\\". Antes de terminar, mira qué ha cambiado desde el último commit que tocó README.md (git diff \\$(git log -1 --format=%H -- README.md) -- CONSTITUTION.md AGENTS.md sdd/) y actualiza README.md en este mismo cambio, indicando qué secciones has tocado.\\\")}}\";; esac; } 2>/dev/null || true",
+            "timeout": 10,
+            "statusMessage": "Comprobando si hay que actualizar README.md"
+          }
+        ]
+      }
+    ]
+  }
+}

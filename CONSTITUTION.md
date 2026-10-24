@@ -1,8 +1,8 @@
 # CONSTITUTION.md — TaskApiSDD
 
-- **Versión:** 1.5.0
+- **Versión:** 1.6.0
 - **Ratificada:** 2026-10-23
-- **Última enmienda:** 2026-10-24
+- **Última enmienda:** 2026-10-25
 
 TaskApiSDD es una API REST para registrar tareas diarias y seguir la racha de productividad (días consecutivos) de cada usuario. Se desarrolla con Spec-Driven Development: primero se especifica, después se construye.
 
@@ -74,3 +74,5 @@ Prohibido que un endpoint responda con un cuerpo distinto de estos dos sobres:
    - **MINOR:** se añade un principio o se amplía una regla o excepción de forma significativa.
    - **PATCH:** aclaraciones, redacción o erratas sin cambio de significado.
 6. **Registro:** cada enmienda actualiza la versión y la fecha de *Última enmienda* de la cabecera.
+7. **README vivo:** todo cambio en `CONSTITUTION.md`, en la estructura, los comandos o las convenciones de `AGENTS.md`, o en un `spec.md`, `plan.md` o `tasks.md` de `sdd/` (funcionalidad nueva, tarea nueva o tarea completada) obliga a actualizar `README.md` **en el mismo cambio**, sin excepciones. Quien hace el cambio identifica qué ha cambiado desde la última actualización del README (procedimiento en `AGENTS.md` §6) y actualiza las secciones afectadas.
+   - **Verificable:** todo commit que modifica alguno de esos ficheros modifica también `README.md`. El hook `.githooks/pre-commit` lo comprueba en cada commit, y el hook de Claude Code en `.claude/settings.json` se lo recuerda al agente en cada edición.
