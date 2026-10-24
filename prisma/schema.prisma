@@ -31,12 +31,13 @@ model Task {
   // Día al que pertenece la tarea
   date        DateTime @db.Date
   completed   Boolean  @default(false)
-  // Desempate del orden dentro de un mismo día (RF-41)
+  // Orden de creación exacto, aunque dos tareas se creen en el mismo milisegundo (RF-41, D-24)
+  sequence    BigInt   @default(autoincrement()) @unique
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  // Listados por día y por rango
-  @@index([userId, date, createdAt, id])
+  // Listados por día y por rango, en orden de creación
+  @@index([userId, date, sequence])
   // Días productivos y tareas pendientes
   @@index([userId, completed, date])
   @@map("tasks")

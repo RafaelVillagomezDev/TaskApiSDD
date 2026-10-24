@@ -41,51 +41,51 @@ Spec: `sdd/001-taskApiSDD-mvp/spec.md` (Aprobada) · Plan: `sdd/001-taskApiSDD-m
   - Verifica: `dce pnpm exec tsc --noEmit`.
 
 ### Dominio compartido
-- [ ] T010 [P] [Base] Test de `LocalDate`: días válidos e inválidos (`2026-02-30`), sumar días entre meses y años, 29 de febrero, día de la semana, último día del mes (RF-06) — `src/shared/domain/local-date.value-object.test.ts`
-  - Verifica: `dce pnpm test src/shared/domain/local-date` **falla**.
-- [ ] T011 [Base] `LocalDate` (RF-06) — `src/shared/domain/local-date.value-object.ts`
-  - Verifica: `dce pnpm test src/shared/domain/local-date` pasa.
-- [ ] T012 [P] [Base] Test de paginación: `offset`, `totalPages` (incluido 0), página fuera de rango (RF-39) — `src/shared/domain/pagination.value-object.test.ts`
-  - Verifica: `dce pnpm test src/shared/domain/pagination` **falla**.
-- [ ] T013 [Base] `Pagination` y `Page<T>` (RF-39) — `src/shared/domain/pagination.value-object.ts`
-  - Verifica: `dce pnpm test src/shared/domain/pagination` pasa.
-- [ ] T014 [P] [Base] `AppError` y catálogo de los 9 códigos con HTTP, mensaje en español y orden de precedencia (RF-46, RNF-03) — `src/shared/domain/app.error.ts`, `src/shared/domain/error-code.constant.ts`
+- [x] T010 [P] [Base] Test de `LocalDate`: días válidos e inválidos (`2026-02-30`), sumar días entre meses y años, 29 de febrero, día de la semana, último día del mes (RF-06) — `src/shared/domain/tests/local-date.value-object.test.ts`
+  - Verifica: `dce pnpm test src/shared/domain/tests/local-date` **falla**.
+- [x] T011 [Base] `LocalDate` (RF-06) — `src/shared/domain/local-date.value-object.ts`
+  - Verifica: `dce pnpm test src/shared/domain/tests/local-date` pasa.
+- [x] T012 [P] [Base] Test de paginación: `offset`, `totalPages` (incluido 0), página fuera de rango (RF-39) — `src/shared/domain/tests/pagination.value-object.test.ts`
+  - Verifica: `dce pnpm test src/shared/domain/tests/pagination` **falla**.
+- [x] T013 [Base] `Pagination` y `Page<T>` (RF-39) — `src/shared/domain/pagination.value-object.ts`
+  - Verifica: `dce pnpm test src/shared/domain/tests/pagination` pasa.
+- [x] T014 [P] [Base] `AppError` y catálogo de los 9 códigos con HTTP, mensaje en español y orden de precedencia (RF-46, RNF-03) — `src/shared/domain/app.error.ts`, `src/shared/domain/error-code.constant.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
-- [ ] T015 [P] [Base] Puertos `Clock` y `TimeZoneService` — `src/shared/domain/clock.port.ts`, `src/shared/domain/time-zone.port.ts`
+- [x] T015 [P] [Base] Puertos `Clock` y `TimeZoneService` — `src/shared/domain/clock.port.ts`, `src/shared/domain/time-zone.port.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
-- [ ] T016 [Base] Tipo `RequestContext` y reloj falso para tests (D-21) — `src/shared/application/request-context.type.ts`, `tests/support/fake-clock.adapter.ts`
+- [x] T016 [Base] Tipo `RequestContext` y reloj falso para tests (D-21) — `src/shared/application/request-context.type.ts`, `tests/support/fake-clock.adapter.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
 
 ### Infraestructura compartida
-- [ ] T017 [P] [Base] Test del adaptador `Intl`: zona válida e inválida, desfase en los cambios de horario de 2026 (`Europe/Madrid`, `America/New_York`), hora local en otra zona (RF-32, RF-33, RF-35) — `src/shared/infrastructure/time/intl-time-zone.adapter.test.ts`
+- [x] T017 [P] [Base] Test del adaptador `Intl`: zona válida e inválida, desfase en los cambios de horario de 2026 (`Europe/Madrid`, `America/New_York`), hora local en otra zona (RF-32, RF-33, RF-35) — `src/shared/infrastructure/time/tests/intl-time-zone.adapter.test.ts`
   - Verifica: `dce pnpm test src/shared/infrastructure/time` **falla**.
-- [ ] T018 [Base] Adaptadores de zona horaria y reloj del sistema (RF-32, RF-33, RF-35) — `src/shared/infrastructure/time/intl-time-zone.adapter.ts`, `src/shared/infrastructure/time/system-clock.adapter.ts`
+- [x] T018 [Base] Adaptadores de zona horaria y reloj del sistema (RF-32, RF-33, RF-35) — `src/shared/infrastructure/time/intl-time-zone.adapter.ts`, `src/shared/infrastructure/time/system-clock.adapter.ts`
   - Verifica: `dce pnpm test src/shared/infrastructure/time` pasa.
-- [ ] T019 [P] [Base] Instancia única de Prisma — `src/shared/infrastructure/prisma/prisma.client.ts`
+- [x] T019 [P] [Base] Instancia única de Prisma — `src/shared/infrastructure/prisma/prisma.client.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
-- [ ] T020 [P] [Base] Test del sobre de error y de los middlewares transversales: `details` solo en validación; JSON mal formado, cuerpo de más de 100 kB y charset no soportado → `VALIDATION_ERROR`; error inesperado → `INTERNAL_ERROR` sin detalles; ruta inexistente, `OPTIONS` y `PUT` → `ROUTE_NOT_FOUND` con sobre; `HEAD` → `404` sin cuerpo (principio VII, RF-46) — `src/shared/infrastructure/http/error-handler.middleware.test.ts`
-  - Verifica: `dce pnpm test src/shared/infrastructure/http/error-handler` **falla**.
-- [ ] T021 [Base] Sobre de éxito y middleware de errores (principio VII) — `src/shared/infrastructure/http/response-envelope.helper.ts`, `src/shared/infrastructure/http/error-handler.middleware.ts`
+- [x] T020 [P] [Base] Test del sobre de error y de los middlewares transversales: `details` solo en validación; JSON mal formado, cuerpo de más de 100 kB y charset no soportado → `VALIDATION_ERROR`; error inesperado → `INTERNAL_ERROR` sin detalles; ruta inexistente, `OPTIONS` y `PUT` → `ROUTE_NOT_FOUND` con sobre; `HEAD` → `404` sin cuerpo (principio VII, RF-46) — `src/shared/infrastructure/http/tests/error-handler.middleware.test.ts`
+  - Verifica: `dce pnpm test src/shared/infrastructure/http/tests/error-handler` **falla**.
+- [x] T021 [Base] Sobre de éxito y middleware de errores (principio VII) — `src/shared/infrastructure/http/response-envelope.helper.ts`, `src/shared/infrastructure/http/error-handler.middleware.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
-- [ ] T022 [Base] Guardián de métodos y ruta inexistente (RF-46, D-19) — `src/shared/infrastructure/http/allowed-method.middleware.ts`, `src/shared/infrastructure/http/route-not-found.middleware.ts`
+- [x] T022 [Base] Guardián de métodos y ruta inexistente (RF-46, D-19) — `src/shared/infrastructure/http/allowed-method.middleware.ts`, `src/shared/infrastructure/http/route-not-found.middleware.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
-- [ ] T023 [Base] Parser JSON con límite de 100 kB y `parseOrThrow` con todos los fallos en `details` (RF-46, D-20) — `src/shared/infrastructure/http/json-body.middleware.ts`, `src/shared/infrastructure/http/request-validation.helper.ts`
+- [x] T023 [Base] Parser JSON con límite de 100 kB y `parseOrThrow` con todos los fallos en `details` (RF-46, D-20) — `src/shared/infrastructure/http/json-body.middleware.ts`, `src/shared/infrastructure/http/request-validation.helper.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
-- [ ] T024 [P] [Base] Test del contexto: sin usuario o vacío; `X-Client-Time` (`Z` rechazado, `+00:00` y fracción de 6 dígitos aceptados); tolerancia de 5 min (4:59 sí, 5:01 no); zona `+02:00` rechazada y `Europe/Madrid` aceptada; desfase incoherente; `today` en medianoche; callback de zona aunque la petición falle después (D-1); orden de precedencia de los pasos 2 a 4 (RF-01, RF-23, RF-31 a RF-34, RF-46) — `src/shared/infrastructure/http/request-context.middleware.test.ts`
-  - Verifica: `dce pnpm test src/shared/infrastructure/http/request-context` **falla**.
-- [ ] T025 [Base] Schemas de cabeceras y middleware de contexto, con aviso en consola por cada `INVALID_CLIENT_TIME` (RF-01, RF-23, RF-31 a RF-34) — `src/shared/infrastructure/http/request-header.schema.ts`, `src/shared/infrastructure/http/request-context.middleware.ts`
-  - Verifica: `dce pnpm test src/shared/infrastructure/http/request-context` pasa.
+- [x] T024 [P] [Base] Test del contexto: sin usuario o vacío; `X-Client-Time` (`Z` rechazado, `+00:00` y fracción de 6 dígitos aceptados); tolerancia de 5 min (4:59 sí, 5:01 no); zona `+02:00` rechazada y `Europe/Madrid` aceptada; desfase incoherente; `today` en medianoche; callback de zona aunque la petición falle después (D-1); orden de precedencia de los pasos 2 a 4 (RF-01, RF-23, RF-31 a RF-34, RF-46) — `src/shared/infrastructure/http/tests/request-context.middleware.test.ts`
+  - Verifica: `dce pnpm test src/shared/infrastructure/http/tests/request-context` **falla**.
+- [x] T025 [Base] Schemas de cabeceras y middleware de contexto, con aviso en consola por cada `INVALID_CLIENT_TIME` (RF-01, RF-23, RF-31 a RF-34) — `src/shared/infrastructure/http/request-header.schema.ts`, `src/shared/infrastructure/http/request-context.middleware.ts`
+  - Verifica: `dce pnpm test src/shared/infrastructure/http/tests/request-context` pasa.
 
 ### Aplicación
-- [ ] T026 [Base] `createApp(container)`: guardián de métodos, routers del contenedor, ruta inexistente y errores, sin parsers ni contexto globales (D-8, D-19); contenedor de test todavía sin módulos (D-21) — `src/app.factory.ts`, `tests/support/test.container.ts`
+- [x] T026 [Base] `createApp(container)`: guardián de métodos, routers del contenedor, ruta inexistente y errores, sin parsers ni contexto globales (D-8, D-19); contenedor de test todavía sin módulos (D-21) — `src/app.factory.ts`, `tests/support/test.container.ts`
   - Verifica: `dce pnpm test src/shared` pasa entero (incluido T020).
-- [ ] T027 [Base] Composition root y arranque del servidor; valida vite-node + Prisma (R-9) — `src/dependency.container.ts`, `src/server.main.ts`
+- [x] T027 [Base] Composition root y arranque del servidor; valida vite-node + Prisma (R-9) — `src/dependency.container.ts`, `src/server.main.ts`
   - Verifica: `docker compose -f docker-compose.dev.yml restart api` y `curl -s localhost:$PORT/foo` devuelve el sobre `404 ROUTE_NOT_FOUND`.
 - [ ] T028 [P] [Base] Build SSR de producción e imagen multi-stage con `ENV TZ=UTC` — `vite.config.ts`, `Dockerfile.prod`
   - Verifica: `docker build -f Dockerfile.prod -t taskapisdd:latest .`
 - [ ] T029 [P] [Base] Orquestación de producción — `docker-compose.prod.yml`
   - Verifica: `docker compose -f docker-compose.prod.yml config` sin errores.
-- [ ] T030 [Base] Guía manual, sección QS-0: levantar contenedores, migrar, bloque de cabeceras de ejemplo y comprobación de `ROUTE_NOT_FOUND` — `sdd/001-taskApiSDD-mvp/quickstart.md`
+- [x] T030 [Base] Guía manual, sección QS-0: levantar contenedores, migrar, bloque de cabeceras de ejemplo y comprobación de `ROUTE_NOT_FOUND` — `sdd/001-taskApiSDD-mvp/quickstart.md`
   - Verifica: ejecutar QS-0 a mano.
 
 ### Checkpoint Base
@@ -97,35 +97,35 @@ Spec: `sdd/001-taskApiSDD-mvp/spec.md` (Aprobada) · Plan: `sdd/001-taskApiSDD-m
 ## Fase H1 — Planificar y consultar las tareas de un día (HU-01, P1)
 
 ### Tests (deben fallar)
-- [ ] T031 [P] [H1] Test de schemas: cuerpo de creación (recorte, 1–200, ≤ 1000, descripción vacía → `null`, día válido) y query `date`/`status`/`page`/`pageSize` con sus valores por defecto (RF-04, RF-05, RF-06, RF-38) — `src/modules/tasks/infrastructure/task.schema.test.ts`
-  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/task.schema` **falla**.
-- [ ] T032 [P] [H1] Test de crear tarea: pendiente; hoy y futuro aceptados; pasado → `DAY_CLOSED` (RF-03, RF-07) — `src/modules/tasks/application/create-task.use-case.test.ts`
-  - Verifica: `dce pnpm test src/modules/tasks/application/create-task` **falla**.
-- [ ] T033 [P] [H1] Test de listar por día con paginación y orden por fecha y creación (RF-08, RF-39, RF-41) — `src/modules/tasks/application/list-task.use-case.test.ts`
-  - Verifica: `dce pnpm test src/modules/tasks/application/list-task` **falla**.
-- [ ] T034 [P] [H1] Test HTTP de `POST /tasks` y `GET /tasks?date=`: `201`/`200` con sobre, mensajes en español, aislamiento entre usuarios, `PUT /tasks` sin usuario → `ROUTE_NOT_FOUND`, precedencia `MISSING_USER` > `INVALID_CLIENT_TIME` > `INVALID_TIMEZONE` > `VALIDATION_ERROR` > `DAY_CLOSED` (RF-01, RF-02, RF-03, RF-07, RF-08, RF-46, RNF-03) — `src/modules/tasks/infrastructure/task.routes.test.ts`
-  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/task.routes` **falla**.
-- [ ] T035 [P] [H1] Test de integración: crear, página por día, orden, `DATE` sin desplazamiento (R-4), aislamiento por usuario (RF-02, RF-41) — `src/modules/tasks/infrastructure/prisma-task.repository.int.test.ts`
-  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/prisma-task` **falla**.
+- [x] T031 [P] [H1] Test de schemas: cuerpo de creación (recorte, 1–200, ≤ 1000, descripción vacía → `null`, día válido) y query `date`/`status`/`page`/`pageSize` con sus valores por defecto (RF-04, RF-05, RF-06, RF-38) — `src/modules/tasks/infrastructure/tests/task.schema.test.ts`
+  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/tests/task.schema` **falla**.
+- [x] T032 [P] [H1] Test de crear tarea: pendiente; hoy y futuro aceptados; pasado → `DAY_CLOSED` (RF-03, RF-07) — `src/modules/tasks/application/tests/create-task.use-case.test.ts`
+  - Verifica: `dce pnpm test src/modules/tasks/application/tests/create-task` **falla**.
+- [x] T033 [P] [H1] Test de listar por día con paginación y orden por fecha y creación (RF-08, RF-39, RF-41) — `src/modules/tasks/application/tests/list-task.use-case.test.ts`
+  - Verifica: `dce pnpm test src/modules/tasks/application/tests/list-task` **falla**.
+- [x] T034 [P] [H1] Test HTTP de `POST /tasks` y `GET /tasks?date=`: `201`/`200` con sobre, mensajes en español, aislamiento entre usuarios, `PUT /tasks` sin usuario → `ROUTE_NOT_FOUND`, precedencia `MISSING_USER` > `INVALID_CLIENT_TIME` > `INVALID_TIMEZONE` > `VALIDATION_ERROR` > `DAY_CLOSED` (RF-01, RF-02, RF-03, RF-07, RF-08, RF-46, RNF-03) — `src/modules/tasks/infrastructure/tests/task.routes.test.ts`
+  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/tests/task.routes` **falla**.
+- [x] T035 [P] [H1] Test de integración: crear, página por día, orden, `DATE` sin desplazamiento (R-4), aislamiento por usuario (RF-02, RF-41) — `src/modules/tasks/infrastructure/tests/prisma-task.repository.int.test.ts`
+  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/tests/prisma-task` **falla**.
 
 ### Implementación
-- [ ] T036 [H1] Entidad `Task` con `TITLE_MAX_LENGTH`/`DESCRIPTION_MAX_LENGTH` y puerto `TaskRepository` (`create`, `findPage`) — `src/modules/tasks/domain/task.entity.ts`, `src/modules/tasks/domain/task.repository.ts`
+- [x] T036 [H1] Entidad `Task` con `TITLE_MAX_LENGTH`/`DESCRIPTION_MAX_LENGTH` y puerto `TaskRepository` (`create`, `findPage`) — `src/modules/tasks/domain/task.entity.ts`, `src/modules/tasks/domain/task.repository.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
-- [ ] T037 [H1] Repositorio en memoria (`create`, `findPage`) (D-21) — `tests/support/in-memory-task.repository.ts`
+- [x] T037 [H1] Repositorio en memoria (`create`, `findPage`) (D-21) — `tests/support/in-memory-task.repository.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
-- [ ] T038 [H1] Schema de paginación y schemas de creación y consulta por día (RF-04, RF-05, RF-06, RF-38) — `src/shared/infrastructure/http/pagination.schema.ts`, `src/modules/tasks/infrastructure/task.schema.ts`
-  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/task.schema` pasa.
-- [ ] T039 [P] [H1] Caso de uso crear tarea (RF-03, RF-07) — `src/modules/tasks/application/create-task.use-case.ts`
-  - Verifica: `dce pnpm test src/modules/tasks/application/create-task` pasa.
-- [ ] T040 [P] [H1] Caso de uso listar por día, paginado y ordenado (RF-08, RF-39, RF-41) — `src/modules/tasks/application/list-task.use-case.ts`
-  - Verifica: `dce pnpm test src/modules/tasks/application/list-task` pasa.
-- [ ] T041 [H1] Mapper y repositorio Prisma (`create`, `findPage`) (RF-02, RF-41) — `src/modules/tasks/infrastructure/task.mapper.ts`, `src/modules/tasks/infrastructure/prisma-task.repository.ts`
-  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/prisma-task` pasa.
-- [ ] T042 [H1] Controlador y rutas `POST /tasks` y `GET /tasks`, con contexto y JSON encadenados en cada ruta (D-8) — `src/modules/tasks/infrastructure/task.controller.ts`, `src/modules/tasks/infrastructure/task.routes.ts`
+- [x] T038 [H1] Schema de paginación y schemas de creación y consulta por día (RF-04, RF-05, RF-06, RF-38) — `src/shared/infrastructure/http/pagination.schema.ts`, `src/modules/tasks/infrastructure/task.schema.ts`
+  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/tests/task.schema` pasa.
+- [x] T039 [P] [H1] Caso de uso crear tarea (RF-03, RF-07) — `src/modules/tasks/application/create-task.use-case.ts`
+  - Verifica: `dce pnpm test src/modules/tasks/application/tests/create-task` pasa.
+- [x] T040 [P] [H1] Caso de uso listar por día, paginado y ordenado (RF-08, RF-39, RF-41) — `src/modules/tasks/application/list-task.use-case.ts`
+  - Verifica: `dce pnpm test src/modules/tasks/application/tests/list-task` pasa.
+- [x] T041 [H1] Mapper y repositorio Prisma (`create`, `findPage`) (RF-02, RF-41) — `src/modules/tasks/infrastructure/task.mapper.ts`, `src/modules/tasks/infrastructure/prisma-task.repository.ts`
+  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/tests/prisma-task` pasa.
+- [x] T042 [H1] Controlador y rutas `POST /tasks` y `GET /tasks`, con contexto y JSON encadenados en cada ruta (D-8) — `src/modules/tasks/infrastructure/task.controller.ts`, `src/modules/tasks/infrastructure/task.routes.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
-- [ ] T043 [H1] Cablear el módulo `tasks` en los contenedores real y de test (RF-02) — `src/dependency.container.ts`, `tests/support/test.container.ts`
+- [x] T043 [H1] Cablear el módulo `tasks` en los contenedores real y de test (RF-02) — `src/dependency.container.ts`, `tests/support/test.container.ts`
   - Verifica: `dce pnpm test src/modules/tasks` pasa entero.
-- [ ] T044 [H1] Guía manual, sección QS-H1 — `sdd/001-taskApiSDD-mvp/quickstart.md`
+- [x] T044 [H1] Guía manual, sección QS-H1 — `sdd/001-taskApiSDD-mvp/quickstart.md`
   - Verifica: ejecutar QS-H1 a mano.
 
 ### Checkpoint H1
@@ -137,31 +137,32 @@ Spec: `sdd/001-taskApiSDD-mvp/spec.md` (Aprobada) · Plan: `sdd/001-taskApiSDD-m
 ## Fase H2 — Completar tareas (HU-02, P1)
 
 ### Tests (deben fallar)
-- [ ] T045 [P] [H2] Test de reglas de día de la entidad: completar hoy, desmarcar, idempotencia, pasado → `DAY_CLOSED`, futuro → `DAY_NOT_STARTED` (RF-11, RF-12, RF-14, RF-45) — `src/modules/tasks/domain/task.entity.test.ts`
-  - Verifica: `dce pnpm test src/modules/tasks/domain/task.entity` **falla**.
-- [ ] T046 [P] [H2] Test de actualizar (completar/desmarcar): tarea ajena, inexistente o con id no UUID → `TASK_NOT_FOUND`; pasado → `DAY_CLOSED`; futuro → `DAY_NOT_STARTED` (RF-11, RF-12, RF-14, RF-16, RF-45) — `src/modules/tasks/application/update-task.use-case.test.ts`
-  - Verifica: `dce pnpm test src/modules/tasks/application/update-task` **falla**.
-- [ ] T047 [P] [H2] Test HTTP de `PATCH /tasks/{id}` con `completed`: `200`, idempotente, `404`, `409 DAY_CLOSED` y `409 DAY_NOT_STARTED`, `VALIDATION_ERROR` antes que `TASK_NOT_FOUND` (RF-11, RF-12, RF-14, RF-16, RF-45, RF-46) — `src/modules/tasks/infrastructure/task.routes.test.ts`
-  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/task.routes` **falla**.
-- [ ] T048 [P] [H2] Test de integración `findById` (filtrado por usuario) y `update` (RF-02, RF-16) — `src/modules/tasks/infrastructure/prisma-task.repository.int.test.ts`
-  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/prisma-task` **falla**.
+- [x] T045 [P] [H2] Test de reglas de día de la entidad: completar hoy, desmarcar, idempotencia, pasado → `DAY_CLOSED`, futuro → `DAY_NOT_STARTED` (RF-11, RF-12, RF-14, RF-45) — `src/modules/tasks/domain/tests/task.entity.test.ts`
+  - Verifica: `dce pnpm test src/modules/tasks/domain/tests/task.entity` **falla**.
+- [x] T046 [P] [H2] Test de actualizar (completar/desmarcar): tarea ajena, inexistente o con id no UUID → `TASK_NOT_FOUND`; pasado → `DAY_CLOSED`; futuro → `DAY_NOT_STARTED` (RF-11, RF-12, RF-14, RF-16, RF-45) — `src/modules/tasks/application/tests/update-task.use-case.test.ts`
+  - Verifica: `dce pnpm test src/modules/tasks/application/tests/update-task` **falla**.
+- [x] T047 [P] [H2] Test HTTP de `PATCH /tasks/{id}` con `completed`: `200`, idempotente, `404`, `409 DAY_CLOSED` y `409 DAY_NOT_STARTED`, `VALIDATION_ERROR` antes que `TASK_NOT_FOUND` (RF-11, RF-12, RF-14, RF-16, RF-45, RF-46) — `src/modules/tasks/infrastructure/tests/task.routes.test.ts`
+  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/tests/task.routes` **falla**.
+- [x] T048 [P] [H2] Test de integración `findById` (filtrado por usuario) y `update` (RF-02, RF-16) — `src/modules/tasks/infrastructure/tests/prisma-task.repository.int.test.ts`
+  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/tests/prisma-task` **falla**.
 
 ### Implementación
-- [ ] T049 [H2] Reglas de día en la entidad: `assertModifiable`, `complete`, `uncomplete` (RF-11, RF-12, RF-14, RF-45) — `src/modules/tasks/domain/task.entity.ts`
-  - Verifica: `dce pnpm test src/modules/tasks/domain/task.entity` pasa.
-- [ ] T050 [H2] Puerto y repositorio en memoria con `findById` y `update` — `src/modules/tasks/domain/task.repository.ts`, `tests/support/in-memory-task.repository.ts`
+- [x] T049 [H2] Reglas de día en la entidad: `assertModifiable`, `complete`, `uncomplete` (RF-11, RF-12, RF-14, RF-45) — `src/modules/tasks/domain/task.entity.ts`
+  - Verifica: `dce pnpm test src/modules/tasks/domain/tests/task.entity` pasa.
+- [x] T050 [H2] Puerto y repositorio en memoria con `findById` y `update` — `src/modules/tasks/domain/task.repository.ts`, `tests/support/in-memory-task.repository.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
-- [ ] T051 [H2] Schema de `PATCH` con `completed` (`strict`) y `id` de la ruta validado solo como cadena (D-10) — `src/modules/tasks/infrastructure/task.schema.ts`
-  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/task.schema` pasa.
-- [ ] T052 [H2] Caso de uso actualizar: comprobación de formato UUID, `TASK_NOT_FOUND`, `DAY_CLOSED`, `DAY_NOT_STARTED` (RF-11, RF-12, RF-14, RF-16, RF-45) — `src/modules/tasks/application/update-task.use-case.ts`
-  - Verifica: `dce pnpm test src/modules/tasks/application/update-task` pasa.
-- [ ] T053 [H2] Repositorio Prisma con `findById` y `update` (RF-02, RF-16) — `src/modules/tasks/infrastructure/prisma-task.repository.ts`
-  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/prisma-task` pasa.
-- [ ] T054 [H2] Controlador y ruta `PATCH /tasks/{id}` (D-8) — `src/modules/tasks/infrastructure/task.controller.ts`, `src/modules/tasks/infrastructure/task.routes.ts`
+- [x] T051 [H2] Schema de `PATCH` con `completed` (`strict`) y `id` de la ruta validado solo como cadena (D-10) — `src/modules/tasks/infrastructure/task.schema.ts`
+  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/tests/task.schema` pasa.
+- [x] T052 [H2] Caso de uso actualizar: comprobación de formato UUID, `TASK_NOT_FOUND`, `DAY_CLOSED`, `DAY_NOT_STARTED` (RF-11, RF-12, RF-14, RF-16, RF-45) — `src/modules/tasks/application/update-task.use-case.ts`
+  - Verifica: `dce pnpm test src/modules/tasks/application/tests/update-task` pasa.
+- [x] T053 [H2] Repositorio Prisma con `findById` y `update` (RF-02, RF-16) — `src/modules/tasks/infrastructure/prisma-task.repository.ts`
+  - Nota: incluye la columna `tasks.sequence` y su migración `task_creation_sequence` (D-24), necesarias para que el orden de creación de RF-41 sea exacto.
+  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/tests/prisma-task` pasa.
+- [x] T054 [H2] Controlador y ruta `PATCH /tasks/{id}` (D-8) — `src/modules/tasks/infrastructure/task.controller.ts`, `src/modules/tasks/infrastructure/task.routes.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
-- [ ] T055 [H2] Cablear el caso de uso actualizar — `src/dependency.container.ts`, `tests/support/test.container.ts`
+- [x] T055 [H2] Cablear el caso de uso actualizar — `src/dependency.container.ts`, `tests/support/test.container.ts`
   - Verifica: `dce pnpm test src/modules/tasks` pasa entero.
-- [ ] T056 [H2] Guía manual, sección QS-H2 — `sdd/001-taskApiSDD-mvp/quickstart.md`
+- [x] T056 [H2] Guía manual, sección QS-H2 — `sdd/001-taskApiSDD-mvp/quickstart.md`
   - Verifica: ejecutar QS-H2 a mano.
 
 ### Checkpoint H2
@@ -173,35 +174,35 @@ Spec: `sdd/001-taskApiSDD-mvp/spec.md` (Aprobada) · Plan: `sdd/001-taskApiSDD-m
 ## Fase H3 — Ver mi racha actual y mi mejor racha (HU-03, P1)
 
 ### Tests (deben fallar)
-- [ ] T057 [P] [H3] Test del cálculo de racha: todos los ejemplos de RF-17 a RF-21, cambio de mes y de año, 29 de febrero, sin días productivos → 0/0 (RF-17 a RF-21, CE-02) — `src/modules/streaks/domain/streak.value-object.test.ts`
+- [x] T057 [P] [H3] Test del cálculo de racha: todos los ejemplos de RF-17 a RF-21, cambio de mes y de año, 29 de febrero, sin días productivos → 0/0 (RF-17 a RF-21, CE-02) — `src/modules/streaks/domain/tests/streak.value-object.test.ts`
   - Verifica: `dce pnpm test src/modules/streaks/domain` **falla**.
-- [ ] T058 [P] [H3] Test de días productivos: al menos una completada, sin duplicados, hasta hoy, ordenados (RF-17, RF-18, RF-22) — `src/modules/tasks/application/get-productive-date.use-case.test.ts`
-  - Verifica: `dce pnpm test src/modules/tasks/application/get-productive-date` **falla**.
-- [ ] T059 [P] [H3] Test de obtener racha: hoy productivo, hoy aún no productivo, días pasados inmutables, "hoy" según el contexto (RF-19, RF-20, RF-22, RF-23) — `src/modules/streaks/application/get-streak.use-case.test.ts`
+- [x] T058 [P] [H3] Test de días productivos: al menos una completada, sin duplicados, hasta hoy, ordenados (RF-17, RF-18, RF-22) — `src/modules/tasks/application/tests/get-productive-date.use-case.test.ts`
+  - Verifica: `dce pnpm test src/modules/tasks/application/tests/get-productive-date` **falla**.
+- [x] T059 [P] [H3] Test de obtener racha: hoy productivo, hoy aún no productivo, días pasados inmutables, "hoy" según el contexto (RF-19, RF-20, RF-22, RF-23) — `src/modules/streaks/application/tests/get-streak.use-case.test.ts`
   - Verifica: `dce pnpm test src/modules/streaks/application` **falla**.
-- [ ] T060 [P] [H3] Test HTTP de `GET /streak`: sobre, errores de cabecera, flujo crear → completar → racha 1 en 3 peticiones (RF-01, RF-31 a RF-33, CE-01) — `src/modules/streaks/infrastructure/streak.routes.test.ts`
+- [x] T060 [P] [H3] Test HTTP de `GET /streak`: sobre, errores de cabecera, flujo crear → completar → racha 1 en 3 peticiones (RF-01, RF-31 a RF-33, CE-01) — `src/modules/streaks/infrastructure/tests/streak.routes.test.ts`
   - Verifica: `dce pnpm test src/modules/streaks/infrastructure` **falla**.
-- [ ] T061 [P] [H3] Test de integración `findProductiveDates` con `SELECT DISTINCT` (RF-17, RF-18) — `src/modules/tasks/infrastructure/prisma-task.repository.int.test.ts`
-  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/prisma-task` **falla**.
+- [x] T061 [P] [H3] Test de integración `findProductiveDates` con `SELECT DISTINCT` (RF-17, RF-18) — `src/modules/tasks/infrastructure/tests/prisma-task.repository.int.test.ts`
+  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/tests/prisma-task` **falla**.
 
 ### Implementación
-- [ ] T062 [H3] `Streak.calculate` (RF-17 a RF-21) — `src/modules/streaks/domain/streak.value-object.ts`
+- [x] T062 [H3] `Streak.calculate` (RF-17 a RF-21) — `src/modules/streaks/domain/streak.value-object.ts`
   - Verifica: `dce pnpm test src/modules/streaks/domain` pasa.
-- [ ] T063 [H3] Puerto y repositorio en memoria con `findProductiveDates` — `src/modules/tasks/domain/task.repository.ts`, `tests/support/in-memory-task.repository.ts`
+- [x] T063 [H3] Puerto y repositorio en memoria con `findProductiveDates` — `src/modules/tasks/domain/task.repository.ts`, `tests/support/in-memory-task.repository.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
-- [ ] T064 [H3] Caso de uso de días productivos y fachada pública del módulo (D-9) (RF-17, RF-18, RF-22) — `src/modules/tasks/application/get-productive-date.use-case.ts`, `src/modules/tasks/task.facade.ts`
-  - Verifica: `dce pnpm test src/modules/tasks/application/get-productive-date` pasa.
-- [ ] T065 [H3] Repositorio Prisma con `findProductiveDates` (RF-17, RF-18) — `src/modules/tasks/infrastructure/prisma-task.repository.ts`
-  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/prisma-task` pasa.
-- [ ] T066 [H3] Puerto `ProductiveDateSource` y adaptador hacia la fachada de `tasks` — `src/modules/streaks/domain/productive-date.port.ts`, `src/modules/streaks/infrastructure/productive-date.adapter.ts`
+- [x] T064 [H3] Caso de uso de días productivos y fachada pública del módulo (D-9) (RF-17, RF-18, RF-22) — `src/modules/tasks/application/get-productive-date.use-case.ts`, `src/modules/tasks/task.facade.ts`
+  - Verifica: `dce pnpm test src/modules/tasks/application/tests/get-productive-date` pasa.
+- [x] T065 [H3] Repositorio Prisma con `findProductiveDates` (RF-17, RF-18) — `src/modules/tasks/infrastructure/prisma-task.repository.ts`
+  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/tests/prisma-task` pasa.
+- [x] T066 [H3] Puerto `ProductiveDateSource` y adaptador hacia la fachada de `tasks` — `src/modules/streaks/domain/productive-date.port.ts`, `src/modules/streaks/infrastructure/productive-date.adapter.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
-- [ ] T067 [H3] Caso de uso obtener racha (RF-19, RF-20, RF-22, RF-23) — `src/modules/streaks/application/get-streak.use-case.ts`
+- [x] T067 [H3] Caso de uso obtener racha (RF-19, RF-20, RF-22, RF-23) — `src/modules/streaks/application/get-streak.use-case.ts`
   - Verifica: `dce pnpm test src/modules/streaks/application` pasa.
-- [ ] T068 [H3] Controlador y ruta `GET /streak` (D-8) — `src/modules/streaks/infrastructure/streak.controller.ts`, `src/modules/streaks/infrastructure/streak.routes.ts`
+- [x] T068 [H3] Controlador y ruta `GET /streak` (D-8) — `src/modules/streaks/infrastructure/streak.controller.ts`, `src/modules/streaks/infrastructure/streak.routes.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
-- [ ] T069 [H3] Cablear el módulo `streaks` — `src/dependency.container.ts`, `tests/support/test.container.ts`
+- [x] T069 [H3] Cablear el módulo `streaks` — `src/dependency.container.ts`, `tests/support/test.container.ts`
   - Verifica: `dce pnpm test src/modules/streaks` pasa entero.
-- [ ] T070 [H3] Guía manual, sección QS-H3 — `sdd/001-taskApiSDD-mvp/quickstart.md`
+- [x] T070 [H3] Guía manual, sección QS-H3 — `sdd/001-taskApiSDD-mvp/quickstart.md`
   - Verifica: ejecutar QS-H3 a mano.
 
 ### Checkpoint H3 (fin de las historias P1: MVP utilizable)
@@ -214,28 +215,28 @@ Spec: `sdd/001-taskApiSDD-mvp/spec.md` (Aprobada) · Plan: `sdd/001-taskApiSDD-m
 ## Fase H4 — Consultar todas mis tareas por estado (HU-04, P2)
 
 ### Tests (deben fallar)
-- [ ] T071 [P] [H4] Test de schemas de consulta: `status` inválido, `from`/`to`, `from > to`, `date` + `from`, `page`/`pageSize` inválidos (RF-10, RF-40, RF-42, RF-43) — `src/modules/tasks/infrastructure/task.schema.test.ts`
-  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/task.schema` **falla**.
-- [ ] T072 [P] [H4] Test de listar: todas, por estado, por rango inclusivo, página fuera de rango (RF-09, RF-10, RF-39, RF-40) — `src/modules/tasks/application/list-task.use-case.test.ts`
-  - Verifica: `dce pnpm test src/modules/tasks/application/list-task` **falla**.
-- [ ] T073 [P] [H4] Test de consultar por id: propia (también de días pasados), ajena, inexistente, id no UUID (RF-16, RF-44) — `src/modules/tasks/application/get-task.use-case.test.ts`
-  - Verifica: `dce pnpm test src/modules/tasks/application/get-task` **falla**.
-- [ ] T074 [P] [H4] Test HTTP de `GET /tasks` con filtros y paginación y de `GET /tasks/{id}` (RF-09, RF-10, RF-39 a RF-44) — `src/modules/tasks/infrastructure/task.routes.test.ts`
-  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/task.routes` **falla**.
-- [ ] T075 [P] [H4] Test de integración de filtros por estado y rango con `count` (RF-10, RF-40) — `src/modules/tasks/infrastructure/prisma-task.repository.int.test.ts`
-  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/prisma-task` **falla**.
+- [ ] T071 [P] [H4] Test de schemas de consulta: `status` inválido, `from`/`to`, `from > to`, `date` + `from`, `page`/`pageSize` inválidos (RF-10, RF-40, RF-42, RF-43) — `src/modules/tasks/infrastructure/tests/task.schema.test.ts`
+  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/tests/task.schema` **falla**.
+- [ ] T072 [P] [H4] Test de listar: todas, por estado, por rango inclusivo, página fuera de rango (RF-09, RF-10, RF-39, RF-40) — `src/modules/tasks/application/tests/list-task.use-case.test.ts`
+  - Verifica: `dce pnpm test src/modules/tasks/application/tests/list-task` **falla**.
+- [ ] T073 [P] [H4] Test de consultar por id: propia (también de días pasados), ajena, inexistente, id no UUID (RF-16, RF-44) — `src/modules/tasks/application/tests/get-task.use-case.test.ts`
+  - Verifica: `dce pnpm test src/modules/tasks/application/tests/get-task` **falla**.
+- [ ] T074 [P] [H4] Test HTTP de `GET /tasks` con filtros y paginación y de `GET /tasks/{id}` (RF-09, RF-10, RF-39 a RF-44) — `src/modules/tasks/infrastructure/tests/task.routes.test.ts`
+  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/tests/task.routes` **falla**.
+- [ ] T075 [P] [H4] Test de integración de filtros por estado y rango con `count` (RF-10, RF-40) — `src/modules/tasks/infrastructure/tests/prisma-task.repository.int.test.ts`
+  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/tests/prisma-task` **falla**.
 
 ### Implementación
 - [ ] T076 [H4] Schemas de consulta completos (RF-10, RF-40, RF-42, RF-43) — `src/modules/tasks/infrastructure/task.schema.ts`
-  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/task.schema` pasa.
+  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/tests/task.schema` pasa.
 - [ ] T077 [H4] Puerto y repositorio en memoria con filtros de estado y rango — `src/modules/tasks/domain/task.repository.ts`, `tests/support/in-memory-task.repository.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
 - [ ] T078 [H4] Caso de uso listar con todos los filtros (RF-09, RF-10, RF-40) — `src/modules/tasks/application/list-task.use-case.ts`
-  - Verifica: `dce pnpm test src/modules/tasks/application/list-task` pasa.
+  - Verifica: `dce pnpm test src/modules/tasks/application/tests/list-task` pasa.
 - [ ] T079 [P] [H4] Caso de uso consultar por id (RF-16, RF-44) — `src/modules/tasks/application/get-task.use-case.ts`
-  - Verifica: `dce pnpm test src/modules/tasks/application/get-task` pasa.
+  - Verifica: `dce pnpm test src/modules/tasks/application/tests/get-task` pasa.
 - [ ] T080 [H4] Repositorio Prisma con filtros (RF-10, RF-40) — `src/modules/tasks/infrastructure/prisma-task.repository.ts`
-  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/prisma-task` pasa.
+  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/tests/prisma-task` pasa.
 - [ ] T081 [H4] Controlador y ruta `GET /tasks/{id}`; filtros en `GET /tasks` (RF-44) — `src/modules/tasks/infrastructure/task.controller.ts`, `src/modules/tasks/infrastructure/task.routes.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
 - [ ] T082 [H4] Cablear el caso de uso consultar por id — `src/dependency.container.ts`, `tests/support/test.container.ts`
@@ -252,28 +253,28 @@ Spec: `sdd/001-taskApiSDD-mvp/spec.md` (Aprobada) · Plan: `sdd/001-taskApiSDD-m
 ## Fase H5 — Editar y borrar tareas (HU-05, P2)
 
 ### Tests (deben fallar)
-- [ ] T084 [P] [H5] Test de schema de `PATCH`: `title`/`description` con recorte y límites, campos desconocidos y `date` → `VALIDATION_ERROR`, cuerpo vacío (RF-04, RF-05, RF-37, RF-38) — `src/modules/tasks/infrastructure/task.schema.test.ts`
-  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/task.schema` **falla**.
-- [ ] T085 [P] [H5] Test de actualizar (edición): título y descripción; tarea de un día pasado → `DAY_CLOSED` (RF-13, RF-14) — `src/modules/tasks/application/update-task.use-case.test.ts`
-  - Verifica: `dce pnpm test src/modules/tasks/application/update-task` **falla**.
-- [ ] T086 [P] [H5] Test de borrar: hoy y futuro; pasado → `DAY_CLOSED`; ajena o inexistente → `TASK_NOT_FOUND` (RF-14, RF-15, RF-16) — `src/modules/tasks/application/delete-task.use-case.test.ts`
-  - Verifica: `dce pnpm test src/modules/tasks/application/delete-task` **falla**.
-- [ ] T087 [P] [H5] Test HTTP de `PATCH` con edición y de `DELETE`: `200` con `data: null`, `404`, `409` (RF-13 a RF-16, RF-37) — `src/modules/tasks/infrastructure/task.routes.test.ts`
-  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/task.routes` **falla**.
-- [ ] T088 [P] [H5] Test de integración de `delete` (RF-15) — `src/modules/tasks/infrastructure/prisma-task.repository.int.test.ts`
-  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/prisma-task` **falla**.
+- [ ] T084 [P] [H5] Test de schema de `PATCH`: `title`/`description` con recorte y límites, campos desconocidos y `date` → `VALIDATION_ERROR`, cuerpo vacío (RF-04, RF-05, RF-37, RF-38) — `src/modules/tasks/infrastructure/tests/task.schema.test.ts`
+  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/tests/task.schema` **falla**.
+- [ ] T085 [P] [H5] Test de actualizar (edición): título y descripción; tarea de un día pasado → `DAY_CLOSED` (RF-13, RF-14) — `src/modules/tasks/application/tests/update-task.use-case.test.ts`
+  - Verifica: `dce pnpm test src/modules/tasks/application/tests/update-task` **falla**.
+- [ ] T086 [P] [H5] Test de borrar: hoy y futuro; pasado → `DAY_CLOSED`; ajena o inexistente → `TASK_NOT_FOUND` (RF-14, RF-15, RF-16) — `src/modules/tasks/application/tests/delete-task.use-case.test.ts`
+  - Verifica: `dce pnpm test src/modules/tasks/application/tests/delete-task` **falla**.
+- [ ] T087 [P] [H5] Test HTTP de `PATCH` con edición y de `DELETE`: `200` con `data: null`, `404`, `409` (RF-13 a RF-16, RF-37) — `src/modules/tasks/infrastructure/tests/task.routes.test.ts`
+  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/tests/task.routes` **falla**.
+- [ ] T088 [P] [H5] Test de integración de `delete` (RF-15) — `src/modules/tasks/infrastructure/tests/prisma-task.repository.int.test.ts`
+  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/tests/prisma-task` **falla**.
 
 ### Implementación
 - [ ] T089 [H5] Schema de `PATCH` completo y `strict` (RF-04, RF-05, RF-37, RF-38) — `src/modules/tasks/infrastructure/task.schema.ts`
-  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/task.schema` pasa.
+  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/tests/task.schema` pasa.
 - [ ] T090 [H5] Edición en la entidad y en el caso de uso actualizar (RF-13, RF-14) — `src/modules/tasks/domain/task.entity.ts`, `src/modules/tasks/application/update-task.use-case.ts`
-  - Verifica: `dce pnpm test src/modules/tasks/application/update-task` pasa.
+  - Verifica: `dce pnpm test src/modules/tasks/application/tests/update-task` pasa.
 - [ ] T091 [H5] Puerto y repositorio en memoria con `delete` — `src/modules/tasks/domain/task.repository.ts`, `tests/support/in-memory-task.repository.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
 - [ ] T092 [H5] Caso de uso borrar (RF-14, RF-15, RF-16) — `src/modules/tasks/application/delete-task.use-case.ts`
-  - Verifica: `dce pnpm test src/modules/tasks/application/delete-task` pasa.
+  - Verifica: `dce pnpm test src/modules/tasks/application/tests/delete-task` pasa.
 - [ ] T093 [H5] Repositorio Prisma con `delete` (RF-15) — `src/modules/tasks/infrastructure/prisma-task.repository.ts`
-  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/prisma-task` pasa.
+  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/tests/prisma-task` pasa.
 - [ ] T094 [H5] Controlador y ruta `DELETE /tasks/{id}` (D-8) — `src/modules/tasks/infrastructure/task.controller.ts`, `src/modules/tasks/infrastructure/task.routes.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
 - [ ] T095 [H5] Cablear el caso de uso borrar — `src/dependency.container.ts`, `tests/support/test.container.ts`
@@ -290,58 +291,58 @@ Spec: `sdd/001-taskApiSDD-mvp/spec.md` (Aprobada) · Plan: `sdd/001-taskApiSDD-m
 ## Fase H6 — Recibir avisos de tareas que van a quedar sin completar (HU-06, P3)
 
 ### Tests (deben fallar)
-- [ ] T097 [P] [H6] Test de la entidad aviso: copia `{ id, title, date }` inmutable (RF-30) — `src/modules/alerts/domain/alert.entity.test.ts`
-  - Verifica: `dce pnpm test src/modules/alerts/domain/alert.entity` **falla**.
-- [ ] T098 [P] [H6] Test de ventanas: periodos y días de disparo (viernes 2026-10-23, 2026-10-29, 2027-02-26), vencido antes y después de las 22:00, recuperación hasta el fin de la ventana y rango sin días cerrados (RF-24 a RF-26, RF-47) — `src/modules/alerts/domain/alert-window.value-object.test.ts`
-  - Verifica: `dce pnpm test src/modules/alerts/domain/alert-window` **falla**.
-- [ ] T099 [P] [H6] Test de recordar zona: guarda y actualiza solo si cambia (RF-34) — `src/modules/alerts/application/record-user-time-zone.use-case.test.ts`
-  - Verifica: `dce pnpm test src/modules/alerts/application/record-user-time-zone` **falla**.
-- [ ] T100 [P] [H6] Test de tareas pendientes: solo pendientes del usuario en el rango (RF-24 a RF-26) — `src/modules/tasks/application/get-pending-task.use-case.test.ts`
-  - Verifica: `dce pnpm test src/modules/tasks/application/get-pending-task` **falla**.
-- [ ] T101 [P] [H6] Test de generar avisos: vencidos, omitidos sin pendientes y no reevaluados, sin duplicados, sin zona no hay avisos, zona recordada, copia inmutable, tres avisos el mismo día, recuperación tras una parada (RF-24 a RF-28, RF-30, RF-35, RF-36, RF-47, CE-04) — `src/modules/alerts/application/generate-due-alert.use-case.test.ts`
-  - Verifica: `dce pnpm test src/modules/alerts/application/generate-due-alert` **falla**.
-- [ ] T102 [P] [H6] Test de listar avisos: del más reciente al más antiguo, paginado (RF-29, RF-39) — `src/modules/alerts/application/list-alert.use-case.test.ts`
-  - Verifica: `dce pnpm test src/modules/alerts/application/list-alert` **falla**.
-- [ ] T103 [P] [H6] Test del planificador: pasada al arrancar, intervalo de 60 s con temporizadores falsos, sin solapamiento, registro dentro de los 5 min (RNF-02, RF-47) — `src/modules/alerts/infrastructure/alert.scheduler.test.ts`
-  - Verifica: `dce pnpm test src/modules/alerts/infrastructure/alert.scheduler` **falla**.
-- [ ] T104 [P] [H6] Test HTTP de `GET /alerts`: sobre, paginación válida e inválida, copia de tareas tras borrarlas, zona recordada tras una petición con cabeceras válidas aunque falle (RF-29, RF-30, RF-34, RF-39, RF-42) — `src/modules/alerts/infrastructure/alert.routes.test.ts`
-  - Verifica: `dce pnpm test src/modules/alerts/infrastructure/alert.routes` **falla**.
-- [ ] T105 [P] [H6] Test de integración del repositorio de avisos: `claimPeriod` concurrente (solo uno gana), restricción única, `JSONB` intacto tras borrar la tarea (RF-28, RF-30) — `src/modules/alerts/infrastructure/prisma-alert.repository.int.test.ts`
-  - Verifica: `dce pnpm test src/modules/alerts/infrastructure/prisma-alert` **falla**.
-- [ ] T106 [P] [H6] Test de integración de zonas: upsert que no escribe si no cambia; lotes (RF-34, RF-36) — `src/modules/alerts/infrastructure/prisma-user-time-zone.repository.int.test.ts`
-  - Verifica: `dce pnpm test src/modules/alerts/infrastructure/prisma-user-time-zone` **falla**.
-- [ ] T107 [P] [H6] Test de integración `findPending` (RF-24 a RF-26) — `src/modules/tasks/infrastructure/prisma-task.repository.int.test.ts`
-  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/prisma-task` **falla**.
+- [ ] T097 [P] [H6] Test de la entidad aviso: copia `{ id, title, date }` inmutable (RF-30) — `src/modules/alerts/domain/tests/alert.entity.test.ts`
+  - Verifica: `dce pnpm test src/modules/alerts/domain/tests/alert.entity` **falla**.
+- [ ] T098 [P] [H6] Test de ventanas: periodos y días de disparo (viernes 2026-10-23, 2026-10-29, 2027-02-26), vencido antes y después de las 22:00, recuperación hasta el fin de la ventana y rango sin días cerrados (RF-24 a RF-26, RF-47) — `src/modules/alerts/domain/tests/alert-window.value-object.test.ts`
+  - Verifica: `dce pnpm test src/modules/alerts/domain/tests/alert-window` **falla**.
+- [ ] T099 [P] [H6] Test de recordar zona: guarda y actualiza solo si cambia (RF-34) — `src/modules/alerts/application/tests/record-user-time-zone.use-case.test.ts`
+  - Verifica: `dce pnpm test src/modules/alerts/application/tests/record-user-time-zone` **falla**.
+- [ ] T100 [P] [H6] Test de tareas pendientes: solo pendientes del usuario en el rango (RF-24 a RF-26) — `src/modules/tasks/application/tests/get-pending-task.use-case.test.ts`
+  - Verifica: `dce pnpm test src/modules/tasks/application/tests/get-pending-task` **falla**.
+- [ ] T101 [P] [H6] Test de generar avisos: vencidos, omitidos sin pendientes y no reevaluados, sin duplicados, sin zona no hay avisos, zona recordada, copia inmutable, tres avisos el mismo día, recuperación tras una parada (RF-24 a RF-28, RF-30, RF-35, RF-36, RF-47, CE-04) — `src/modules/alerts/application/tests/generate-due-alert.use-case.test.ts`
+  - Verifica: `dce pnpm test src/modules/alerts/application/tests/generate-due-alert` **falla**.
+- [ ] T102 [P] [H6] Test de listar avisos: del más reciente al más antiguo, paginado (RF-29, RF-39) — `src/modules/alerts/application/tests/list-alert.use-case.test.ts`
+  - Verifica: `dce pnpm test src/modules/alerts/application/tests/list-alert` **falla**.
+- [ ] T103 [P] [H6] Test del planificador: pasada al arrancar, intervalo de 60 s con temporizadores falsos, sin solapamiento, registro dentro de los 5 min (RNF-02, RF-47) — `src/modules/alerts/infrastructure/tests/alert.scheduler.test.ts`
+  - Verifica: `dce pnpm test src/modules/alerts/infrastructure/tests/alert.scheduler` **falla**.
+- [ ] T104 [P] [H6] Test HTTP de `GET /alerts`: sobre, paginación válida e inválida, copia de tareas tras borrarlas, zona recordada tras una petición con cabeceras válidas aunque falle (RF-29, RF-30, RF-34, RF-39, RF-42) — `src/modules/alerts/infrastructure/tests/alert.routes.test.ts`
+  - Verifica: `dce pnpm test src/modules/alerts/infrastructure/tests/alert.routes` **falla**.
+- [ ] T105 [P] [H6] Test de integración del repositorio de avisos: `claimPeriod` concurrente (solo uno gana), restricción única, `JSONB` intacto tras borrar la tarea (RF-28, RF-30) — `src/modules/alerts/infrastructure/tests/prisma-alert.repository.int.test.ts`
+  - Verifica: `dce pnpm test src/modules/alerts/infrastructure/tests/prisma-alert` **falla**.
+- [ ] T106 [P] [H6] Test de integración de zonas: upsert que no escribe si no cambia; lotes (RF-34, RF-36) — `src/modules/alerts/infrastructure/tests/prisma-user-time-zone.repository.int.test.ts`
+  - Verifica: `dce pnpm test src/modules/alerts/infrastructure/tests/prisma-user-time-zone` **falla**.
+- [ ] T107 [P] [H6] Test de integración `findPending` (RF-24 a RF-26) — `src/modules/tasks/infrastructure/tests/prisma-task.repository.int.test.ts`
+  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/tests/prisma-task` **falla**.
 
 ### Implementación
 - [ ] T108 [H6] Entidad `Alert` (RF-30) — `src/modules/alerts/domain/alert.entity.ts`
-  - Verifica: `dce pnpm test src/modules/alerts/domain/alert.entity` pasa.
+  - Verifica: `dce pnpm test src/modules/alerts/domain/tests/alert.entity` pasa.
 - [ ] T109 [P] [H6] `AlertWindow` (RF-24 a RF-26, RF-47) — `src/modules/alerts/domain/alert-window.value-object.ts`
-  - Verifica: `dce pnpm test src/modules/alerts/domain/alert-window` pasa.
+  - Verifica: `dce pnpm test src/modules/alerts/domain/tests/alert-window` pasa.
 - [ ] T110 [H6] Puerto `AlertRepository` y su fake (D-21) — `src/modules/alerts/domain/alert.repository.ts`, `tests/support/in-memory-alert.repository.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
 - [ ] T111 [P] [H6] Puerto `UserTimeZoneRepository` y su fake (D-21) — `src/modules/alerts/domain/user-time-zone.repository.ts`, `tests/support/in-memory-user-time-zone.repository.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
 - [ ] T112 [H6] Caso de uso recordar zona (RF-34) — `src/modules/alerts/application/record-user-time-zone.use-case.ts`
-  - Verifica: `dce pnpm test src/modules/alerts/application/record-user-time-zone` pasa.
+  - Verifica: `dce pnpm test src/modules/alerts/application/tests/record-user-time-zone` pasa.
 - [ ] T113 [H6] Puerto y repositorio en memoria de tareas con `findPending` — `src/modules/tasks/domain/task.repository.ts`, `tests/support/in-memory-task.repository.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
 - [ ] T114 [H6] Caso de uso de tareas pendientes y su exportación en la fachada (RF-24 a RF-26) — `src/modules/tasks/application/get-pending-task.use-case.ts`, `src/modules/tasks/task.facade.ts`
-  - Verifica: `dce pnpm test src/modules/tasks/application/get-pending-task` pasa.
+  - Verifica: `dce pnpm test src/modules/tasks/application/tests/get-pending-task` pasa.
 - [ ] T115 [H6] Repositorio Prisma de tareas con `findPending` (RF-24 a RF-26) — `src/modules/tasks/infrastructure/prisma-task.repository.ts`
-  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/prisma-task` pasa.
+  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/tests/prisma-task` pasa.
 - [ ] T116 [H6] Puerto `PendingTaskSource` y adaptador hacia la fachada de `tasks` — `src/modules/alerts/domain/pending-task.port.ts`, `src/modules/alerts/infrastructure/pending-task.adapter.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
 - [ ] T117 [H6] Caso de uso generar avisos (RF-24 a RF-28, RF-30, RF-35, RF-36, RF-47) — `src/modules/alerts/application/generate-due-alert.use-case.ts`
-  - Verifica: `dce pnpm test src/modules/alerts/application/generate-due-alert` pasa.
+  - Verifica: `dce pnpm test src/modules/alerts/application/tests/generate-due-alert` pasa.
 - [ ] T118 [P] [H6] Caso de uso listar avisos (RF-29, RF-39) — `src/modules/alerts/application/list-alert.use-case.ts`
-  - Verifica: `dce pnpm test src/modules/alerts/application/list-alert` pasa.
+  - Verifica: `dce pnpm test src/modules/alerts/application/tests/list-alert` pasa.
 - [ ] T119 [H6] Mapper y repositorio Prisma de avisos con `claimPeriod` transaccional (RF-28, RF-29, RF-30) — `src/modules/alerts/infrastructure/alert.mapper.ts`, `src/modules/alerts/infrastructure/prisma-alert.repository.ts`
-  - Verifica: `dce pnpm test src/modules/alerts/infrastructure/prisma-alert` pasa.
+  - Verifica: `dce pnpm test src/modules/alerts/infrastructure/tests/prisma-alert` pasa.
 - [ ] T120 [P] [H6] Repositorio Prisma de zonas con upsert condicional (RF-34, RF-36) — `src/modules/alerts/infrastructure/prisma-user-time-zone.repository.ts`
-  - Verifica: `dce pnpm test src/modules/alerts/infrastructure/prisma-user-time-zone` pasa.
+  - Verifica: `dce pnpm test src/modules/alerts/infrastructure/tests/prisma-user-time-zone` pasa.
 - [ ] T121 [H6] Planificador de 60 s con pasada inicial y sin solapamiento (RNF-02, RF-47) — `src/modules/alerts/infrastructure/alert.scheduler.ts`
-  - Verifica: `dce pnpm test src/modules/alerts/infrastructure/alert.scheduler` pasa.
+  - Verifica: `dce pnpm test src/modules/alerts/infrastructure/tests/alert.scheduler` pasa.
 - [ ] T122 [H6] Schema de consulta y controlador de `GET /alerts` (RF-39, RF-42) — `src/modules/alerts/infrastructure/alert.schema.ts`, `src/modules/alerts/infrastructure/alert.controller.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
 - [ ] T123 [H6] Ruta `GET /alerts` con contexto encadenado (D-8) — `src/modules/alerts/infrastructure/alert.routes.ts`
@@ -362,8 +363,8 @@ Spec: `sdd/001-taskApiSDD-mvp/spec.md` (Aprobada) · Plan: `sdd/001-taskApiSDD-m
 
 ## Fase R — Robustez
 
-- [ ] T127 [Rob] Batería de precedencia por pares: cada combinación de dos fallos de niveles distintos de RF-46 devuelve el de menor orden (RF-46, R-8) — `src/modules/tasks/infrastructure/task.routes.test.ts`
-  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/task.routes` pasa.
+- [ ] T127 [Rob] Batería de precedencia por pares: cada combinación de dos fallos de niveles distintos de RF-46 devuelve el de menor orden (RF-46, R-8) — `src/modules/tasks/infrastructure/tests/task.routes.test.ts`
+  - Verifica: `dce pnpm test src/modules/tasks/infrastructure/tests/task.routes` pasa.
 - [ ] T128 [P] [Rob] Test de rendimiento: 10 000 tareas en 3 años, p95 < 300 ms por endpoint, duración de una pasada del planificador con 10 000 usuarios (RNF-01, CE-05, R-1) — `tests/performance/api.perf.test.ts`
   - Verifica: `dce pnpm test:perf` pasa.
 - [ ] T129 [Rob] Guía manual, sección QS-R: producción y rendimiento — `sdd/001-taskApiSDD-mvp/quickstart.md`

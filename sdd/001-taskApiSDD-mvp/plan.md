@@ -15,7 +15,7 @@ API REST en Express 5 + TypeScript estricto con tres módulos verticales hexagon
 | :--- | :--- | :--- |
 | **I. Stack cerrado** | Runtime: solo `express`, `@prisma/client` y `zod`. Zonas horarias con `Intl` (sin librería de fechas), temporizador con `setInterval` (sin librería de cron), ids con `gen_random_uuid()` de PostgreSQL (`@default(dbgenerated("gen_random_uuid()"))`), tests HTTP con `fetch` nativo (sin supertest). Las herramientas de desarrollo fuera del stack (`vite-node`, `ts-jest`, `@types/*`) están justificadas en la sección 8 con su alternativa sin dependencia descartada, y el usuario las aprobó el 2026-10-24 por ser necesarias para los tests y el funcionamiento de la app. | ✅ |
 | **II. Sin spec no hay cambio** | Todo el comportamiento observable sale de la spec aprobada. Las decisiones tomadas al planificar están en la spec: D-1 (cuándo se recuerda la zona) en *Clarificaciones* de RF-34, D-2 (recuperación de avisos tras una parada) como RF-47, y D-18 (formato de `X-Client-Time`) en *Clarificaciones* de RF-31. | ✅ |
-| **III. Tests** | Cada `*.use-case.ts` y cada fichero de `domain/` con lógica tiene su `*.test.ts` al lado (sección 10). El cálculo de rachas se prueba con todos los ejemplos de RF-17 a RF-21 (CE-02). La suite completa se ejecuta con `docker compose -f docker-compose.dev.yml exec api pnpm test`. | ✅ |
+| **III. Tests** | Cada `*.use-case.ts` y cada fichero de `domain/` con lógica tiene su `*.test.ts` en la subcarpeta `tests/` de su carpeta (sección 10, D-25). El cálculo de rachas se prueba con todos los ejemplos de RF-17 a RF-21 (CE-02). La suite completa se ejecuta con `docker compose -f docker-compose.dev.yml exec api pnpm test`. | ✅ |
 | **IV. Migraciones** | El esquema vive en `prisma/schema.prisma` y solo cambia con migraciones de `prisma/migrations/`. La migración inicial crea las cuatro tablas de la sección 4. Los secretos solo en `.env.dev`/`.env.prod` (no versionados); se versiona un `.env.example` con los nombres de las variables y sin ningún valor (`VARIABLE=`). | ✅ |
 | **V. Separación hexagonal** | `domain/` no importa frameworks (solo `src/shared/domain`). `application/` solo importa `domain/` y `src/shared/`. Toda entrada (cabeceras, body, params, query) se valida con Zod en `infrastructure/`. Cada módulo expone su fachada pública `[entidad].facade.ts` (p. ej. `task.facade.ts`) con los casos de uso que otros módulos pueden usar; los demás módulos solo importan esa fachada, nunca `domain/`, `application/` ni `infrastructure/` de otro módulo (D-9, recogido en el principio V; nombre en singular desde la versión 1.5.0). | ✅ |
 | **VI. Clarificar antes de suponer** | Las dudas de comportamiento detectadas al planificar se preguntaron y están en la spec (D-1, D-2 → RF-47, D-18). El resto de decisiones son técnicas (CÓMO) y están justificadas en la sección 7. | ✅ |
@@ -29,7 +29,7 @@ Todo se crea desde cero salvo `.gitignore`, que ya existe y se amplía.
 
 | Archivo | Qué hace |
 | :--- | :--- |
-| `package.json` | `"type": "module"` (ESM, D-22), `packageManager: pnpm@12.12.0`, dependencias con versión exacta (sección 8) y scripts: `dev`, `build`, `start`, `test`, `test:watch`, `test:coverage`, `test:perf`, `prisma`. Los scripts de Jest usan `NODE_OPTIONS=--experimental-vm-modules` y `--selectProjects=<proyecto>`. |
+| `package.json` | `"type": "module"` (ESM, D-22), `packageManager: pnpm@12.12.0`, dependencias con versión exacta (sección 8) y scripts: `dev`, `build`, `start`, `test`, `test:watch`, `test:coverage`, `test:perf`, `prisma`. Los scripts de Jest usan `NODE_OPTIONS=--experimental-vm-modules`; `test:perf` añade `JEST_PERFORMANCE=1`, la única forma de cargar el proyecto `performance`, para que `pnpm test <ruta>` filtre por ruta. |
 | `pnpm-lock.yaml` | Lockfile generado dentro del contenedor. |
 | `pnpm-workspace.yaml` | `allowBuilds`: autoriza los scripts de instalación de `prisma`, `@prisma/client` y `@prisma/engines` (descargan los motores) y deniega los de `@parcel/watcher` y `unrs-resolver`, que traen binarios precompilados (R-12). `Dockerfile.dev` lo copia antes de `pnpm install`. |
 | `tsconfig.json` | TypeScript `strict`, `module`/`moduleResolution` `NodeNext` en ESM (los imports relativos llevan extensión `.js`), `verbatimModuleSyntax`, `target` ES2023, `noEmit` (compilan Vite y `ts-jest`). |
@@ -142,7 +142,7 @@ Todo se crea desde cero salvo `.gitignore`, que ya existe y se amplía.
 | `tests/integration/test-database.helper.ts` | `truncateTables()`: vacía con `TRUNCATE` las tablas del esquema `test`; cada `*.int.test.ts` lo llama en `beforeEach`. |
 | `tests/performance/api.perf.test.ts` | Carga 10 000 tareas en 3 años y mide el p95 de cada endpoint (RNF-01, CE-05). Se ejecuta con `pnpm test:perf`. |
 
-Los tests unitarios y de integración van junto al fichero que prueban (`*.test.ts`, `*.int.test.ts`); ver sección 10.
+Los tests unitarios, HTTP y de integración (`*.test.ts`, `*.int.test.ts`) van en una subcarpeta `tests/` dentro de la carpeta del fichero que prueban, con su mismo nombre base (D-25); ver sección 10.
 
 ### Documentación
 
@@ -164,10 +164,11 @@ Cuatro tablas en PostgreSQL. Los días se guardan como `DATE` (sin hora ni zona)
 | `description` | `VARCHAR(1000)` | NULL | Ya recortada; vacía → `NULL`. |
 | `date` | `DATE` | NOT NULL | Día al que pertenece la tarea. |
 | `completed` | `BOOLEAN` | NOT NULL, `DEFAULT false` | |
-| `created_at` | `TIMESTAMPTZ(3)` | NOT NULL, `DEFAULT now()` | Desempate de orden (RF-41). |
+| `sequence` | `BIGSERIAL` | NOT NULL, `UNIQUE` | Orden de creación exacto dentro de cada día (RF-41, D-24). |
+| `created_at` | `TIMESTAMPTZ(3)` | NOT NULL, `DEFAULT now()` | Se expone en el contrato. |
 | `updated_at` | `TIMESTAMPTZ(3)` | NOT NULL | `@updatedAt`. |
 
-Índices: `(user_id, date, created_at, id)` para listados y rangos; `(user_id, completed, date)` para días productivos y tareas pendientes.
+Índices: `(user_id, date, sequence)` para listados y rangos; `(user_id, completed, date)` para días productivos y tareas pendientes.
 
 ### `alerts`
 
@@ -223,7 +224,7 @@ No se guarda la racha: se calcula siempre a partir de `tasks` (D-5).
 
 ### 5.2 Tareas
 - **Crear (RF-03, RF-07):** body validado → si `date < today` → `DAY_CLOSED` → insertar con `completed = false` → `201`.
-- **Listar (RF-08 a RF-10, RF-39 a RF-41):** filtros `date` | (`from`, `to`), `status`; `count` + `findMany` con `ORDER BY date, created_at, id`, `OFFSET (page−1)·pageSize`, `LIMIT pageSize`; `totalPages = ceil(totalItems / pageSize)` (0 si no hay tareas); una página fuera de rango devuelve `items: []`.
+- **Listar (RF-08 a RF-10, RF-39 a RF-41):** filtros `date` | (`from`, `to`), `status`; `count` + `findMany` con `ORDER BY date, sequence`, `OFFSET (page−1)·pageSize`, `LIMIT pageSize`; `totalPages = ceil(totalItems / pageSize)` (0 si no hay tareas); una página fuera de rango devuelve `items: []`.
 - **Consultar por id (RF-16, RF-44):** si el id no tiene formato UUID → `TASK_NOT_FOUND` sin consultar la base de datos; si no existe o `user_id` no coincide → `TASK_NOT_FOUND`.
 - **Actualizar (RF-11 a RF-14, RF-37, RF-45):** body `strict` con al menos un campo → buscar (`TASK_NOT_FOUND`) → si `task.date < today` → `DAY_CLOSED` → si `completed === true` y `task.date > today` → `DAY_NOT_STARTED` → aplicar los cambios en un único `UPDATE` (operaciones idempotentes) → `200`.
 - **Borrar (RF-14 a RF-16):** buscar (`TASK_NOT_FOUND`) → si `task.date < today` → `DAY_CLOSED` → `DELETE` físico → `200` con `data: null`.
@@ -306,6 +307,8 @@ Mensajes de éxito (`message`, en español, RNF-03): `POST` → "Tarea creada co
 | D-21 | Los fakes de tests (repositorios en memoria, reloj falso y contenedor de test) viven en `tests/support/`, uno por fichero. | Decidido por el usuario (2026-10-24): no entran en el build de producción y se comparten entre tests unitarios y HTTP de los tres módulos. | Fakes en `infrastructure/` de cada módulo (código de test dentro de producción); fakes dentro de cada test (duplicación). |
 | D-22 | El proyecto es ESM de principio a fin: `"type": "module"`, `NodeNext`, imports relativos con `.js`, build de Vite en ESM y Jest en modo ESM (`--experimental-vm-modules`, preset `default-esm`; el objeto `jest` se usa como `import.meta.jest`). | Decidido por el usuario (2026-10-25): sin CommonJS. | CommonJS (más simple para Jest, descartado por el usuario). |
 | D-23 | Prisma 6.19.3 (cliente y CLI). | Decidido por el usuario (2026-10-25): Prisma 7 exige un *driver adapter* (`@prisma/adapter-pg`, dependencia nueva), `prisma.config.ts` y cliente generado en el código fuente; la 6.19.3 funciona como describe este plan sin dependencias extra. | Prisma 7.10.0 con `@prisma/adapter-pg`. La migración a Prisma 7 queda como funcionalidad futura. |
+| D-24 | Columna `tasks.sequence` (`BIGSERIAL`, única) y orden de las listas por `date, sequence`. | Detectado al implementar H2: con `created_at` de precisión de milisegundos, dos tareas creadas en el mismo milisegundo empataban y el desempate por `id` (UUID aleatorio) las ordenaba al azar, incumpliendo RF-41. Se añade con una migración nueva (principio IV). | Subir `created_at` a microsegundos (reduce el empate pero no lo elimina); desempatar por `id` (orden aleatorio). |
+| D-25 | Los tests de cada carpeta van en su subcarpeta `tests/`, con el mismo nombre base que el fichero probado (`application/tests/create-task.use-case.test.ts`); el soporte común sigue en `tests/` de la raíz. | Decidido por el usuario (2026-10-25): separa código y tests sin alejarlos, y facilita comprobar que cada fichero tiene su test. `tests` en plural por la convención de carpetas de AGENTS.md. Jest no cambia: `src/**/*.test.ts` los encuentra. | Tests junto al código (mezclados); una carpeta `test/` por módulo que reproduce su estructura (más lejos del fichero probado). |
 
 ## 8. Complexity Tracking
 
@@ -356,7 +359,7 @@ Las dependencias fuera del stack (`vite-node`, `ts-jest`, `@types/*`) las aprob�
 
 ## 10. Estrategia de tests
 
-Tipos de test:
+Tipos de test (todos en la subcarpeta `tests/` de la carpeta del fichero probado, D-25):
 - **Unitarios** (`*.test.ts`, sin base de datos): dominio y casos de uso con los repositorios en memoria y el `Clock` falso de `tests/support/` (D-21).
 - **HTTP** (`*.routes.test.ts`): la app real con contenedor de fakes y `fetch` nativo. Cubren el contrato, el sobre y la precedencia.
 - **Integración** (`*.int.test.ts`): repositorios Prisma contra el esquema `test` de PostgreSQL.

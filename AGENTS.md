@@ -32,14 +32,20 @@ El código fuente se organiza en módulos de negocio independientes bajo `src/mo
 ├── .env.dev                      # Variables de desarrollo (no versionado), cargado por docker-compose.dev.yml
 ├── .env.prod                     # Variables de producción (no versionado), cargado por docker-compose.prod.yml
 ├── prisma/                       # schema.prisma y migraciones
+├── tests/                        # Soporte común de tests: fakes (support/), setup de integración (integration/) y rendimiento (performance/)
 └── src/
     ├── shared/                   # Infraestructura global, errores base (AppError) y utilidades
     └── modules/
         └── [nombre-del-modulo]/  # Ej: tasks, users, streaks
             ├── domain/           # Modelos, Value Objects e interfaces de puertos (Salida)
+            │   └── tests/        # Tests de los ficheros de domain/
             ├── application/      # Casos de uso / Comandos y Consultas
+            │   └── tests/        # Tests de los ficheros de application/
             └── infrastructure/   # Adaptadores de entrada (Controladores Express, Rutas, Schemas Zod) y salida (Prisma Repositories)
+                └── tests/        # Tests de los ficheros de infrastructure/
 ```
+
+> **Ubicación de los tests:** cada carpeta con código probado tiene una subcarpeta `tests/` con un test por fichero y el mismo nombre base (`application/create-task.use-case.ts` → `application/tests/create-task.use-case.test.ts`). Aplica también a `src/shared/` y sus subcarpetas. Nunca se deja un `*.test.ts` junto al código.
 
 
 
@@ -75,6 +81,10 @@ docker build -f Dockerfile.prod -t taskapisdd:latest .            # Construir so
 docker compose -f docker-compose.dev.yml exec api pnpm prisma generate                      # Generar el cliente de Prisma
 docker compose -f docker-compose.dev.yml run --rm api pnpm prisma generate                  # Regenerar el cliente de Prisma cuando api no está levantado
 docker compose -f docker-compose.dev.yml exec api pnpm prisma migrate dev --name <nombre>   # Crear y aplicar una migración
+# Sin terminal interactiva (agentes de IA), `migrate dev` aborta si la migración tiene avisos que confirmar.
+# Alternativa no interactiva: generar el SQL de la migración nueva y aplicarlo
+docker compose -f docker-compose.dev.yml exec -T api pnpm exec prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma --script > prisma/migrations/<AAAAMMDDHHMMSS>_<nombre>/migration.sql
+docker compose -f docker-compose.dev.yml exec api pnpm prisma migrate deploy                # Aplicar migraciones pendientes en desarrollo
 docker compose -f docker-compose.dev.yml exec api pnpm prisma migrate reset                 # Reiniciar la BDD y reaplicar migraciones
 docker compose -f docker-compose.dev.yml exec api pnpm prisma studio                        # Explorar la BDD (puerto 5555 expuesto)
 
@@ -111,6 +121,8 @@ docker compose -f docker-compose.dev.yml exec api pnpm test:coverage        # Te
 | **Esquema de Validación** | `[nombre].schema.ts` | `task.schema.ts` |
 | **Repositorio (BD)** | `prisma-[nombre].repository.ts` | `prisma-task.repository.ts` |
 | **Mapeador (Mapper)** | `[nombre].mapper.ts` | `task.mapper.ts` |
+| **Test unitario o HTTP** | `tests/[fichero-probado].test.ts` (subcarpeta de la carpeta del fichero) | `application/tests/create-task.use-case.test.ts` |
+| **Test de integración** | `tests/[fichero-probado].int.test.ts` | `infrastructure/tests/prisma-task.repository.int.test.ts` |
 | **Carpeta de funcionalidad (SDD)** | `sdd/[NNN]-[funcionalidad]/` | `sdd/001-taskApiSDD-mvp/` |
 | **Spec (SDD)** | `sdd/[NNN]-[funcionalidad]/spec.md` | `sdd/001-taskApiSDD-mvp/spec.md` |
 | **Plan (SDD)** | `sdd/[NNN]-[funcionalidad]/plan.md` | `sdd/001-taskApiSDD-mvp/plan.md` |

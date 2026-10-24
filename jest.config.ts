@@ -18,7 +18,7 @@ const config: Config = {
     {
       ...esmProject,
       displayName: 'unit',
-      // Tests sin base de datos; los de integración tienen su propio proyecto
+      // Tests sin base de datos (en las subcarpetas tests/, D-25); los de integración tienen su propio proyecto
       testMatch: ['<rootDir>/src/**/*.test.ts'],
       testPathIgnorePatterns: ['/node_modules/', '\\.int\\.test\\.ts$'],
     },
@@ -29,12 +29,17 @@ const config: Config = {
       testMatch: ['<rootDir>/src/**/*.int.test.ts'],
       globalSetup: '<rootDir>/tests/integration/global.setup.ts',
     },
-    {
-      ...esmProject,
-      displayName: 'performance',
-      // Solo se ejecuta con `pnpm test:perf` (RNF-01, CE-05)
-      testMatch: ['<rootDir>/tests/performance/**/*.test.ts'],
-    },
+    // Solo con `pnpm test:perf` (RNF-01, CE-05): fuera de `pnpm test` para que una ruta pasada
+    // como argumento filtre los tests en lugar de interpretarse como nombre de proyecto
+    ...(process.env.JEST_PERFORMANCE === '1'
+      ? [
+          {
+            ...esmProject,
+            displayName: 'performance',
+            testMatch: ['<rootDir>/tests/performance/**/*.test.ts'],
+          },
+        ]
+      : []),
   ],
 };
 
