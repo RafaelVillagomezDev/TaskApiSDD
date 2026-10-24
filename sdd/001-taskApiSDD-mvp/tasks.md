@@ -370,6 +370,9 @@ Spec: `sdd/001-taskApiSDD-mvp/spec.md` (Aprobada) · Plan: `sdd/001-taskApiSDD-m
 - [ ] T129 [Rob] Guía manual, sección QS-R: producción y rendimiento — `sdd/001-taskApiSDD-mvp/quickstart.md`
   - Verifica: ejecutar QS-R a mano.
 
+- [x] T130 [P] [Rob] Colección de Postman del MVP P1 (H1–H3): flujo y casos de error (RF-01 a RF-03, RF-07, RF-08, RF-11, RF-12, RF-16, RF-19 a RF-21, RF-31 a RF-33, RF-45, RF-46) — `sdd/001-taskApiSDD-mvp/mvp-p1.postman-collection.json`
+  - Verifica: `docker run --rm -e TZ=Europe/Madrid -v "$PWD/sdd/001-taskApiSDD-mvp":/etc/newman postman/newman:6-alpine run mvp-p1.postman-collection.json --env-var baseUrl=http://host.docker.internal:3000` → 18 peticiones y 19 comprobaciones sin fallos.
+
 ### Checkpoint Robustez
 - `dce pnpm test` y `dce pnpm test:coverage` pasan; `dce pnpm test:perf` pasa.
 - Principio V: `grep -rnE "from ['\"](express|@prisma/client|zod)" src/modules/*/domain src/modules/*/application src/shared/domain src/shared/application` no devuelve resultados.

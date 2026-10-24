@@ -149,6 +149,7 @@ Los tests unitarios, HTTP y de integración (`*.test.ts`, `*.int.test.ts`) van e
 | Archivo | Qué hace |
 | :--- | :--- |
 | `sdd/001-taskApiSDD-mvp/quickstart.md` | Guía de pruebas manuales: sección común QS-0 (levantar contenedores, migrar, cabeceras de ejemplo) y una sección por historia (QS-H1 a QS-H6) más QS-R (producción y rendimiento), con peticiones `curl` y respuesta esperada. Los *checkpoints* de `tasks.md` citan sus pasos. |
+| `sdd/001-taskApiSDD-mvp/mvp-p1.postman-collection.json` | Colección de Postman del MVP P1 (H1–H3): flujo en orden y casos de error, con `X-Client-Time`, fechas locales y usuario nuevo calculados por un script de colección. Se verifica con Newman desde su imagen de Docker, sin instalar nada en el host. |
 
 ## 4. Modelo de datos
 

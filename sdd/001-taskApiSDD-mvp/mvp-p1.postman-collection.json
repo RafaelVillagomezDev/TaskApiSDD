@@ -1,0 +1,1020 @@
+{
+  "info": {
+    "name": "TaskApiSDD — MVP P1",
+    "description": "Flujo del MVP P1 (H1 tareas del día, H2 completar, H3 racha) y casos de error. Las cabeceras X-User-Id, X-Client-Time y X-Timezone se calculan solas. Ejecuta la carpeta '1. Flujo MVP' en orden (Run folder) antes de '2. Errores'.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Calcula X-Client-Time (hora local con ±HH:MM) y las fechas locales en cada petición",
+          "const pad = (n) => String(Math.abs(n)).padStart(2, '0');",
+          "const now = new Date();",
+          "const offset = -now.getTimezoneOffset();",
+          "const sign = offset >= 0 ? '+' : '-';",
+          "pm.variables.set('clientTime',",
+          "  `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}` +",
+          "  `${sign}${pad(Math.floor(Math.abs(offset) / 60))}:${pad(Math.abs(offset) % 60)}`);",
+          "const day = (delta) => {",
+          "  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + delta);",
+          "  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;",
+          "};",
+          "pm.variables.set('today', day(0));",
+          "pm.variables.set('tomorrow', day(1));",
+          "pm.variables.set('yesterday', day(-1));",
+          "if (!pm.collectionVariables.get('userId')) {",
+          "  pm.collectionVariables.set('userId', 'postman-' + Date.now());",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "timeZone",
+      "value": "Europe/Madrid"
+    },
+    {
+      "key": "userId",
+      "value": ""
+    },
+    {
+      "key": "taskId",
+      "value": ""
+    },
+    {
+      "key": "tomorrowTaskId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Flujo MVP",
+      "item": [
+        {
+          "name": "01 Racha de un usuario nuevo",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Usuario nuevo en cada ejecución del flujo, para que la racha empiece en 0",
+                  "pm.collectionVariables.set('userId', 'postman-' + Date.now());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con racha 0/0', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().data).to.eql({ current: 0, best: 0 });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/streak",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "streak"
+              ]
+            }
+          }
+        },
+        {
+          "name": "02 Crear tarea para hoy (H1)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Tarea creada, título recortado y pendiente', () => {",
+                  "  pm.response.to.have.status(201);",
+                  "  const { message, data } = pm.response.json();",
+                  "  pm.expect(message).to.equal('Tarea creada con éxito');",
+                  "  pm.expect(data.title).to.equal('Comprar pan');",
+                  "  pm.expect(data.completed).to.equal(false);",
+                  "  pm.collectionVariables.set('taskId', data.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tasks",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"  Comprar pan  \",\n  \"description\": \"Integral\",\n  \"date\": \"{{today}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "03 Crear tarea para mañana (H1)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Tarea de mañana', () => {",
+                  "  pm.response.to.have.status(201);",
+                  "  pm.collectionVariables.set('tomorrowTaskId', pm.response.json().data.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tasks",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Ir al gimnasio\",\n  \"date\": \"{{tomorrow}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "04 Consultar las tareas de hoy (H1)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con la tarea de hoy, paginado', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const { data } = pm.response.json();",
+                  "  pm.expect(data.totalItems).to.equal(1);",
+                  "  pm.expect(data.items[0].id).to.equal(pm.collectionVariables.get('taskId'));",
+                  "  pm.expect(data).to.include({ page: 1, pageSize: 50, totalPages: 1 });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tasks?date={{today}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks"
+              ],
+              "query": [
+                {
+                  "key": "date",
+                  "value": "{{today}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "05 Completar la tarea de hoy (H2)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 completada', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().message).to.equal('Tarea actualizada con éxito');",
+                  "  pm.expect(pm.response.json().data.completed).to.equal(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tasks/{{taskId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks",
+                "{{taskId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"completed\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "06 Racha tras completar (H3)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('racha 1/1', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().data).to.eql({ current: 1, best: 1 });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/streak",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "streak"
+              ]
+            }
+          }
+        },
+        {
+          "name": "07 Desmarcar la tarea (H2)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 pendiente otra vez', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().data.completed).to.equal(false);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tasks/{{taskId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks",
+                "{{taskId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"completed\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "08 Racha tras desmarcar (H3)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('racha 0/0', () => {",
+                  "  pm.expect(pm.response.json().data).to.eql({ current: 0, best: 0 });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/streak",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "streak"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Errores",
+      "item": [
+        {
+          "name": "Crear tarea en un día pasado → DAY_CLOSED",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 DAY_CLOSED', () => {",
+                  "  pm.response.to.have.status(409);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.equal(false);",
+                  "  pm.expect(body.error.code).to.equal('DAY_CLOSED');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tasks",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Tarde\",\n  \"date\": \"{{yesterday}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Completar tarea de mañana → DAY_NOT_STARTED",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 DAY_NOT_STARTED', () => {",
+                  "  pm.response.to.have.status(409);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.equal(false);",
+                  "  pm.expect(body.error.code).to.equal('DAY_NOT_STARTED');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tasks/{{tomorrowTaskId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks",
+                "{{tomorrowTaskId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"completed\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Título vacío → VALIDATION_ERROR",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 VALIDATION_ERROR', () => {",
+                  "  pm.response.to.have.status(400);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.equal(false);",
+                  "  pm.expect(body.error.code).to.equal('VALIDATION_ERROR');",
+                  "});",
+                  "pm.test('details indica el campo title', () => {",
+                  "  pm.expect(pm.response.json().error.details[0].field).to.equal('title');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tasks",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"\",\n  \"date\": \"{{today}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Id no UUID → TASK_NOT_FOUND",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 TASK_NOT_FOUND', () => {",
+                  "  pm.response.to.have.status(404);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.equal(false);",
+                  "  pm.expect(body.error.code).to.equal('TASK_NOT_FOUND');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tasks/abc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks",
+                "abc"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"completed\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Otro usuario no ve mis tareas (RF-02)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con items vacío', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().data.items).to.eql([]);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "otro-usuario"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tasks?date={{today}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks"
+              ],
+              "query": [
+                {
+                  "key": "date",
+                  "value": "{{today}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Sin X-User-Id → MISSING_USER",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401 MISSING_USER', () => {",
+                  "  pm.response.to.have.status(401);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.equal(false);",
+                  "  pm.expect(body.error.code).to.equal('MISSING_USER');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/streak",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "streak"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Reloj desviado → INVALID_CLIENT_TIME",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 INVALID_CLIENT_TIME', () => {",
+                  "  pm.response.to.have.status(400);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.equal(false);",
+                  "  pm.expect(body.error.code).to.equal('INVALID_CLIENT_TIME');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "2020-01-01T10:00:00+01:00"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/streak",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "streak"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Hora con Z → INVALID_CLIENT_TIME",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 INVALID_CLIENT_TIME', () => {",
+                  "  pm.response.to.have.status(400);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.equal(false);",
+                  "  pm.expect(body.error.code).to.equal('INVALID_CLIENT_TIME');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "2026-10-25T10:00:00Z"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/streak",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "streak"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Zona inexistente → INVALID_TIMEZONE",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 INVALID_TIMEZONE', () => {",
+                  "  pm.response.to.have.status(400);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.equal(false);",
+                  "  pm.expect(body.error.code).to.equal('INVALID_TIMEZONE');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "Mars/Olympus"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/streak",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "streak"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Método inexistente → ROUTE_NOT_FOUND",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 ROUTE_NOT_FOUND', () => {",
+                  "  pm.response.to.have.status(404);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.equal(false);",
+                  "  pm.expect(body.error.code).to.equal('ROUTE_NOT_FOUND');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/tasks",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

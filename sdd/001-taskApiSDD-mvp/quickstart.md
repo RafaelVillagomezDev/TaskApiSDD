@@ -3,6 +3,12 @@
 Guía para probar a mano cada historia. Los *checkpoints* de `tasks.md` citan estos pasos (QS-0.1, QS-H1.1…).
 Todo el servidor corre en Docker (AGENTS.md); en tu máquina solo se usan `curl` y `date`.
 
+> **Alternativa con Postman (MVP P1, QS-H1 a QS-H3):** importa `sdd/001-taskApiSDD-mvp/mvp-p1.postman-collection.json`, ajusta la variable de colección `timeZone` a la zona de tu ordenador y ejecuta la carpeta "1. Flujo MVP" (*Run folder*) y después "2. Errores". Para ejecutarla desde la terminal sin instalar nada:
+> ```bash
+> docker run --rm -e TZ=Europe/Madrid -v "$PWD/sdd/001-taskApiSDD-mvp":/etc/newman postman/newman:6-alpine \
+>   run mvp-p1.postman-collection.json --env-var baseUrl=http://host.docker.internal:3000
+> ```
+
 ---
 
 ## QS-0 — Base
