@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "TaskApiSDD — MVP P1",
-    "description": "Flujo del MVP P1 (H1 tareas del día, H2 completar, H3 racha) y casos de error. Las cabeceras X-User-Id, X-Client-Time y X-Timezone se calculan solas. Ejecuta la carpeta '1. Flujo MVP' en orden (Run folder) antes de '2. Errores'.",
+    "description": "Flujo del MVP P1 (H1 tareas del día, H2 completar, H3 racha) y casos de error. Las cabeceras X-User-Id, X-Client-Time y X-Timezone se calculan solas. Ejecuta la carpeta '1. Flujo MVP' en orden (Run folder) antes de '2. Errores'. La carpeta '3. Mis tareas' consulta las tareas del usuario de la variable myUserId.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "event": [
@@ -40,6 +40,10 @@
     {
       "key": "timeZone",
       "value": "Europe/Madrid"
+    },
+    {
+      "key": "myUserId",
+      "value": "mi-usuario"
     },
     {
       "key": "userId",
@@ -491,6 +495,58 @@
               ],
               "path": [
                 "streak"
+              ]
+            }
+          }
+        },
+        {
+          "name": "09 Listar todas mis tareas (H1)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con las dos tareas del flujo, ordenadas por fecha', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const { data } = pm.response.json();",
+                  "  pm.expect(data.totalItems).to.equal(2);",
+                  "  pm.expect(data.items.map((task) => task.id)).to.eql([",
+                  "    pm.collectionVariables.get('taskId'),",
+                  "    pm.collectionVariables.get('tomorrowTaskId'),",
+                  "  ]);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tasks",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks"
               ]
             }
           }
@@ -1010,6 +1066,177 @@
               ],
               "path": [
                 "tasks"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Mis tareas",
+      "description": "Consulta las tareas de un usuario fijo: cambia la variable de colección `myUserId` por tu usuario. Usa ese mismo valor en X-User-Id al crear tareas para verlas aquí.",
+      "item": [
+        {
+          "name": "Listar mis tareas",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con la lista paginada', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const { data } = pm.response.json();",
+                  "  pm.expect(data.items).to.be.an('array');",
+                  "  pm.expect(data).to.include.keys('page', 'pageSize', 'totalItems', 'totalPages');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{myUserId}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tasks",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Mis tareas de hoy",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con la lista paginada', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const { data } = pm.response.json();",
+                  "  pm.expect(data.items).to.be.an('array');",
+                  "  pm.expect(data).to.include.keys('page', 'pageSize', 'totalItems', 'totalPages');",
+                  "});",
+                  "pm.test('solo tareas de hoy', () => {",
+                  "  pm.response.json().data.items.forEach((task) => pm.expect(task.date).to.equal(pm.variables.get('today')));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{myUserId}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tasks?date={{today}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks"
+              ],
+              "query": [
+                {
+                  "key": "date",
+                  "value": "{{today}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Mis tareas pendientes",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con la lista paginada', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const { data } = pm.response.json();",
+                  "  pm.expect(data.items).to.be.an('array');",
+                  "  pm.expect(data).to.include.keys('page', 'pageSize', 'totalItems', 'totalPages');",
+                  "});",
+                  "pm.test('solo tareas pendientes', () => {",
+                  "  pm.response.json().data.items.forEach((task) => pm.expect(task.completed).to.equal(false));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{myUserId}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tasks?status=pending",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "pending"
+                }
               ]
             }
           }
