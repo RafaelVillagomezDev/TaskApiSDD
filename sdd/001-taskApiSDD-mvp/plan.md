@@ -29,11 +29,12 @@ Todo se crea desde cero salvo `.gitignore`, que ya existe y se amplía.
 
 | Archivo | Qué hace |
 | :--- | :--- |
-| `package.json` | Dependencias con versión exacta y scripts: `dev`, `build`, `start`, `test`, `test:watch`, `test:coverage`, `test:perf`, `prisma`. |
+| `package.json` | `"type": "module"` (ESM, D-22), `packageManager: pnpm@12.12.0`, dependencias con versión exacta (sección 8) y scripts: `dev`, `build`, `start`, `test`, `test:watch`, `test:coverage`, `test:perf`, `prisma`. Los scripts de Jest usan `NODE_OPTIONS=--experimental-vm-modules` y `--selectProjects=<proyecto>`. |
 | `pnpm-lock.yaml` | Lockfile generado dentro del contenedor. |
-| `tsconfig.json` | TypeScript `strict`, `module`/`moduleResolution` `NodeNext`, `target` ES2023. |
+| `pnpm-workspace.yaml` | `allowBuilds`: autoriza los scripts de instalación de `prisma`, `@prisma/client` y `@prisma/engines` (descargan los motores) y deniega los de `@parcel/watcher` y `unrs-resolver`, que traen binarios precompilados (R-12). `Dockerfile.dev` lo copia antes de `pnpm install`. |
+| `tsconfig.json` | TypeScript `strict`, `module`/`moduleResolution` `NodeNext` en ESM (los imports relativos llevan extensión `.js`), `verbatimModuleSyntax`, `target` ES2023, `noEmit` (compilan Vite y `ts-jest`). |
 | `vite.config.ts` | Build SSR de `src/server.main.ts` a `dist/server.js`, con las dependencias de `node_modules` como externas. |
-| `jest.config.ts` | Dos proyectos: `unit` (`src/**/*.test.ts`, excluyendo `*.int.test.ts` con `testPathIgnorePatterns`, sin base de datos) e `integration` (`src/**/*.int.test.ts` contra PostgreSQL); `ts-jest` como transformador. |
+| `jest.config.ts` | Dos proyectos: `unit` (`src/**/*.test.ts`, excluyendo `*.int.test.ts` con `testPathIgnorePatterns`, sin base de datos) e `integration` (`src/**/*.int.test.ts` contra PostgreSQL); `ts-jest` como transformador. En ESM: preset `ts-jest/presets/default-esm`, `extensionsToTreatAsEsm: ['.ts']` y `moduleNameMapper` que quita la extensión `.js` de los imports relativos (D-22). |
 | `Dockerfile.dev` | Node 22 LTS + pnpm (corepack), `ENV TZ=UTC`; instala dependencias y arranca `pnpm dev` (vite-node en modo watch) con el código montado como volumen. |
 | `Dockerfile.prod` | Multi-stage, `ENV TZ=UTC` en ambas etapas: etapa de build (`pnpm install`, `prisma generate`, `vite build`) y etapa runtime mínima con dependencias de producción, `dist/` y `prisma/`. |
 | `docker-compose.dev.yml` | Servicios `api` (Dockerfile.dev, puertos `PORT` y 5555 para Prisma Studio) y `db` (PostgreSQL 16 con volumen), `env_file: .env.dev`. |
@@ -50,7 +51,7 @@ Todo se crea desde cero salvo `.gitignore`, que ya existe y se amplía.
 | :--- | :--- |
 | `src/server.main.ts` | Punto de entrada: construye el contenedor, crea la app, escucha en `PORT` y arranca el planificador de avisos. |
 | `src/app.factory.ts` | `createApp(container)`: monta el guardián de métodos, los routers de cada módulo, el middleware de ruta inexistente y el de errores. No monta parsers ni el contexto de forma global (D-8). |
-| `src/dependency.container.ts` | Composition root: instancia repositorios Prisma, reloj, zona horaria, casos de uso, adaptadores entre módulos y planificador. En los tests se sustituye por fakes en memoria. |
+| `src/dependency.container.ts` | Composition root: instancia repositorios Prisma, reloj, zona horaria, casos de uso, adaptadores entre módulos y planificador. En los tests HTTP se sustituye por `tests/support/test.container.ts` (D-21). |
 
 ### `src/shared/`
 
@@ -133,10 +134,21 @@ Todo se crea desde cero salvo `.gitignore`, que ya existe y se amplía.
 | Archivo | Qué hace |
 | :--- | :--- |
 | `tests/integration/global.setup.ts` | Aplica las migraciones en el esquema `test` de la base de datos del contenedor antes de los tests de integración. |
+| `tests/support/in-memory-task.repository.ts` | Implementación en memoria de `TaskRepository` para tests unitarios y HTTP (D-21). |
+| `tests/support/in-memory-alert.repository.ts` | Implementación en memoria de `AlertRepository`, incluido `claimPeriod` (D-21). |
+| `tests/support/in-memory-user-time-zone.repository.ts` | Implementación en memoria de `UserTimeZoneRepository` (D-21). |
+| `tests/support/fake-clock.adapter.ts` | `Clock` controlable desde el test: fijar y avanzar la hora (D-21). |
+| `tests/support/test.container.ts` | `createTestContainer()`: el mismo cableado que `dependency.container.ts` pero con los fakes anteriores; lo usan los tests HTTP (D-21). |
 | `tests/integration/test-database.helper.ts` | `truncateTables()`: vacía con `TRUNCATE` las tablas del esquema `test`; cada `*.int.test.ts` lo llama en `beforeEach`. |
 | `tests/performance/api.perf.test.ts` | Carga 10 000 tareas en 3 años y mide el p95 de cada endpoint (RNF-01, CE-05). Se ejecuta con `pnpm test:perf`. |
 
 Los tests unitarios y de integración van junto al fichero que prueban (`*.test.ts`, `*.int.test.ts`); ver sección 10.
+
+### Documentación
+
+| Archivo | Qué hace |
+| :--- | :--- |
+| `sdd/001-taskApiSDD-mvp/quickstart.md` | Guía de pruebas manuales: sección común QS-0 (levantar contenedores, migrar, cabeceras de ejemplo) y una sección por historia (QS-H1 a QS-H6) más QS-R (producción y rendimiento), con peticiones `curl` y respuesta esperada. Los *checkpoints* de `tasks.md` citan sus pasos. |
 
 ## 4. Modelo de datos
 
@@ -291,6 +303,9 @@ Mensajes de éxito (`message`, en español, RNF-03): `POST` → "Tarea creada co
 | D-18 | `X-Client-Time` exige siempre el desfase `±HH:MM`; `Z` se rechaza con `INVALID_CLIENT_TIME` (un usuario en UTC envía `+00:00`). | Decidido por el usuario (2026-10-24): un único formato de desfase, explícito y fácil de validar. Registrado en *Clarificaciones* de la spec. | Aceptar también `Z` como desfase cero. |
 | D-19 | Guardián de métodos al principio de la app: solo `GET`, `POST`, `PATCH` y `DELETE`; el resto → `ROUTE_NOT_FOUND`. | Express responde solo a `OPTIONS` con un cuerpo de texto fuera del sobre, y a `HEAD` reutilizando el `GET`. Con el guardián, `OPTIONS` recibe el sobre y `HEAD` un `404` sin cuerpo, como permite la excepción del principio VII. | Desactivar esas respuestas automáticas router por router (fácil de olvidar en un router nuevo). |
 | D-20 | Los errores del parser JSON (mal formado, más de 100 kB, charset no soportado) → `VALIDATION_ERROR` (400). | Son cuerpos no válidos, que es lo que define `VALIDATION_ERROR` en la spec; así no se convierten en `INTERNAL_ERROR` 500. Con un título de 200 y una descripción de 1000 caracteres, 100 kB sobra. | Responder 413/415 (códigos sin equivalente en la spec ni en el sobre). |
+| D-21 | Los fakes de tests (repositorios en memoria, reloj falso y contenedor de test) viven en `tests/support/`, uno por fichero. | Decidido por el usuario (2026-10-24): no entran en el build de producción y se comparten entre tests unitarios y HTTP de los tres módulos. | Fakes en `infrastructure/` de cada módulo (código de test dentro de producción); fakes dentro de cada test (duplicación). |
+| D-22 | El proyecto es ESM de principio a fin: `"type": "module"`, `NodeNext`, imports relativos con `.js`, build de Vite en ESM y Jest en modo ESM (`--experimental-vm-modules`, preset `default-esm`; el objeto `jest` se usa como `import.meta.jest`). | Decidido por el usuario (2026-10-25): sin CommonJS. | CommonJS (más simple para Jest, descartado por el usuario). |
+| D-23 | Prisma 6.19.3 (cliente y CLI). | Decidido por el usuario (2026-10-25): Prisma 7 exige un *driver adapter* (`@prisma/adapter-pg`, dependencia nueva), `prisma.config.ts` y cliente generado en el código fuente; la 6.19.3 funciona como describe este plan sin dependencias extra. | Prisma 7.10.0 con `@prisma/adapter-pg`. La migración a Prisma 7 queda como funcionalidad futura. |
 
 ## 8. Complexity Tracking
 
@@ -309,7 +324,7 @@ Mensajes de éxito (`message`, en español, RNF-03): `POST` → "Tarea creada co
 | `ts-jest` | dev | No | Que Jest ejecute TypeScript. | Compilar a JS antes de cada ejecución de tests: duplica el build y rompe el modo watch (D-14). |
 | `@types/node`, `@types/express`, `@types/jest` | dev | No (solo tipos) | Tipos para el modo estricto. | Declarar los tipos a mano (inviable y propenso a errores). |
 
-Las dependencias fuera del stack (`vite-node`, `ts-jest`, `@types/*`) las aprobó el usuario el 2026-10-24: son necesarias para los tests y el funcionamiento de la app. Cada versión se fija exacta en `package.json` al implementar.
+Las dependencias fuera del stack (`vite-node`, `ts-jest`, `@types/*`) las aprobó el usuario el 2026-10-24: son necesarias para los tests y el funcionamiento de la app. Versiones fijadas en `package.json` (2026-10-25, todas publicadas al menos dos semanas antes): `express` 5.3.0, `@prisma/client` y `prisma` 6.19.3 (D-23), `zod` 4.6.5, `typescript` 6.0.3 (`ts-jest` exige < 7), `vite` 8.3.4, `vite-node` 6.0.0 (exige Vite 8), `jest` 30.5.2, `ts-jest` 29.4.14, `@types/jest` 30.0.0, `@types/node` 22.20.5, `@types/express` 5.0.6; gestor `pnpm` 12.12.0.
 
 ### Piezas nuevas
 
@@ -335,11 +350,14 @@ Las dependencias fuera del stack (`vite-node`, `ts-jest`, `@types/*`) las aprob�
 | R-8 | Montar mal los middlewares rompe la precedencia de RF-46. | D-8 y una batería de tests HTTP que combina fallos en cada par de niveles de la precedencia. |
 | R-9 | Incompatibilidades entre `vite-node`/ESM y el cliente de Prisma. | Se valida al montar el esqueleto del proyecto (primera tarea), antes de escribir lógica. Si falla, se reabre D-13. |
 | R-10 | Una petición en la frontera de medianoche ve otro "hoy" que la siguiente. | Es el comportamiento especificado (RF-23); hay casos límite con 23:59 y 00:01 en los tests. |
+| R-11 | El modo ESM de Jest es experimental (`--experimental-vm-modules`) y puede fallar con `ts-jest` o con los mocks. | Se valida en T008 con un test mínimo antes de escribir tests reales; los tests usan `import.meta.jest` en lugar del global `jest`. |
+| R-12 | pnpm (desde la versión 10) bloquea por defecto los scripts de instalación de las dependencias, y Prisma los usa para descargar sus motores. | **Ocurrió en T004** (pnpm 12 falla con `ERR_PNPM_IGNORED_BUILDS`). Mitigado con `pnpm-workspace.yaml` (`allowBuilds`): solo se autorizan `prisma`, `@prisma/client` y `@prisma/engines`. Verificado en T005: `pnpm prisma --version` encuentra los motores. |
+| R-13 | Jest puede necesitar `ts-node` (dependencia nueva) para leer `jest.config.ts`. | Se comprueba en T008. Si Node 22 no lo carga de forma nativa, se usa `jest.config.js` (ESM) en lugar de añadir `ts-node`, actualizando antes el plan y `tasks.md`. |
 
 ## 10. Estrategia de tests
 
 Tipos de test:
-- **Unitarios** (`*.test.ts`, sin base de datos): dominio y casos de uso con repositorios en memoria y un `Clock` falso.
+- **Unitarios** (`*.test.ts`, sin base de datos): dominio y casos de uso con los repositorios en memoria y el `Clock` falso de `tests/support/` (D-21).
 - **HTTP** (`*.routes.test.ts`): la app real con contenedor de fakes y `fetch` nativo. Cubren el contrato, el sobre y la precedencia.
 - **Integración** (`*.int.test.ts`): repositorios Prisma contra el esquema `test` de PostgreSQL.
 - **Rendimiento** (`tests/performance/`): RNF-01 y CE-05.
