@@ -1,0 +1,8 @@
+# Scripts de instalación autorizados (plan, R-12): solo Prisma necesita descargar sus motores
+allowBuilds:
+  prisma: true
+  '@prisma/client': true
+  '@prisma/engines': true
+  # Traen binarios precompilados como dependencias opcionales; su script solo compila desde fuente
+  '@parcel/watcher': false
+  unrs-resolver: false

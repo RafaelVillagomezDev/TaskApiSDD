@@ -1,0 +1,9 @@
+# Dependencias y builds: se generan dentro de la imagen
+node_modules
+dist
+
+# Variables de entorno con secretos: nunca dentro de una imagen (CONSTITUTION.md, principio IV)
+.env*
+
+# Historial de git
+.git

@@ -59,6 +59,7 @@ docker compose -f docker-compose.dev.yml logs -f api              # Ver logs de 
 docker compose -f docker-compose.dev.yml down                     # Parar los contenedores
 docker compose -f docker-compose.dev.yml down -v                  # Parar y borrar volúmenes (incluida la BDD)
 docker compose -f docker-compose.dev.yml exec api pnpm add <pkg>  # Añadir una dependencia dentro del contenedor
+docker compose -f docker-compose.dev.yml run --rm api pnpm install # Instalar las dependencias en ./node_modules desde el contenedor (tras clonar o cambiar package.json); así el editor ve los tipos sin instalar nada en el host
 ```
 
 ### Producción (`Dockerfile.prod`)
@@ -72,6 +73,7 @@ docker build -f Dockerfile.prod -t taskapisdd:latest .            # Construir so
 ```bash
 # Desarrollo
 docker compose -f docker-compose.dev.yml exec api pnpm prisma generate                      # Generar el cliente de Prisma
+docker compose -f docker-compose.dev.yml run --rm api pnpm prisma generate                  # Regenerar el cliente de Prisma cuando api no está levantado
 docker compose -f docker-compose.dev.yml exec api pnpm prisma migrate dev --name <nombre>   # Crear y aplicar una migración
 docker compose -f docker-compose.dev.yml exec api pnpm prisma migrate reset                 # Reiniciar la BDD y reaplicar migraciones
 docker compose -f docker-compose.dev.yml exec api pnpm prisma studio                        # Explorar la BDD (puerto 5555 expuesto)

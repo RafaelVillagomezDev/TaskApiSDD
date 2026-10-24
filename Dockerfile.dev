@@ -1,0 +1,32 @@
+# Imagen de desarrollo: dependencias de dev, recarga en caliente y código montado como volumen
+FROM node:22-alpine
+
+# Todas las fechas del proceso en UTC (plan, R-4)
+ENV TZ=UTC
+
+# Prisma sin comprobaciones de versión por red ni avisos de actualización
+ENV CHECKPOINT_DISABLE=1
+ENV PRISMA_HIDE_UPDATE_MESSAGE=true
+
+# Prisma necesita OpenSSL en Alpine
+RUN apk add --no-cache openssl
+
+# pnpm mediante corepack (versión fijada en "packageManager" de package.json)
+RUN corepack enable
+
+WORKDIR /app
+
+# Instala dependencias primero para aprovechar la caché de capas
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
+RUN pnpm install
+
+COPY . .
+
+# Cliente de Prisma generado dentro de la imagen (imagen autosuficiente); en desarrollo se usa ./node_modules montado
+RUN pnpm prisma generate
+
+# API y Prisma Studio
+EXPOSE 3000 5555
+
+# vite-node en modo watch (plan, D-13)
+CMD ["pnpm", "dev"]

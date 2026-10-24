@@ -1,0 +1,84 @@
+// Modelo de datos de TaskApiSDD (plan, sección 4)
+// Los días se guardan como DATE (sin hora ni zona) y los instantes como TIMESTAMPTZ(3) en UTC
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Tipo de aviso: diario, semanal o mensual
+enum AlertType {
+  daily
+  weekly
+  monthly
+
+  @@map("alert_type")
+}
+
+// Tarea de un usuario para un día concreto
+model Task {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  // Valor de la cabecera X-User-Id
+  userId      String   @map("user_id")
+  // Ya recortado (RF-38)
+  title       String   @db.VarChar(200)
+  // Ya recortada; vacía se guarda como NULL (RF-38)
+  description String?  @db.VarChar(1000)
+  // Día al que pertenece la tarea
+  date        DateTime @db.Date
+  completed   Boolean  @default(false)
+  // Desempate del orden dentro de un mismo día (RF-41)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  // Listados por día y por rango
+  @@index([userId, date, createdAt, id])
+  // Días productivos y tareas pendientes
+  @@index([userId, completed, date])
+  @@map("tasks")
+}
+
+// Aviso registrado: copia inmutable de las tareas pendientes en el momento del aviso (RF-30)
+model Alert {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String    @map("user_id")
+  type        AlertType
+  // Día, lunes o día 1 según el tipo
+  periodStart DateTime  @map("period_start") @db.Date
+  // Día, domingo o último día del mes según el tipo
+  periodEnd   DateTime  @map("period_end") @db.Date
+  // [{ "id": "<uuid>", "title": "...", "date": "AAAA-MM-DD" }], sin clave foránea para sobrevivir al borrado
+  tasks       Json      @db.JsonB
+  // Instante real de registro (RNF-02)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  // Como máximo un aviso de cada tipo por usuario y periodo (RF-28)
+  @@unique([userId, type, periodStart])
+  // Listado del más reciente al más antiguo (RF-29)
+  @@index([userId, createdAt(sort: Desc), id])
+  @@map("alerts")
+}
+
+// Periodo ya evaluado por el planificador, haya generado aviso o no (RF-27, RF-28, D-7)
+model AlertPeriodCheck {
+  userId      String    @map("user_id")
+  type        AlertType
+  periodStart DateTime  @map("period_start") @db.Date
+  checkedAt   DateTime  @default(now()) @map("checked_at") @db.Timestamptz(3)
+
+  @@id([userId, type, periodStart])
+  @@map("alert_period_checks")
+}
+
+// Última zona horaria IANA válida recibida de cada usuario (RF-34)
+model UserTimeZone {
+  userId    String   @id @map("user_id")
+  timeZone  String   @map("time_zone") @db.VarChar(64)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("user_time_zones")
+}
