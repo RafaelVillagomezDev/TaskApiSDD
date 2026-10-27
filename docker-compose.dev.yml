@@ -11,9 +11,10 @@ services:
       # Prisma Studio
       - "5555:5555"
     volumes:
-      # Código montado para la recarga en caliente; incluye ./node_modules, que instala el propio
-      # contenedor (pnpm install) para que el editor vea los tipos sin instalar nada en el host
+      # Código montado para la recarga en caliente
       - .:/app
+      # ⚠️ RECOMENDADO: Evita que el volumen general pise las dependencias del contenedor
+      - /app/node_modules
     depends_on:
       db:
         condition: service_healthy
@@ -21,6 +22,9 @@ services:
   db:
     image: postgres:16-alpine
     env_file: .env.dev
+    ports:
+      # ⚠️ NECESARIO para que Database Client o psql se conecten desde tu host
+      - "5432:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
     healthcheck:
