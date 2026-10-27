@@ -1,4 +1,4 @@
-import { createTaskBodySchema, listTasksQuerySchema } from '../task.schema.js';
+import { createTaskBodySchema, listTasksQuerySchema, updateTaskBodySchema } from '../task.schema.js';
 
 describe('createTaskBodySchema', () => {
   it('recorta espacios y convierte la fecha en LocalDate (RF-38, RF-06)', () => {
@@ -101,5 +101,45 @@ describe('listTasksQuerySchema', () => {
 
   it('acepta pageSize 100 (RF-42)', () => {
     expect(listTasksQuerySchema.parse({ pageSize: '100' }).pageSize).toBe(100);
+  });
+});
+
+describe('updateTaskBodySchema', () => {
+  it('recorta título y descripción y deja fuera los campos no enviados (RF-13, RF-38)', () => {
+    expect(updateTaskBodySchema.parse({ title: '  Nuevo título ', description: ' Nota  ' })).toEqual({
+      title: 'Nuevo título',
+      description: 'Nota',
+    });
+    expect(updateTaskBodySchema.parse({ title: 'Solo título' })).toEqual({ title: 'Solo título' });
+    expect(updateTaskBodySchema.parse({ completed: true })).toEqual({ completed: true });
+  });
+
+  it.each([null, '', '   '])('descripción %p borra la descripción (null) (RF-38)', (description) => {
+    expect(updateTaskBodySchema.parse({ description })).toEqual({ description: null });
+  });
+
+  it('acepta un título de 200 caracteres y rechaza uno de 201 (RF-04)', () => {
+    expect(updateTaskBodySchema.safeParse({ title: 'a'.repeat(200) }).success).toBe(true);
+    expect(updateTaskBodySchema.safeParse({ title: 'a'.repeat(201) }).success).toBe(false);
+  });
+
+  it.each(['', '   ', null])('rechaza el título %p (RF-04)', (title) => {
+    expect(updateTaskBodySchema.safeParse({ title }).success).toBe(false);
+  });
+
+  it('acepta una descripción de 1000 caracteres y rechaza una de 1001 (RF-05)', () => {
+    expect(updateTaskBodySchema.safeParse({ description: 'd'.repeat(1000) }).success).toBe(true);
+    expect(updateTaskBodySchema.safeParse({ description: 'd'.repeat(1001) }).success).toBe(false);
+  });
+
+  it.each([{ date: '2026-10-25' }, { title: 'Tarea', date: '2026-10-25' }, { priority: 'alta' }, { id: 'otro' }])(
+    'rechaza campos distintos de title, description y completed: %p (RF-37)',
+    (body) => {
+      expect(updateTaskBodySchema.safeParse(body).success).toBe(false);
+    },
+  );
+
+  it('rechaza un cuerpo vacío', () => {
+    expect(updateTaskBodySchema.safeParse({}).success).toBe(false);
   });
 });

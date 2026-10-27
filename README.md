@@ -4,7 +4,7 @@ API REST para **organizar tareas diarias** y medir la **constancia** con una **r
 
 Está construida con **Spec-Driven Development (SDD)**: primero se escribe *qué* debe hacer el sistema (la spec), después *cómo* (el plan), después las *tareas*, y solo al final el código.
 
-> **Estado:** el MVP P1 funciona de principio a fin: crear tareas, consultarlas, completarlas y ver la racha. H4 también está hecha: listar todas las tareas con filtros de estado y rango de fechas, y consultar una tarea por su id. Faltan H5 y H6 (editar y borrar, avisos) y la imagen de producción. Ver [Estado del proyecto](#estado-del-proyecto).
+> **Estado:** el MVP P1 funciona de principio a fin: crear tareas, consultarlas, completarlas y ver la racha. Las historias P2 también están hechas: listar todas las tareas con filtros de estado y rango de fechas, consultar una tarea por su id (H4), y editar el título y la descripción o borrar tareas (H5). Faltan H6 (avisos) y la imagen de producción. Ver [Estado del proyecto](#estado-del-proyecto).
 
 ---
 
@@ -154,7 +154,8 @@ api() { curl -s -H "X-User-Id: $USER_ID" -H "X-Client-Time: $(now)" -H "X-Timezo
 | `POST` | `/tasks` | Crea una tarea para hoy o un día futuro |
 | `GET` | `/tasks` | Lista tus tareas, paginadas. Filtros: un día (`date`) o un rango inclusivo (`from`, `to`), nunca ambos; `status` (`all`, `completed`, `pending`); `page`, `pageSize` |
 | `GET` | `/tasks/{id}` | Consulta una de tus tareas, también de días pasados |
-| `PATCH` | `/tasks/{id}` | Marca una tarea como completada o pendiente |
+| `PATCH` | `/tasks/{id}` | Edita el título y la descripción, o marca la tarea como completada o pendiente. Solo admite `title`, `description` y `completed`; el día no se puede cambiar |
+| `DELETE` | `/tasks/{id}` | Borra una tarea de hoy o de un día futuro; responde `data: null` |
 | `GET` | `/streak` | Tu racha actual y tu mejor racha |
 
 Ejemplos:
@@ -178,6 +179,12 @@ api $API/tasks/<id>
 # Completar y desmarcar una tarea (sustituye <id> por el id que devolvió POST)
 api -X PATCH $API/tasks/<id> -d '{"completed":true}'
 api -X PATCH $API/tasks/<id> -d '{"completed":false}'
+
+# Editar el título y borrar la descripción (para cambiar el día: borrar y crear de nuevo)
+api -X PATCH $API/tasks/<id> -d '{"title":"Comprar pan y leche","description":null}'
+
+# Borrar una tarea
+api -X DELETE $API/tasks/<id>
 
 # Ver tu racha
 api $API/streak
@@ -238,9 +245,9 @@ Si una petición tiene **varios** fallos a la vez, la API responde **solo el pri
 | 2 | `MISSING_USER` | 401 | Falta `X-User-Id` o está vacío |
 | 3 | `INVALID_CLIENT_TIME` | 400 | `X-Client-Time` falta, tiene mal formato o se desvía más de 5 minutos |
 | 4 | `INVALID_TIMEZONE` | 400 | `X-Timezone` falta, no es una zona IANA o no coincide con el desfase |
-| 5 | `VALIDATION_ERROR` | 400 | El cuerpo o los parámetros no son válidos (incluido un JSON mal formado, `date` junto con `from`/`to`, o `from` posterior a `to`) |
+| 5 | `VALIDATION_ERROR` | 400 | El cuerpo o los parámetros no son válidos (incluido un JSON mal formado, `date` junto con `from`/`to`, `from` posterior a `to`, o un `PATCH` con un campo distinto de `title`, `description` y `completed`) |
 | 6 | `TASK_NOT_FOUND` | 404 | La tarea no existe o es de otro usuario |
-| 7 | `DAY_CLOSED` | 409 | Se intenta crear o modificar una tarea de un día pasado |
+| 7 | `DAY_CLOSED` | 409 | Se intenta crear, modificar o borrar una tarea de un día pasado |
 | 7 | `DAY_NOT_STARTED` | 409 | Se intenta completar una tarea de un día futuro |
 | — | `INTERNAL_ERROR` | 500 | Error inesperado del servidor (sin detalles internos) |
 
@@ -251,7 +258,7 @@ Importa `sdd/001-taskApiSDD-mvp/mvp-p1.postman-collection.json` en Postman y aju
 - ejecuta la carpeta **"1. Flujo MVP"** (*Run folder*) y luego **"2. Errores"**;
 - en **"3. Mis tareas"**, pon tu usuario en la variable `myUserId` para ver siempre las mismas tareas.
 
-La colección cubre H1 a H4: crear, consultar, completar, racha, filtros de estado y rango de fechas, paginación y consulta por id, con sus casos de error. Las cabeceras dinámicas (`X-Client-Time` y las fechas) las calcula sola la colección.
+La colección cubre H1 a H5: crear, consultar, completar, racha, filtros de estado y rango de fechas, paginación, consulta por id, edición y borrado, con sus casos de error. Las cabeceras dinámicas (`X-Client-Time` y las fechas) las calcula sola la colección.
 
 ---
 
@@ -404,7 +411,7 @@ TaskApiSDD/
 │       ├── tasks/             # Tareas: crear, listar, completar…
 │       │   ├── domain/        #   task.entity.ts, task.repository.ts (puerto)
 │       │   │   └── tests/     #   Tests de domain/
-│       │   ├── application/   #   create-task, list-task, get-task, update-task, get-productive-date
+│       │   ├── application/   #   create-task, list-task, get-task, update-task, delete-task, get-productive-date
 │       │   │   └── tests/
 │       │   ├── infrastructure/#   rutas, controlador, schemas Zod, repositorio Prisma, mapper
 │       │   │   └── tests/
@@ -611,7 +618,7 @@ Funcionalidad `001-taskApiSDD-mvp`. Progreso en [`tasks.md`](sdd/001-taskApiSDD-
 | H2 | Completar tareas | P1 | ✅ |
 | H3 | Ver la racha | P1 | ✅ |
 | H4 | Consultar todas las tareas: rango de fechas `from`/`to` y `GET /tasks/{id}` | P2 | ✅ |
-| H5 | Editar el título y la descripción, y borrar tareas | P2 | ⏳ Pendiente |
+| H5 | Editar el título y la descripción (`PATCH`), y borrar tareas (`DELETE /tasks/{id}`) | P2 | ✅ |
 | H6 | Avisos diarios, semanales y mensuales (`GET /alerts`) | P3 | ⏳ Pendiente |
 | Robustez | Batería de precedencia de errores y tests de rendimiento | — | ⏳ Pendiente |
 

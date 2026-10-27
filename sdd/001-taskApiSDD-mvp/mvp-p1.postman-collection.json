@@ -1,7 +1,7 @@
 {
   "info": {
-    "name": "TaskApiSDD — MVP (H1–H4)",
-    "description": "Flujo del MVP (H1 tareas del día, H2 completar, H3 racha, H4 filtros de estado y rango y consulta por id) y casos de error. Las cabeceras X-User-Id, X-Client-Time y X-Timezone se calculan solas. Ejecuta la carpeta '1. Flujo MVP' en orden (Run folder) antes de '2. Errores'. La carpeta '3. Mis tareas' consulta las tareas del usuario de la variable myUserId.",
+    "name": "TaskApiSDD — MVP (H1–H5)",
+    "description": "Flujo del MVP (H1 tareas del día, H2 completar, H3 racha, H4 filtros de estado y rango y consulta por id, H5 editar y borrar) y casos de error. Las cabeceras X-User-Id, X-Client-Time y X-Timezone se calculan solas. Ejecuta la carpeta '1. Flujo MVP' en orden (Run folder) antes de '2. Errores'. La carpeta '3. Mis tareas' consulta las tareas del usuario de la variable myUserId.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "event": [
@@ -55,6 +55,10 @@
     },
     {
       "key": "tomorrowTaskId",
+      "value": ""
+    },
+    {
+      "key": "deleteTaskId",
       "value": ""
     }
   ],
@@ -884,6 +888,271 @@
               ]
             }
           }
+        },
+        {
+          "name": "16 Editar título y descripción (H5)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con el título recortado, sin descripción y el resto igual', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const { message, data } = pm.response.json();",
+                  "  pm.expect(message).to.equal('Tarea actualizada con éxito');",
+                  "  pm.expect(data).to.include({ id: pm.collectionVariables.get('taskId'), title: 'Comprar pan y leche', description: null, completed: true, date: pm.variables.get('today') });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tasks/{{taskId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks",
+                "{{taskId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"  Comprar pan y leche  \",\n  \"description\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "17 Crear tarea para borrar (H5)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Tarea para borrar', () => {",
+                  "  pm.response.to.have.status(201);",
+                  "  pm.collectionVariables.set('deleteTaskId', pm.response.json().data.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tasks",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Tarea para borrar\",\n  \"date\": \"{{today}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "18 Borrar la tarea (H5)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con data null', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json()).to.eql({ success: true, status: 200, message: 'Tarea eliminada con éxito', data: null });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tasks/{{deleteTaskId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks",
+                "{{deleteTaskId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "19 La tarea borrada ya no existe (H5)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 TASK_NOT_FOUND', () => {",
+                  "  pm.response.to.have.status(404);",
+                  "  pm.expect(pm.response.json().error.code).to.equal('TASK_NOT_FOUND');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tasks/{{deleteTaskId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks",
+                "{{deleteTaskId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "20 La tarea borrada no sale en la lista de hoy (H5)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 solo con la tarea editada', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const { data } = pm.response.json();",
+                  "  pm.expect(data.items.map((task) => task.id)).to.eql([pm.collectionVariables.get('taskId')]);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tasks?date={{today}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks"
+              ],
+              "query": [
+                {
+                  "key": "date",
+                  "value": "{{today}}"
+                }
+              ]
+            }
+          }
         }
       ]
     },
@@ -1611,6 +1880,218 @@
           ],
           "request": {
             "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "otro-usuario"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tasks/{{taskId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks",
+                "{{taskId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "PATCH con date → VALIDATION_ERROR (RF-37)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 VALIDATION_ERROR', () => {",
+                  "  pm.response.to.have.status(400);",
+                  "  pm.expect(pm.response.json().error.code).to.equal('VALIDATION_ERROR');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tasks/{{taskId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks",
+                "{{taskId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Otro día\",\n  \"date\": \"{{tomorrow}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "PATCH con título de 201 caracteres → VALIDATION_ERROR (RF-04)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 VALIDATION_ERROR sobre title', () => {",
+                  "  pm.response.to.have.status(400);",
+                  "  const { error } = pm.response.json();",
+                  "  pm.expect(error.code).to.equal('VALIDATION_ERROR');",
+                  "  pm.expect(error.details.map((detail) => detail.field)).to.eql(['title']);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tasks/{{taskId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks",
+                "{{taskId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Borrar id no UUID → TASK_NOT_FOUND",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 TASK_NOT_FOUND', () => {",
+                  "  pm.response.to.have.status(404);",
+                  "  pm.expect(pm.response.json().error.code).to.equal('TASK_NOT_FOUND');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tasks/abc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks",
+                "abc"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Borrar tarea de otro usuario → TASK_NOT_FOUND (RF-16)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 TASK_NOT_FOUND', () => {",
+                  "  pm.response.to.have.status(404);",
+                  "  pm.expect(pm.response.json().error.code).to.equal('TASK_NOT_FOUND');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
             "header": [
               {
                 "key": "X-User-Id",

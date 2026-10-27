@@ -3,7 +3,7 @@
 Guía para probar a mano cada historia. Los *checkpoints* de `tasks.md` citan estos pasos (QS-0.1, QS-H1.1…).
 Todo el servidor corre en Docker (AGENTS.md); en tu máquina solo se usan `curl` y `date`.
 
-> **Alternativa con Postman (QS-H1 a QS-H4):** importa `sdd/001-taskApiSDD-mvp/mvp-p1.postman-collection.json`, ajusta la variable de colección `timeZone` a la zona de tu ordenador y ejecuta la carpeta "1. Flujo MVP" (*Run folder*) y después "2. Errores". La carpeta "3. Mis tareas" lista las tareas del usuario de la variable `myUserId`: ponle el mismo valor que uses en `X-User-Id` al crear tus tareas. Para ejecutarla desde la terminal sin instalar nada:
+> **Alternativa con Postman (QS-H1 a QS-H5):** importa `sdd/001-taskApiSDD-mvp/mvp-p1.postman-collection.json`, ajusta la variable de colección `timeZone` a la zona de tu ordenador y ejecuta la carpeta "1. Flujo MVP" (*Run folder*) y después "2. Errores". La carpeta "3. Mis tareas" lista las tareas del usuario de la variable `myUserId`: ponle el mismo valor que uses en `X-User-Id` al crear tus tareas. Para ejecutarla desde la terminal sin instalar nada:
 > ```bash
 > docker run --rm -e TZ=Europe/Madrid -v "$PWD/sdd/001-taskApiSDD-mvp":/etc/newman postman/newman:6-alpine \
 >   run mvp-p1.postman-collection.json --env-var baseUrl=http://host.docker.internal:3000
@@ -230,3 +230,37 @@ api -X PATCH $API/tasks/$A -d '{"completed":true}' > /dev/null   # A queda compl
   USER_ID=otra api $API/tasks/$A
   ```
   → `200` con la tarea `A hoy` y `completed: true`; la segunda → `404 TASK_NOT_FOUND`.
+
+## QS-H5 — Editar y borrar tareas (HU-05)
+
+Usa `api`, `id`, `TODAY` y `YESTERDAY` de las secciones anteriores, con un usuario nuevo:
+
+```bash
+export USER_ID=h5-$RANDOM
+E=$(api -X POST $API/tasks -d "{\"title\":\"Borrador\",\"description\":\"Nota\",\"date\":\"$TODAY\"}" | id)
+```
+
+- **QS-H5.1** Cambiar el título de una tarea de hoy:
+  ```bash
+  api -X PATCH $API/tasks/$E -d '{"title":"   Título definitivo   "}'
+  ```
+  → `200`, `message: "Tarea actualizada con éxito"`, `title: "Título definitivo"` (recortado) y el resto igual (`description: "Nota"`, misma `date`, `completed: false`).
+- **QS-H5.2** Intentar cambiar el día:
+  ```bash
+  api -X PATCH $API/tasks/$E -d "{\"date\":\"$TODAY\"}"
+  ```
+  → `400 VALIDATION_ERROR`; la tarea no cambia. Para mover una tarea de día se borra y se crea de nuevo (RF-37).
+- **QS-H5.3** Borrar una tarea de hoy:
+  ```bash
+  api -X DELETE $API/tasks/$E
+  api "$API/tasks?date=$TODAY"
+  api $API/tasks/$E
+  ```
+  → `200` con `message: "Tarea eliminada con éxito"` y `data: null`; la lista de hoy ya no la incluye (`items: []`) y la consulta por id → `404 TASK_NOT_FOUND`.
+- **QS-H5.4** Borrar una tarea de ayer. Como en QS-H2.4, se inserta directamente en la base de datos:
+  ```bash
+  Y=$(docker compose -f docker-compose.dev.yml exec -T db sh -c "psql -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" -Atc \"insert into tasks (user_id, title, date, updated_at) values ('$USER_ID', 'Ayer', '$YESTERDAY', now()) returning id\"" | head -1)
+  api -X DELETE $API/tasks/$Y
+  api -X PATCH $API/tasks/$Y -d '{"title":"Otro"}'
+  ```
+  → `409 DAY_CLOSED` en las dos; la tarea sigue existiendo.

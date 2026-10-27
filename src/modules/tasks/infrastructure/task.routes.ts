@@ -15,5 +15,6 @@ export function createTaskRouter({ controller, requestContext }: TaskRouterDepen
   router.get('/tasks', requestContext, controller.list);
   router.get('/tasks/:id', requestContext, controller.get);
   router.patch('/tasks/:id', requestContext, jsonBodyMiddleware, controller.update);
+  router.delete('/tasks/:id', requestContext, controller.remove);
   return router;
 }

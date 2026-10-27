@@ -35,6 +35,11 @@ export class InMemoryTaskRepository implements TaskRepository {
     return Task.restore(props);
   }
 
+  async delete(userId: string, id: string): Promise<void> {
+    const index = this.rows.findIndex((row) => row.id === id && row.userId === userId);
+    if (index !== -1) this.rows.splice(index, 1);
+  }
+
   async findPage(userId: string, filters: TaskFilters, pagination: Pagination): Promise<TaskPageResult> {
     const matching = this.rows
       .filter((row) => row.userId === userId)

@@ -262,6 +262,108 @@ describe('rutas de tareas', () => {
     });
   });
 
+  describe('PATCH /tasks/{id} con edición (HU-05)', () => {
+    const seed = (date: string) =>
+      container.tasks.create({ userId: 'user-1', title: 'Tarea', description: 'Original', date: LocalDate.parse(date) });
+    const patch = (id: string, body: unknown, headers = clientHeaders()) =>
+      call(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(body) }, headers);
+
+    it('cambia el título recortado y conserva el resto → 200 (RF-13, RF-38)', async () => {
+      const task = await seed(TODAY);
+      const { status, body } = await patch(task.id, { title: '  Nuevo título  ' });
+      expect(status).toBe(200);
+      expect(body).toMatchObject({ success: true, status: 200, message: 'Tarea actualizada con éxito' });
+      expect(body.data).toMatchObject({ id: task.id, title: 'Nuevo título', description: 'Original', date: TODAY, completed: false });
+    });
+
+    it('una descripción vacía la borra (null) (RF-38)', async () => {
+      const task = await seed(TODAY);
+      expect((await patch(task.id, { description: '   ' })).body.data.description).toBeNull();
+    });
+
+    it.each([{ date: '2026-10-25' }, { title: 'Nuevo', priority: 'alta' }])(
+      '%p → 400 VALIDATION_ERROR y la tarea no cambia (RF-37)',
+      async (body) => {
+        const task = await seed(TODAY);
+        const response = await patch(task.id, body);
+        expect(response.status).toBe(400);
+        expect(response.body.error?.code).toBe('VALIDATION_ERROR');
+        expect((await container.tasks.findById('user-1', task.id))?.title).toBe('Tarea');
+      },
+    );
+
+    it('un título de 201 caracteres → 400 VALIDATION_ERROR con details (RF-04)', async () => {
+      const task = await seed(TODAY);
+      const { status, body } = await patch(task.id, { title: 'a'.repeat(201) });
+      expect(status).toBe(400);
+      expect(body.error?.details).toEqual([{ field: 'title', message: expect.any(String) }]);
+    });
+
+    it('editar una tarea de ayer → 409 DAY_CLOSED (RF-14)', async () => {
+      const task = await seed('2026-10-23');
+      const { status, body } = await patch(task.id, { title: 'Nuevo' });
+      expect(status).toBe(409);
+      expect(body.error?.code).toBe('DAY_CLOSED');
+    });
+  });
+
+  describe('DELETE /tasks/{id} (HU-05)', () => {
+    const seed = (date: string, userId = 'user-1') =>
+      container.tasks.create({ userId, title: 'Tarea', description: null, date: LocalDate.parse(date) });
+    const remove = (id: string, headers = clientHeaders()) => call(`/tasks/${id}`, { method: 'DELETE' }, headers);
+
+    it('borra una tarea de hoy → 200 con data null y deja de aparecer (RF-15)', async () => {
+      const task = await seed(TODAY);
+      const { status, body } = await remove(task.id);
+      expect(status).toBe(200);
+      expect(body).toEqual({ success: true, status: 200, message: 'Tarea eliminada con éxito', data: null });
+      expect((await call(`/tasks?date=${TODAY}`)).body.data.items).toEqual([]);
+      expect((await call(`/tasks/${task.id}`)).body.error?.code).toBe('TASK_NOT_FOUND');
+    });
+
+    it('borra una tarea de un día futuro → 200 (RF-15)', async () => {
+      const task = await seed('2026-10-30');
+      expect((await remove(task.id)).status).toBe(200);
+    });
+
+    it('una tarea de ayer → 409 DAY_CLOSED (RF-14)', async () => {
+      const task = await seed('2026-10-23');
+      const { status, body } = await remove(task.id);
+      expect(status).toBe(409);
+      expect(body.error?.code).toBe('DAY_CLOSED');
+    });
+
+    it.each([
+      ['de otro usuario', async () => (await seed(TODAY, 'user-2')).id],
+      ['inexistente', async () => '6f1c9a52-3e0b-4f6e-9a77-1c2d3e4f5a6b'],
+      ['con id no UUID', async () => 'abc'],
+    ])('una tarea %s → 404 TASK_NOT_FOUND (RF-16)', async (_case, idOf) => {
+      const { status, body } = await remove(await idOf());
+      expect(status).toBe(404);
+      expect(body.error?.code).toBe('TASK_NOT_FOUND');
+    });
+
+    it('un PATCH sobre una tarea borrada → 404 TASK_NOT_FOUND (RF-15, RF-16)', async () => {
+      const task = await seed(TODAY);
+      await remove(task.id);
+      const { status, body } = await call(`/tasks/${task.id}`, { method: 'PATCH', body: JSON.stringify({ title: 'X' }) });
+      expect(status).toBe(404);
+      expect(body.error?.code).toBe('TASK_NOT_FOUND');
+    });
+
+    it('sin X-User-Id → 401 MISSING_USER y no borra (RF-01, RF-46)', async () => {
+      const task = await seed(TODAY);
+      const { 'X-User-Id': _omitted, ...headers } = clientHeaders();
+      expect((await remove(task.id, headers)).body.error?.code).toBe('MISSING_USER');
+      expect(container.tasks.count()).toBe(1);
+    });
+
+    it('INVALID_TIMEZONE gana a TASK_NOT_FOUND (RF-46)', async () => {
+      const headers = clientHeaders({ timeZone: 'Mars/Olympus' });
+      expect((await remove('abc', headers)).body.error?.code).toBe('INVALID_TIMEZONE');
+    });
+  });
+
   describe('cabeceras y precedencia de errores (RF-01, RF-46)', () => {
     it('sin X-User-Id → 401 MISSING_USER con el mensaje en español (RNF-03)', async () => {
       const { 'X-User-Id': _omitted, ...headers } = clientHeaders();

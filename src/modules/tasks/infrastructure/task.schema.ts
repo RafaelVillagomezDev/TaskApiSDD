@@ -32,9 +32,18 @@ export const createTaskBodySchema = z.object({
 // Id de la ruta: solo se valida como cadena; un formato no UUID responde TASK_NOT_FOUND (D-10)
 export const taskIdParamsSchema = z.object({ id: z.string() });
 
-// PATCH: solo los campos permitidos y al menos uno (RF-37)
+// PATCH: solo los campos permitidos y al menos uno; un campo ausente no cambia (RF-13, RF-37)
 export const updateTaskBodySchema = z
   .strictObject({
+    title: titleSchema.optional(),
+    // null, vacía o solo espacios borra la descripción (RF-38)
+    description: z
+      .string()
+      .trim()
+      .max(DESCRIPTION_MAX_LENGTH)
+      .nullable()
+      .transform((value) => (value ? value : null))
+      .optional(),
     completed: z.boolean().optional(),
   })
   .refine((body) => Object.keys(body).length > 0, { message: 'Debe incluir al menos un campo' });

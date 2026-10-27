@@ -37,6 +37,11 @@ export class PrismaTaskRepository implements TaskRepository {
     return toTaskDomain(row);
   }
 
+  // deleteMany para filtrar también por usuario sin fallar si no hay fila (RF-15, RF-16)
+  async delete(userId: string, id: string): Promise<void> {
+    await this.prisma.task.deleteMany({ where: { id, userId } });
+  }
+
   async findPage(userId: string, filters: TaskFilters, pagination: Pagination): Promise<TaskPageResult> {
     const where: Prisma.TaskWhereInput = {
       userId,

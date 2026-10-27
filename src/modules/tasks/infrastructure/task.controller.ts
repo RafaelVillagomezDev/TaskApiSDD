@@ -5,6 +5,7 @@ import { getRequestContext } from '../../../shared/infrastructure/http/request-c
 import { parseOrThrow } from '../../../shared/infrastructure/http/request-validation.helper.js';
 import { sendSuccess } from '../../../shared/infrastructure/http/response-envelope.helper.js';
 import type { CreateTaskUseCase } from '../application/create-task.use-case.js';
+import type { DeleteTaskUseCase } from '../application/delete-task.use-case.js';
 import type { GetTaskUseCase } from '../application/get-task.use-case.js';
 import type { ListTasksUseCase } from '../application/list-task.use-case.js';
 import type { UpdateTaskUseCase } from '../application/update-task.use-case.js';
@@ -18,6 +19,7 @@ export class TaskController {
     private readonly listTasks: ListTasksUseCase,
     private readonly updateTask: UpdateTaskUseCase,
     private readonly getTask: GetTaskUseCase,
+    private readonly deleteTask: DeleteTaskUseCase,
   ) {}
 
   create: RequestHandler = async (req, res) => {
@@ -33,6 +35,13 @@ export class TaskController {
     const changes = parseOrThrow(updateTaskBodySchema, req.body);
     const task = await this.updateTask.execute(context, id, changes);
     sendSuccess(res, 200, 'Tarea actualizada con éxito', toTaskResponse(task));
+  };
+
+  remove: RequestHandler = async (req, res) => {
+    const context = getRequestContext(res);
+    const { id } = parseOrThrow(taskIdParamsSchema, req.params);
+    await this.deleteTask.execute(context, id);
+    sendSuccess(res, 200, 'Tarea eliminada con éxito', null);
   };
 
   get: RequestHandler = async (req, res) => {

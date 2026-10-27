@@ -1,13 +1,13 @@
 import type { RequestContext } from '../../../shared/application/request-context.type.js';
 import { AppError } from '../../../shared/domain/app.error.js';
-import { Task } from '../domain/task.entity.js';
+import { Task, type TaskEdit } from '../domain/task.entity.js';
 import type { TaskRepository } from '../domain/task.repository.js';
 
-export interface UpdateTaskChanges {
+export interface UpdateTaskChanges extends TaskEdit {
   completed?: boolean;
 }
 
-// Completa o desmarca una tarea aplicando las reglas de día (RF-11, RF-12, RF-14, RF-16, RF-45).
+// Edita, completa o desmarca una tarea aplicando las reglas de día (RF-11 a RF-14, RF-16, RF-45).
 // Orden: TASK_NOT_FOUND → DAY_CLOSED → DAY_NOT_STARTED (RF-46)
 export class UpdateTaskUseCase {
   constructor(private readonly tasks: TaskRepository) {}
@@ -24,6 +24,7 @@ export class UpdateTaskUseCase {
     } else if (changes.completed === false) {
       task.uncomplete(context.today);
     }
+    task.edit(context.today, changes);
 
     return this.tasks.update(task);
   }

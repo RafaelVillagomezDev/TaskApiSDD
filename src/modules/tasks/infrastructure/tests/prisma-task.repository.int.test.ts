@@ -116,6 +116,22 @@ describe('PrismaTaskRepository', () => {
     expect((await repository.findById('user-1', task.id))?.completed).toBe(true);
   });
 
+  it('delete borra solo la tarea de su usuario y deja de devolverla (RF-15, RF-16)', async () => {
+    const mine = await repository.create({ userId: 'user-1', title: 'Mía', description: null, date: day('2026-10-24') });
+    const other = await repository.create({ userId: 'user-1', title: 'Otra', description: null, date: day('2026-10-24') });
+    await repository.delete('user-1', mine.id);
+    expect(await repository.findById('user-1', mine.id)).toBeNull();
+    const { items, total } = await repository.findPage('user-1', { status: 'all' }, new Pagination(1, 50));
+    expect(items.map((task) => task.id)).toEqual([other.id]);
+    expect(total).toBe(1);
+  });
+
+  it('delete no borra la tarea de otro usuario (RF-16)', async () => {
+    const task = await repository.create({ userId: 'user-1', title: 'Mía', description: null, date: day('2026-10-24') });
+    await repository.delete('user-2', task.id);
+    expect(await repository.findById('user-1', task.id)).not.toBeNull();
+  });
+
   it('findProductiveDates devuelve días distintos con alguna tarea completada, hasta el día indicado (RF-17, RF-18)', async () => {
     const seed = async (date: string, completed: boolean, userId = 'user-1') => {
       const task = await repository.create({ userId, title: 'Tarea', description: null, date: day(date) });

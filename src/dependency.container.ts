@@ -7,6 +7,7 @@ import { ProductiveDateAdapter } from './modules/streaks/infrastructure/producti
 import { StreakController } from './modules/streaks/infrastructure/streak.controller.js';
 import { createStreakRouter } from './modules/streaks/infrastructure/streak.routes.js';
 import { CreateTaskUseCase } from './modules/tasks/application/create-task.use-case.js';
+import { DeleteTaskUseCase } from './modules/tasks/application/delete-task.use-case.js';
 import { GetTaskUseCase } from './modules/tasks/application/get-task.use-case.js';
 import { ListTasksUseCase } from './modules/tasks/application/list-task.use-case.js';
 import { UpdateTaskUseCase } from './modules/tasks/application/update-task.use-case.js';
@@ -48,6 +49,7 @@ export function createContainer(): Container {
     new ListTasksUseCase(taskRepository),
     new UpdateTaskUseCase(taskRepository),
     new GetTaskUseCase(taskRepository),
+    new DeleteTaskUseCase(taskRepository),
   );
   const taskRouter = createTaskRouter({ controller: taskController, requestContext });
 

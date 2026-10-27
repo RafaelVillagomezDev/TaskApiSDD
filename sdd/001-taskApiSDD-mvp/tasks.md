@@ -253,33 +253,33 @@ Spec: `sdd/001-taskApiSDD-mvp/spec.md` (Aprobada) · Plan: `sdd/001-taskApiSDD-m
 ## Fase H5 — Editar y borrar tareas (HU-05, P2)
 
 ### Tests (deben fallar)
-- [ ] T084 [P] [H5] Test de schema de `PATCH`: `title`/`description` con recorte y límites, campos desconocidos y `date` → `VALIDATION_ERROR`, cuerpo vacío (RF-04, RF-05, RF-37, RF-38) — `src/modules/tasks/infrastructure/tests/task.schema.test.ts`
+- [x] T084 [P] [H5] Test de schema de `PATCH`: `title`/`description` con recorte y límites, campos desconocidos y `date` → `VALIDATION_ERROR`, cuerpo vacío (RF-04, RF-05, RF-37, RF-38) — `src/modules/tasks/infrastructure/tests/task.schema.test.ts`
   - Verifica: `dce pnpm test src/modules/tasks/infrastructure/tests/task.schema` **falla**.
-- [ ] T085 [P] [H5] Test de actualizar (edición): título y descripción; tarea de un día pasado → `DAY_CLOSED` (RF-13, RF-14) — `src/modules/tasks/application/tests/update-task.use-case.test.ts`
+- [x] T085 [P] [H5] Test de actualizar (edición): título y descripción; tarea de un día pasado → `DAY_CLOSED` (RF-13, RF-14) — `src/modules/tasks/application/tests/update-task.use-case.test.ts`
   - Verifica: `dce pnpm test src/modules/tasks/application/tests/update-task` **falla**.
-- [ ] T086 [P] [H5] Test de borrar: hoy y futuro; pasado → `DAY_CLOSED`; ajena o inexistente → `TASK_NOT_FOUND` (RF-14, RF-15, RF-16) — `src/modules/tasks/application/tests/delete-task.use-case.test.ts`
+- [x] T086 [P] [H5] Test de borrar: hoy y futuro; pasado → `DAY_CLOSED`; ajena o inexistente → `TASK_NOT_FOUND` (RF-14, RF-15, RF-16) — `src/modules/tasks/application/tests/delete-task.use-case.test.ts`
   - Verifica: `dce pnpm test src/modules/tasks/application/tests/delete-task` **falla**.
-- [ ] T087 [P] [H5] Test HTTP de `PATCH` con edición y de `DELETE`: `200` con `data: null`, `404`, `409` (RF-13 a RF-16, RF-37) — `src/modules/tasks/infrastructure/tests/task.routes.test.ts`
+- [x] T087 [P] [H5] Test HTTP de `PATCH` con edición y de `DELETE`: `200` con `data: null`, `404`, `409` (RF-13 a RF-16, RF-37) — `src/modules/tasks/infrastructure/tests/task.routes.test.ts`
   - Verifica: `dce pnpm test src/modules/tasks/infrastructure/tests/task.routes` **falla**.
-- [ ] T088 [P] [H5] Test de integración de `delete` (RF-15) — `src/modules/tasks/infrastructure/tests/prisma-task.repository.int.test.ts`
+- [x] T088 [P] [H5] Test de integración de `delete` (RF-15) — `src/modules/tasks/infrastructure/tests/prisma-task.repository.int.test.ts`
   - Verifica: `dce pnpm test src/modules/tasks/infrastructure/tests/prisma-task` **falla**.
 
 ### Implementación
-- [ ] T089 [H5] Schema de `PATCH` completo y `strict` (RF-04, RF-05, RF-37, RF-38) — `src/modules/tasks/infrastructure/task.schema.ts`
+- [x] T089 [H5] Schema de `PATCH` completo y `strict` (RF-04, RF-05, RF-37, RF-38) — `src/modules/tasks/infrastructure/task.schema.ts`
   - Verifica: `dce pnpm test src/modules/tasks/infrastructure/tests/task.schema` pasa.
-- [ ] T090 [H5] Edición en la entidad y en el caso de uso actualizar (RF-13, RF-14) — `src/modules/tasks/domain/task.entity.ts`, `src/modules/tasks/application/update-task.use-case.ts`
+- [x] T090 [H5] Edición en la entidad y en el caso de uso actualizar (RF-13, RF-14) — `src/modules/tasks/domain/task.entity.ts`, `src/modules/tasks/application/update-task.use-case.ts`
   - Verifica: `dce pnpm test src/modules/tasks/application/tests/update-task` pasa.
-- [ ] T091 [H5] Puerto y repositorio en memoria con `delete` — `src/modules/tasks/domain/task.repository.ts`, `tests/support/in-memory-task.repository.ts`
+- [x] T091 [H5] Puerto y repositorio en memoria con `delete` — `src/modules/tasks/domain/task.repository.ts`, `tests/support/in-memory-task.repository.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
-- [ ] T092 [H5] Caso de uso borrar (RF-14, RF-15, RF-16) — `src/modules/tasks/application/delete-task.use-case.ts`
+- [x] T092 [H5] Caso de uso borrar (RF-14, RF-15, RF-16) — `src/modules/tasks/application/delete-task.use-case.ts`
   - Verifica: `dce pnpm test src/modules/tasks/application/tests/delete-task` pasa.
-- [ ] T093 [H5] Repositorio Prisma con `delete` (RF-15) — `src/modules/tasks/infrastructure/prisma-task.repository.ts`
+- [x] T093 [H5] Repositorio Prisma con `delete` (RF-15) — `src/modules/tasks/infrastructure/prisma-task.repository.ts`
   - Verifica: `dce pnpm test src/modules/tasks/infrastructure/tests/prisma-task` pasa.
-- [ ] T094 [H5] Controlador y ruta `DELETE /tasks/{id}` (D-8) — `src/modules/tasks/infrastructure/task.controller.ts`, `src/modules/tasks/infrastructure/task.routes.ts`
+- [x] T094 [H5] Controlador y ruta `DELETE /tasks/{id}` (D-8) — `src/modules/tasks/infrastructure/task.controller.ts`, `src/modules/tasks/infrastructure/task.routes.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
-- [ ] T095 [H5] Cablear el caso de uso borrar — `src/dependency.container.ts`, `tests/support/test.container.ts`
+- [x] T095 [H5] Cablear el caso de uso borrar — `src/dependency.container.ts`, `tests/support/test.container.ts`
   - Verifica: `dce pnpm test src/modules/tasks` pasa entero.
-- [ ] T096 [H5] Guía manual, sección QS-H5 — `sdd/001-taskApiSDD-mvp/quickstart.md`
+- [x] T096 [H5] Guía manual, sección QS-H5 — `sdd/001-taskApiSDD-mvp/quickstart.md`
   - Verifica: ejecutar QS-H5 a mano.
 
 ### Checkpoint H5
@@ -372,7 +372,7 @@ Spec: `sdd/001-taskApiSDD-mvp/spec.md` (Aprobada) · Plan: `sdd/001-taskApiSDD-m
 
 - [x] T130 [P] [Rob] Colección de Postman del MVP P1 (H1–H3): flujo, casos de error y carpeta "Mis tareas" con usuario fijo (RF-01 a RF-03, RF-07, RF-08, RF-10, RF-11, RF-12, RF-16, RF-19 a RF-21, RF-31 a RF-33, RF-45, RF-46) — `sdd/001-taskApiSDD-mvp/mvp-p1.postman-collection.json`
   - Verifica: `docker run --rm -e TZ=Europe/Madrid -v "$PWD/sdd/001-taskApiSDD-mvp":/etc/newman postman/newman:6-alpine run mvp-p1.postman-collection.json --env-var baseUrl=http://host.docker.internal:3000` → 22 peticiones y 25 comprobaciones sin fallos.
-  - Nota: ampliada con H4 (filtros `status`, `from`/`to`, paginación, `GET /tasks/{id}` y errores RF-42, RF-43 y RF-16): mismo comando → 34 peticiones y 38 comprobaciones sin fallos.
+  - Nota: ampliada con H4 (filtros `status`, `from`/`to`, paginación, `GET /tasks/{id}` y errores RF-42, RF-43 y RF-16): mismo comando → 34 peticiones y 38 comprobaciones sin fallos. Ampliada con H5 (editar, borrar y errores RF-04, RF-16 y RF-37 en `PATCH`/`DELETE`): 43 peticiones y 47 comprobaciones sin fallos. `DELETE` de un día pasado (`DAY_CLOSED`) queda fuera: la API no deja crear esas tareas, se prueba en QS-H5.4.
 
 ### Checkpoint Robustez
 - `dce pnpm test` y `dce pnpm test:coverage` pasan; `dce pnpm test:perf` pasa.

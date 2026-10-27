@@ -27,6 +27,12 @@ export interface NewTask {
   date: LocalDate;
 }
 
+// Cambios de texto de una edición; el día no se puede cambiar (RF-13, RF-37)
+export interface TaskEdit {
+  title?: string;
+  description?: string | null;
+}
+
 // Tarea de un usuario para un día concreto
 export class Task {
   private constructor(private readonly props: TaskProps) {}
@@ -60,6 +66,17 @@ export class Task {
   uncomplete(today: LocalDate): void {
     this.assertModifiable(today);
     this.props.completed = false;
+  }
+
+  // Cambia solo el título y la descripción de una tarea de hoy o futura (RF-13, RF-14)
+  edit(today: LocalDate, changes: TaskEdit): void {
+    this.assertModifiable(today);
+    if (changes.title !== undefined) {
+      this.props.title = changes.title;
+    }
+    if (changes.description !== undefined) {
+      this.props.description = changes.description;
+    }
   }
 
   get id(): string {
