@@ -1,7 +1,7 @@
 {
   "info": {
-    "name": "TaskApiSDD — MVP (H1–H5)",
-    "description": "Flujo del MVP (H1 tareas del día, H2 completar, H3 racha, H4 filtros de estado y rango y consulta por id, H5 editar y borrar) y casos de error. Las cabeceras X-User-Id, X-Client-Time y X-Timezone se calculan solas. Ejecuta la carpeta '1. Flujo MVP' en orden (Run folder) antes de '2. Errores'. La carpeta '3. Mis tareas' consulta las tareas del usuario de la variable myUserId.",
+    "name": "TaskApiSDD — MVP (H1–H6)",
+    "description": "Flujo del MVP (H1 tareas del día, H2 completar, H3 racha, H4 filtros de estado y rango y consulta por id, H5 editar y borrar, H6 consulta de avisos) y casos de error. Las cabeceras X-User-Id, X-Client-Time y X-Timezone se calculan solas. Ejecuta la carpeta '1. Flujo MVP' en orden (Run folder) antes de '2. Errores'. La carpeta '3. Mis tareas' consulta las tareas del usuario de la variable myUserId.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "event": [
@@ -1153,6 +1153,72 @@
               ]
             }
           }
+        },
+        {
+          "name": "21 Consultar mis avisos (H6)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con la página de avisos', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const { message, data } = pm.response.json();",
+                  "  pm.expect(message).to.equal('Operación realizada con éxito');",
+                  "  pm.expect(data).to.include({ page: 1, pageSize: 10 });",
+                  "  pm.expect(data).to.include.keys('page', 'pageSize', 'totalItems', 'totalPages');",
+                  "});",
+                  "pm.test('cada aviso con su tipo, periodo y copia de tareas', () => {",
+                  "  pm.response.json().data.items.forEach((alert) => {",
+                  "    pm.expect(['daily', 'weekly', 'monthly']).to.include(alert.type);",
+                  "    pm.expect(alert).to.include.keys('id', 'periodStart', 'periodEnd', 'tasks', 'createdAt');",
+                  "  });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/alerts?page=1&pageSize=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "alerts"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "10"
+                }
+              ]
+            }
+          }
         }
       ]
     },
@@ -2123,6 +2189,116 @@
           }
         },
         {
+          "name": "Avisos con pageSize 101 → VALIDATION_ERROR (RF-42)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 VALIDATION_ERROR sobre pageSize', () => {",
+                  "  pm.response.to.have.status(400);",
+                  "  const { error } = pm.response.json();",
+                  "  pm.expect(error.code).to.equal('VALIDATION_ERROR');",
+                  "  pm.expect(error.details.map((detail) => detail.field)).to.eql(['pageSize']);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/alerts?pageSize=101",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "alerts"
+              ],
+              "query": [
+                {
+                  "key": "pageSize",
+                  "value": "101"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Avisos con page 0 → VALIDATION_ERROR (RF-42)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 VALIDATION_ERROR sobre page', () => {",
+                  "  pm.response.to.have.status(400);",
+                  "  const { error } = pm.response.json();",
+                  "  pm.expect(error.code).to.equal('VALIDATION_ERROR');",
+                  "  pm.expect(error.details.map((detail) => detail.field)).to.eql(['page']);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/alerts?page=0",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "alerts"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                }
+              ]
+            }
+          }
+        },
+        {
           "name": "Método inexistente → ROUTE_NOT_FOUND",
           "event": [
             {
@@ -2377,6 +2553,62 @@
                   "key": "from",
                   "value": "{{today}}"
                 }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Mis avisos",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con la página de avisos', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const { message, data } = pm.response.json();",
+                  "  pm.expect(message).to.equal('Operación realizada con éxito');",
+                  "  pm.expect(data.items).to.be.an('array');",
+                  "  pm.expect(data).to.include.keys('page', 'pageSize', 'totalItems', 'totalPages');",
+                  "});",
+                  "pm.test('cada aviso con su tipo, periodo y copia de tareas', () => {",
+                  "  pm.response.json().data.items.forEach((alert) => {",
+                  "    pm.expect(['daily', 'weekly', 'monthly']).to.include(alert.type);",
+                  "    pm.expect(alert).to.include.keys('id', 'periodStart', 'periodEnd', 'tasks', 'createdAt');",
+                  "  });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{myUserId}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/alerts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "alerts"
               ]
             }
           }

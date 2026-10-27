@@ -263,7 +263,7 @@ Importa `sdd/001-taskApiSDD-mvp/mvp-p1.postman-collection.json` en Postman y aju
 - ejecuta la carpeta **"1. Flujo MVP"** (*Run folder*) y luego **"2. Errores"**;
 - en **"3. Mis tareas"**, pon tu usuario en la variable `myUserId` para ver siempre las mismas tareas.
 
-La colección cubre H1 a H5: crear, consultar, completar, racha, filtros de estado y rango de fechas, paginación, consulta por id, edición y borrado, con sus casos de error. Las cabeceras dinámicas (`X-Client-Time` y las fechas) las calcula sola la colección.
+La colección cubre H1 a H6: crear, consultar, completar, racha, filtros de estado y rango de fechas, paginación, consulta por id, edición, borrado y consulta de avisos, con sus casos de error. La generación de avisos no entra porque depende de que sean las 22:00 en tu zona: se prueba con la guía manual (QS-H6). Las cabeceras dinámicas (`X-Client-Time` y las fechas) las calcula sola la colección.
 
 ---
 
