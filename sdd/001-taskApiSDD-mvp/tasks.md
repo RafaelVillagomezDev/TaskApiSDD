@@ -291,67 +291,67 @@ Spec: `sdd/001-taskApiSDD-mvp/spec.md` (Aprobada) · Plan: `sdd/001-taskApiSDD-m
 ## Fase H6 — Recibir avisos de tareas que van a quedar sin completar (HU-06, P3)
 
 ### Tests (deben fallar)
-- [ ] T097 [P] [H6] Test de la entidad aviso: copia `{ id, title, date }` inmutable (RF-30) — `src/modules/alerts/domain/tests/alert.entity.test.ts`
+- [x] T097 [P] [H6] Test de la entidad aviso: copia `{ id, title, date }` inmutable (RF-30) — `src/modules/alerts/domain/tests/alert.entity.test.ts`
   - Verifica: `dce pnpm test src/modules/alerts/domain/tests/alert.entity` **falla**.
-- [ ] T098 [P] [H6] Test de ventanas: periodos y días de disparo (viernes 2026-10-23, 2026-10-29, 2027-02-26), vencido antes y después de las 22:00, recuperación hasta el fin de la ventana y rango sin días cerrados (RF-24 a RF-26, RF-47) — `src/modules/alerts/domain/tests/alert-window.value-object.test.ts`
+- [x] T098 [P] [H6] Test de ventanas: periodos y días de disparo (viernes 2026-10-23, 2026-10-29, 2027-02-26), vencido antes y después de las 22:00, recuperación hasta el fin de la ventana y rango sin días cerrados (RF-24 a RF-26, RF-47) — `src/modules/alerts/domain/tests/alert-window.value-object.test.ts`
   - Verifica: `dce pnpm test src/modules/alerts/domain/tests/alert-window` **falla**.
-- [ ] T099 [P] [H6] Test de recordar zona: guarda y actualiza solo si cambia (RF-34) — `src/modules/alerts/application/tests/record-user-time-zone.use-case.test.ts`
+- [x] T099 [P] [H6] Test de recordar zona: guarda y actualiza solo si cambia (RF-34) — `src/modules/alerts/application/tests/record-user-time-zone.use-case.test.ts`
   - Verifica: `dce pnpm test src/modules/alerts/application/tests/record-user-time-zone` **falla**.
-- [ ] T100 [P] [H6] Test de tareas pendientes: solo pendientes del usuario en el rango (RF-24 a RF-26) — `src/modules/tasks/application/tests/get-pending-task.use-case.test.ts`
+- [x] T100 [P] [H6] Test de tareas pendientes: solo pendientes del usuario en el rango (RF-24 a RF-26) — `src/modules/tasks/application/tests/get-pending-task.use-case.test.ts`
   - Verifica: `dce pnpm test src/modules/tasks/application/tests/get-pending-task` **falla**.
-- [ ] T101 [P] [H6] Test de generar avisos: vencidos, omitidos sin pendientes y no reevaluados, sin duplicados, sin zona no hay avisos, zona recordada, copia inmutable, tres avisos el mismo día, recuperación tras una parada (RF-24 a RF-28, RF-30, RF-35, RF-36, RF-47, CE-04) — `src/modules/alerts/application/tests/generate-due-alert.use-case.test.ts`
+- [x] T101 [P] [H6] Test de generar avisos: vencidos, omitidos sin pendientes y no reevaluados, sin duplicados, sin zona no hay avisos, zona recordada, copia inmutable, tres avisos el mismo día, recuperación tras una parada (RF-24 a RF-28, RF-30, RF-35, RF-36, RF-47, CE-04) — `src/modules/alerts/application/tests/generate-due-alert.use-case.test.ts`
   - Verifica: `dce pnpm test src/modules/alerts/application/tests/generate-due-alert` **falla**.
-- [ ] T102 [P] [H6] Test de listar avisos: del más reciente al más antiguo, paginado (RF-29, RF-39) — `src/modules/alerts/application/tests/list-alert.use-case.test.ts`
+- [x] T102 [P] [H6] Test de listar avisos: del más reciente al más antiguo, paginado (RF-29, RF-39) — `src/modules/alerts/application/tests/list-alert.use-case.test.ts`
   - Verifica: `dce pnpm test src/modules/alerts/application/tests/list-alert` **falla**.
-- [ ] T103 [P] [H6] Test del planificador: pasada al arrancar, intervalo de 60 s con temporizadores falsos, sin solapamiento, registro dentro de los 5 min (RNF-02, RF-47) — `src/modules/alerts/infrastructure/tests/alert.scheduler.test.ts`
+- [x] T103 [P] [H6] Test del planificador: pasada al arrancar, intervalo de 60 s con temporizadores falsos, sin solapamiento, registro dentro de los 5 min (RNF-02, RF-47) — `src/modules/alerts/infrastructure/tests/alert.scheduler.test.ts`
   - Verifica: `dce pnpm test src/modules/alerts/infrastructure/tests/alert.scheduler` **falla**.
-- [ ] T104 [P] [H6] Test HTTP de `GET /alerts`: sobre, paginación válida e inválida, copia de tareas tras borrarlas, zona recordada tras una petición con cabeceras válidas aunque falle (RF-29, RF-30, RF-34, RF-39, RF-42) — `src/modules/alerts/infrastructure/tests/alert.routes.test.ts`
+- [x] T104 [P] [H6] Test HTTP de `GET /alerts`: sobre, paginación válida e inválida, copia de tareas tras borrarlas, zona recordada tras una petición con cabeceras válidas aunque falle (RF-29, RF-30, RF-34, RF-39, RF-42) — `src/modules/alerts/infrastructure/tests/alert.routes.test.ts`
   - Verifica: `dce pnpm test src/modules/alerts/infrastructure/tests/alert.routes` **falla**.
-- [ ] T105 [P] [H6] Test de integración del repositorio de avisos: `claimPeriod` concurrente (solo uno gana), restricción única, `JSONB` intacto tras borrar la tarea (RF-28, RF-30) — `src/modules/alerts/infrastructure/tests/prisma-alert.repository.int.test.ts`
+- [x] T105 [P] [H6] Test de integración del repositorio de avisos: `claimPeriod` concurrente (solo uno gana), restricción única, `JSONB` intacto tras borrar la tarea (RF-28, RF-30) — `src/modules/alerts/infrastructure/tests/prisma-alert.repository.int.test.ts`
   - Verifica: `dce pnpm test src/modules/alerts/infrastructure/tests/prisma-alert` **falla**.
-- [ ] T106 [P] [H6] Test de integración de zonas: upsert que no escribe si no cambia; lotes (RF-34, RF-36) — `src/modules/alerts/infrastructure/tests/prisma-user-time-zone.repository.int.test.ts`
+- [x] T106 [P] [H6] Test de integración de zonas: upsert que no escribe si no cambia; lotes (RF-34, RF-36) — `src/modules/alerts/infrastructure/tests/prisma-user-time-zone.repository.int.test.ts`
   - Verifica: `dce pnpm test src/modules/alerts/infrastructure/tests/prisma-user-time-zone` **falla**.
-- [ ] T107 [P] [H6] Test de integración `findPending` (RF-24 a RF-26) — `src/modules/tasks/infrastructure/tests/prisma-task.repository.int.test.ts`
+- [x] T107 [P] [H6] Test de integración `findPending` (RF-24 a RF-26) — `src/modules/tasks/infrastructure/tests/prisma-task.repository.int.test.ts`
   - Verifica: `dce pnpm test src/modules/tasks/infrastructure/tests/prisma-task` **falla**.
 
 ### Implementación
-- [ ] T108 [H6] Entidad `Alert` (RF-30) — `src/modules/alerts/domain/alert.entity.ts`
+- [x] T108 [H6] Entidad `Alert` (RF-30) — `src/modules/alerts/domain/alert.entity.ts`
   - Verifica: `dce pnpm test src/modules/alerts/domain/tests/alert.entity` pasa.
-- [ ] T109 [P] [H6] `AlertWindow` (RF-24 a RF-26, RF-47) — `src/modules/alerts/domain/alert-window.value-object.ts`
+- [x] T109 [P] [H6] `AlertWindow` (RF-24 a RF-26, RF-47) — `src/modules/alerts/domain/alert-window.value-object.ts`
   - Verifica: `dce pnpm test src/modules/alerts/domain/tests/alert-window` pasa.
-- [ ] T110 [H6] Puerto `AlertRepository` y su fake (D-21) — `src/modules/alerts/domain/alert.repository.ts`, `tests/support/in-memory-alert.repository.ts`
+- [x] T110 [H6] Puerto `AlertRepository` y su fake (D-21) — `src/modules/alerts/domain/alert.repository.ts`, `tests/support/in-memory-alert.repository.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
-- [ ] T111 [P] [H6] Puerto `UserTimeZoneRepository` y su fake (D-21) — `src/modules/alerts/domain/user-time-zone.repository.ts`, `tests/support/in-memory-user-time-zone.repository.ts`
+- [x] T111 [P] [H6] Puerto `UserTimeZoneRepository` y su fake (D-21) — `src/modules/alerts/domain/user-time-zone.repository.ts`, `tests/support/in-memory-user-time-zone.repository.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
-- [ ] T112 [H6] Caso de uso recordar zona (RF-34) — `src/modules/alerts/application/record-user-time-zone.use-case.ts`
+- [x] T112 [H6] Caso de uso recordar zona (RF-34) — `src/modules/alerts/application/record-user-time-zone.use-case.ts`
   - Verifica: `dce pnpm test src/modules/alerts/application/tests/record-user-time-zone` pasa.
-- [ ] T113 [H6] Puerto y repositorio en memoria de tareas con `findPending` — `src/modules/tasks/domain/task.repository.ts`, `tests/support/in-memory-task.repository.ts`
+- [x] T113 [H6] Puerto y repositorio en memoria de tareas con `findPending` — `src/modules/tasks/domain/task.repository.ts`, `tests/support/in-memory-task.repository.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
-- [ ] T114 [H6] Caso de uso de tareas pendientes y su exportación en la fachada (RF-24 a RF-26) — `src/modules/tasks/application/get-pending-task.use-case.ts`, `src/modules/tasks/task.facade.ts`
+- [x] T114 [H6] Caso de uso de tareas pendientes y su exportación en la fachada (RF-24 a RF-26) — `src/modules/tasks/application/get-pending-task.use-case.ts`, `src/modules/tasks/task.facade.ts`
   - Verifica: `dce pnpm test src/modules/tasks/application/tests/get-pending-task` pasa.
-- [ ] T115 [H6] Repositorio Prisma de tareas con `findPending` (RF-24 a RF-26) — `src/modules/tasks/infrastructure/prisma-task.repository.ts`
+- [x] T115 [H6] Repositorio Prisma de tareas con `findPending` (RF-24 a RF-26) — `src/modules/tasks/infrastructure/prisma-task.repository.ts`
   - Verifica: `dce pnpm test src/modules/tasks/infrastructure/tests/prisma-task` pasa.
-- [ ] T116 [H6] Puerto `PendingTaskSource` y adaptador hacia la fachada de `tasks` — `src/modules/alerts/domain/pending-task.port.ts`, `src/modules/alerts/infrastructure/pending-task.adapter.ts`
+- [x] T116 [H6] Puerto `PendingTaskSource` y adaptador hacia la fachada de `tasks` — `src/modules/alerts/domain/pending-task.port.ts`, `src/modules/alerts/infrastructure/pending-task.adapter.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
-- [ ] T117 [H6] Caso de uso generar avisos (RF-24 a RF-28, RF-30, RF-35, RF-36, RF-47) — `src/modules/alerts/application/generate-due-alert.use-case.ts`
+- [x] T117 [H6] Caso de uso generar avisos (RF-24 a RF-28, RF-30, RF-35, RF-36, RF-47) — `src/modules/alerts/application/generate-due-alert.use-case.ts`
   - Verifica: `dce pnpm test src/modules/alerts/application/tests/generate-due-alert` pasa.
-- [ ] T118 [P] [H6] Caso de uso listar avisos (RF-29, RF-39) — `src/modules/alerts/application/list-alert.use-case.ts`
+- [x] T118 [P] [H6] Caso de uso listar avisos (RF-29, RF-39) — `src/modules/alerts/application/list-alert.use-case.ts`
   - Verifica: `dce pnpm test src/modules/alerts/application/tests/list-alert` pasa.
-- [ ] T119 [H6] Mapper y repositorio Prisma de avisos con `claimPeriod` transaccional (RF-28, RF-29, RF-30) — `src/modules/alerts/infrastructure/alert.mapper.ts`, `src/modules/alerts/infrastructure/prisma-alert.repository.ts`
+- [x] T119 [H6] Mapper y repositorio Prisma de avisos con `claimPeriod` transaccional (RF-28, RF-29, RF-30) — `src/modules/alerts/infrastructure/alert.mapper.ts`, `src/modules/alerts/infrastructure/prisma-alert.repository.ts`
   - Verifica: `dce pnpm test src/modules/alerts/infrastructure/tests/prisma-alert` pasa.
-- [ ] T120 [P] [H6] Repositorio Prisma de zonas con upsert condicional (RF-34, RF-36) — `src/modules/alerts/infrastructure/prisma-user-time-zone.repository.ts`
+- [x] T120 [P] [H6] Repositorio Prisma de zonas con upsert condicional (RF-34, RF-36) — `src/modules/alerts/infrastructure/prisma-user-time-zone.repository.ts`
   - Verifica: `dce pnpm test src/modules/alerts/infrastructure/tests/prisma-user-time-zone` pasa.
-- [ ] T121 [H6] Planificador de 60 s con pasada inicial y sin solapamiento (RNF-02, RF-47) — `src/modules/alerts/infrastructure/alert.scheduler.ts`
+- [x] T121 [H6] Planificador de 60 s con pasada inicial y sin solapamiento (RNF-02, RF-47) — `src/modules/alerts/infrastructure/alert.scheduler.ts`
   - Verifica: `dce pnpm test src/modules/alerts/infrastructure/tests/alert.scheduler` pasa.
-- [ ] T122 [H6] Schema de consulta y controlador de `GET /alerts` (RF-39, RF-42) — `src/modules/alerts/infrastructure/alert.schema.ts`, `src/modules/alerts/infrastructure/alert.controller.ts`
+- [x] T122 [H6] Schema de consulta y controlador de `GET /alerts` (RF-39, RF-42) — `src/modules/alerts/infrastructure/alert.schema.ts`, `src/modules/alerts/infrastructure/alert.controller.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
-- [ ] T123 [H6] Ruta `GET /alerts` con contexto encadenado (D-8) — `src/modules/alerts/infrastructure/alert.routes.ts`
+- [x] T123 [H6] Ruta `GET /alerts` con contexto encadenado (D-8) — `src/modules/alerts/infrastructure/alert.routes.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
-- [ ] T124 [H6] Cablear el módulo `alerts`: router, callback `onAcceptedTimeZone` → recordar zona, planificador (RF-34) — `src/dependency.container.ts`, `tests/support/test.container.ts`
+- [x] T124 [H6] Cablear el módulo `alerts`: router, callback `onAcceptedTimeZone` → recordar zona, planificador (RF-34) — `src/dependency.container.ts`, `tests/support/test.container.ts`
   - Verifica: `dce pnpm test src/modules/alerts` pasa entero.
-- [ ] T125 [H6] Arrancar el planificador al iniciar el servidor (RF-47) — `src/server.main.ts`
+- [x] T125 [H6] Arrancar el planificador al iniciar el servidor (RF-47) — `src/server.main.ts`
   - Verifica: `docker compose -f docker-compose.dev.yml restart api && docker compose -f docker-compose.dev.yml logs api` muestra la pasada inicial sin errores.
-- [ ] T126 [H6] Guía manual, sección QS-H6 — `sdd/001-taskApiSDD-mvp/quickstart.md`
+- [x] T126 [H6] Guía manual, sección QS-H6 — `sdd/001-taskApiSDD-mvp/quickstart.md`
   - Verifica: ejecutar QS-H6 a mano.
 
 ### Checkpoint H6

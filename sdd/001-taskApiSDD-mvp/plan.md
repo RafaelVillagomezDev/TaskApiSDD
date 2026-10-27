@@ -114,7 +114,7 @@ Todo se crea desde cero salvo `.gitignore`, que ya existe y se amplía.
 | :--- | :--- |
 | `domain/alert.entity.ts` | `Alert` inmutable con copia de tareas `{ id, title, date }` (RF-30). |
 | `domain/alert-window.value-object.ts` | Para un tipo y un día local: periodo (`periodStart`/`periodEnd`), día de disparo, fin de la ventana, rango de tareas y si está vencido a una hora local dada (RF-24 a RF-26, RF-47). Lógica pura. |
-| `domain/alert.repository.ts` | Puerto `AlertRepository`: `claimPeriod(userId, type, periodStart)`, `save(alert)`, `findPage(userId, pagination)`. |
+| `domain/alert.repository.ts` | Puerto `AlertRepository`: `claimPeriod(period, collect)` (marca el periodo, lee las pendientes con `collect` y registra el aviso, todo en una transacción; `null` si ya estaba evaluado o no hay pendientes) y `findPage(userId, pagination)`. |
 | `domain/user-time-zone.repository.ts` | Puerto `UserTimeZoneRepository`: `record(userId, zone)`, `listBatch(cursor, size)`. |
 | `domain/pending-task.port.ts` | Puerto `PendingTaskSource { find(userId, from, to) }`. |
 | `application/record-user-time-zone.use-case.ts` | Guarda la última zona válida del usuario (RF-34, D-1). |
@@ -139,7 +139,7 @@ Todo se crea desde cero salvo `.gitignore`, que ya existe y se amplía.
 | `tests/support/in-memory-user-time-zone.repository.ts` | Implementación en memoria de `UserTimeZoneRepository` (D-21). |
 | `tests/support/fake-clock.adapter.ts` | `Clock` controlable desde el test: fijar y avanzar la hora (D-21). |
 | `tests/support/test.container.ts` | `createTestContainer()`: el mismo cableado que `dependency.container.ts` pero con los fakes anteriores; lo usan los tests HTTP (D-21). |
-| `tests/integration/test-database.helper.ts` | `truncateTables()`: vacía con `TRUNCATE` las tablas del esquema `test`; cada `*.int.test.ts` lo llama en `beforeEach`. |
+| `tests/integration/test-database.helper.ts` | `truncateTables(prisma, tablas)`: vacía con `TRUNCATE` tablas del esquema `test`; cada `*.int.test.ts` lo llama en `beforeEach` solo con sus tablas, porque Jest ejecuta los ficheros en paralelo. |
 | `tests/performance/api.perf.test.ts` | Carga 10 000 tareas en 3 años y mide el p95 de cada endpoint (RNF-01, CE-05). Se ejecuta con `pnpm test:perf`. |
 
 Los tests unitarios, HTTP y de integración (`*.test.ts`, `*.int.test.ts`) van en una subcarpeta `tests/` dentro de la carpeta del fichero que prueban, con su mismo nombre base (D-25); ver sección 10.

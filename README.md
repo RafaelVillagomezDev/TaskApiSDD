@@ -4,7 +4,7 @@ API REST para **organizar tareas diarias** y medir la **constancia** con una **r
 
 Está construida con **Spec-Driven Development (SDD)**: primero se escribe *qué* debe hacer el sistema (la spec), después *cómo* (el plan), después las *tareas*, y solo al final el código.
 
-> **Estado:** el MVP P1 funciona de principio a fin: crear tareas, consultarlas, completarlas y ver la racha. Las historias P2 también están hechas: listar todas las tareas con filtros de estado y rango de fechas, consultar una tarea por su id (H4), y editar el título y la descripción o borrar tareas (H5). Faltan H6 (avisos) y la imagen de producción. Ver [Estado del proyecto](#estado-del-proyecto).
+> **Estado:** el MVP P1 funciona de principio a fin: crear tareas, consultarlas, completarlas y ver la racha. Las historias P2 y P3 también están hechas: listar todas las tareas con filtros de estado y rango de fechas, consultar una tarea por su id (H4), editar el título y la descripción o borrar tareas (H5), y avisos diarios, semanales y mensuales de tareas pendientes (H6). Faltan la fase de robustez y la imagen de producción. Ver [Estado del proyecto](#estado-del-proyecto).
 
 ---
 
@@ -34,7 +34,7 @@ Imagina una app de tareas en la que:
 1. **Creas tareas para un día concreto**: "Comprar pan" para hoy, "Ir al gimnasio" para mañana.
 2. **Las marcas como completadas** cuando las haces.
 3. La API calcula tu **racha**: cuántos días seguidos has completado al menos una tarea, y cuál ha sido tu mejor racha.
-4. *(Próximamente)* La API te **avisa** de las tareas que se te van a quedar sin hacer al terminar el día, la semana o el mes.
+4. La API te **avisa** de las tareas que se te van a quedar sin hacer al terminar el día, la semana o el mes (`GET /alerts`).
 
 Detalles importantes desde el principio:
 
@@ -157,6 +157,7 @@ api() { curl -s -H "X-User-Id: $USER_ID" -H "X-Client-Time: $(now)" -H "X-Timezo
 | `PATCH` | `/tasks/{id}` | Edita el título y la descripción, o marca la tarea como completada o pendiente. Solo admite `title`, `description` y `completed`; el día no se puede cambiar |
 | `DELETE` | `/tasks/{id}` | Borra una tarea de hoy o de un día futuro; responde `data: null` |
 | `GET` | `/streak` | Tu racha actual y tu mejor racha |
+| `GET` | `/alerts` | Tus avisos de tareas pendientes, del más reciente al más antiguo y paginados (`page`, `pageSize`) |
 
 Ejemplos:
 
@@ -188,6 +189,10 @@ api -X DELETE $API/tasks/<id>
 
 # Ver tu racha
 api $API/streak
+
+# Ver tus avisos (los registra el servidor a las 22:00 de tu zona; ver Reglas de negocio)
+api $API/alerts
+api "$API/alerts?page=2&pageSize=10"
 ```
 
 ### Formato de las respuestas: siempre el mismo "sobre"
@@ -272,7 +277,11 @@ La colección cubre H1 a H5: crear, consultar, completar, racha, filtros de esta
 | **Días pasados cerrados** | No se pueden crear, completar, desmarcar, editar ni borrar tareas de días pasados (`DAY_CLOSED`). |
 | **Días futuros** | Se pueden crear tareas para cualquier día futuro, pero **no completarlas** hasta que llegue su día (`DAY_NOT_STARTED`). |
 | **Textos** | El título tiene de 1 a 200 caracteres y la descripción hasta 1000, contados tras quitar los espacios del principio y del final. Una descripción vacía se guarda como `null`. |
-| **Orden de las listas** | Por fecha y, dentro de cada día, por orden de creación. |
+| **Orden de las listas** | Tareas: por fecha y, dentro de cada día, por orden de creación. Avisos: del más reciente al más antiguo. |
+| **Avisos** | A las **22:00** de tu zona horaria el servidor registra un aviso con tus tareas **pendientes** que aún puedes completar: **diario** (las de hoy), **semanal** el viernes (de viernes a domingo) y **mensual** el primero de los 3 últimos días del mes (esos 3 días). Sin pendientes no hay aviso, y nunca hay dos del mismo tipo y periodo. |
+| **Zona de los avisos** | La API recuerda la `X-Timezone` de tu última petición con cabeceras válidas. Si nunca has hecho una, no recibes avisos. |
+| **Avisos históricos** | Un aviso guarda una **copia** de sus tareas (id, título y fecha): no cambia aunque después completes, edites o borres esas tareas. |
+| **Recuperación** | Si el servidor estaba parado a las 22:00, registra el aviso al volver mientras su periodo siga abierto (hasta el fin del día, del domingo o del mes), solo con los días que aún se pueden completar. |
 
 Ejemplo de racha. Hoy es 24; el 22 y el 23 fueron productivos y el 21 no:
 
@@ -290,7 +299,7 @@ La especificación completa, con todos los casos, está en [`sdd/001-taskApiSDD-
 
 ### Módulos verticales + arquitectura hexagonal
 
-El código se divide en **módulos de negocio** (`tasks`, `streaks` y, más adelante, `alerts`). Cada módulo tiene **tres capas**:
+El código se divide en **módulos de negocio** (`tasks`, `streaks` y `alerts`). Cada módulo tiene **tres capas**:
 
 ```text
 ┌────────────────────────────────────────────────────────────────┐
@@ -355,7 +364,7 @@ Los middlewares 3 y 4 se encadenan **en cada ruta**, no de forma global (decisi�
 
 | Fichero | Papel |
 | :--- | :--- |
-| `src/server.main.ts` | Punto de entrada: arranca el servidor en el puerto 3000 |
+| `src/server.main.ts` | Punto de entrada: arranca el servidor en el puerto 3000 y el **planificador de avisos** (una pasada al arrancar y otra cada 60 s; deja una línea `ALERT_PASS_COMPLETED` en el log) |
 | `src/app.factory.ts` | Crea la app de Express y monta los middlewares y routers en orden |
 | `src/dependency.container.ts` | **Composition root**: crea las piezas reales (repositorios Prisma, casos de uso, controladores, routers) y las conecta. Es el único sitio que conoce las implementaciones concretas |
 | `tests/support/test.container.ts` | El mismo cableado, pero con **fakes en memoria**, para los tests HTTP |
@@ -411,12 +420,13 @@ TaskApiSDD/
 │       ├── tasks/             # Tareas: crear, listar, completar…
 │       │   ├── domain/        #   task.entity.ts, task.repository.ts (puerto)
 │       │   │   └── tests/     #   Tests de domain/
-│       │   ├── application/   #   create-task, list-task, get-task, update-task, delete-task, get-productive-date
+│       │   ├── application/   #   create-task, list-task, get-task, update-task, delete-task, get-productive-date, get-pending-task
 │       │   │   └── tests/
 │       │   ├── infrastructure/#   rutas, controlador, schemas Zod, repositorio Prisma, mapper
 │       │   │   └── tests/
 │       │   └── task.facade.ts #   Lo único que otros módulos pueden importar de tasks
-│       └── streaks/           # Racha (misma estructura)
+│       ├── streaks/           # Racha (misma estructura)
+│       └── alerts/            # Avisos: ventanas de aviso, planificador de 60 s, GET /alerts y zona recordada de cada usuario
 ├── tests/                     # Soporte común de tests
 │   ├── support/               #   Fakes en memoria, reloj falso, contenedor de test
 │   └── integration/           #   Setup del esquema `test` de PostgreSQL
@@ -462,7 +472,7 @@ docker compose -f docker-compose.dev.yml exec api pnpm exec tsc --noEmit        
 
 > **Importante:** ejecuta también `tsc --noEmit`. Jest, con `ts-jest` en modo `isolatedModules`, **no** detecta los errores de tipos, solo los de sintaxis. `tsc` sí.
 
-Los tests de integración usan el esquema **`test`** de la base de datos de desarrollo y lo vacían antes de cada test. Tus datos de desarrollo, que están en el esquema `public`, no se tocan nunca: `truncateTables()` se niega a vaciar cualquier otro esquema.
+Los tests de integración usan el esquema **`test`** de la base de datos de desarrollo y lo vacían antes de cada test (cada fichero solo sus propias tablas, porque Jest los ejecuta en paralelo). Tus datos de desarrollo, que están en el esquema `public`, no se tocan nunca: `truncateTables()` se niega a vaciar cualquier otro esquema.
 
 ### Test-Driven Development
 
@@ -619,7 +629,7 @@ Funcionalidad `001-taskApiSDD-mvp`. Progreso en [`tasks.md`](sdd/001-taskApiSDD-
 | H3 | Ver la racha | P1 | ✅ |
 | H4 | Consultar todas las tareas: rango de fechas `from`/`to` y `GET /tasks/{id}` | P2 | ✅ |
 | H5 | Editar el título y la descripción (`PATCH`), y borrar tareas (`DELETE /tasks/{id}`) | P2 | ✅ |
-| H6 | Avisos diarios, semanales y mensuales (`GET /alerts`) | P3 | ⏳ Pendiente |
+| H6 | Avisos diarios, semanales y mensuales (`GET /alerts`) | P3 | ✅ |
 | Robustez | Batería de precedencia de errores y tests de rendimiento | — | ⏳ Pendiente |
 
 **Producción:** `Dockerfile.prod` y `docker-compose.prod.yml` (tareas T028 y T029) están pendientes de dos decisiones: mover `prisma` a `dependencies` para poder ejecutar `migrate deploy` en producción, y añadir `NODE_ENV=production`.

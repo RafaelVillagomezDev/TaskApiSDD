@@ -59,6 +59,15 @@ export class PrismaTaskRepository implements TaskRepository {
     return { items: rows.map(toTaskDomain), total };
   }
 
+  // Usa el índice (user_id, completed, date) (RF-24 a RF-26)
+  async findPending(userId: string, from: LocalDate, to: LocalDate): Promise<Task[]> {
+    const rows = await this.prisma.task.findMany({
+      where: { userId, completed: false, date: { gte: from.toUtcDate(), lte: to.toUtcDate() } },
+      orderBy: TASK_ORDER,
+    });
+    return rows.map(toTaskDomain);
+  }
+
   // SELECT DISTINCT sobre el índice (user_id, completed, date): como mucho un valor por día (R-6)
   async findProductiveDates(userId: string, until: LocalDate): Promise<LocalDate[]> {
     const rows = await this.prisma.$queryRaw<{ date: Date }[]>`

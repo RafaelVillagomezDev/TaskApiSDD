@@ -10,7 +10,8 @@ const repository = new PrismaTaskRepository(prisma);
 const day = (value: string) => LocalDate.parse(value);
 
 describe('PrismaTaskRepository', () => {
-  beforeEach(() => truncateTables(prisma));
+  // Solo su tabla: los ficheros de integración se ejecutan en paralelo
+  beforeEach(() => truncateTables(prisma, ['tasks']));
   afterAll(() => prisma.$disconnect());
 
   it('crea una tarea pendiente con id UUID generado por PostgreSQL', async () => {
@@ -130,6 +131,31 @@ describe('PrismaTaskRepository', () => {
     const task = await repository.create({ userId: 'user-1', title: 'Mía', description: null, date: day('2026-10-24') });
     await repository.delete('user-2', task.id);
     expect(await repository.findById('user-1', task.id)).not.toBeNull();
+  });
+
+  it('findPending devuelve las pendientes del usuario en el rango, ambos días incluidos, en orden (RF-24 a RF-26)', async () => {
+    const seed = async (title: string, date: string, completed = false, userId = 'user-1') => {
+      const task = await repository.create({ userId, title, description: null, date: day(date) });
+      if (completed) {
+        task.complete(day(date));
+        await repository.update(task);
+      }
+    };
+    await seed('Antes', '2026-10-22');
+    await seed('Viernes', '2026-10-23');
+    await seed('Domingo', '2026-10-25');
+    await seed('Sábado', '2026-10-24');
+    await seed('Hecha', '2026-10-24', true);
+    await seed('Ajena', '2026-10-24', false, 'user-2');
+    await seed('Después', '2026-10-26');
+
+    const pending = await repository.findPending('user-1', day('2026-10-23'), day('2026-10-25'));
+
+    expect(pending.map((task) => [task.title, task.date.toString()])).toEqual([
+      ['Viernes', '2026-10-23'],
+      ['Sábado', '2026-10-24'],
+      ['Domingo', '2026-10-25'],
+    ]);
   });
 
   it('findProductiveDates devuelve días distintos con alguna tarea completada, hasta el día indicado (RF-17, RF-18)', async () => {

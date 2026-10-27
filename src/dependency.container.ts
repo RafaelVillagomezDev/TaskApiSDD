@@ -2,6 +2,15 @@ import type { PrismaClient } from '@prisma/client';
 import type { RequestHandler } from 'express';
 
 import type { AppContainer } from './app.factory.js';
+import { GenerateDueAlertUseCase } from './modules/alerts/application/generate-due-alert.use-case.js';
+import { ListAlertsUseCase } from './modules/alerts/application/list-alert.use-case.js';
+import { RecordUserTimeZoneUseCase } from './modules/alerts/application/record-user-time-zone.use-case.js';
+import { AlertController } from './modules/alerts/infrastructure/alert.controller.js';
+import { createAlertRouter } from './modules/alerts/infrastructure/alert.routes.js';
+import { AlertScheduler } from './modules/alerts/infrastructure/alert.scheduler.js';
+import { PendingTaskAdapter } from './modules/alerts/infrastructure/pending-task.adapter.js';
+import { PrismaAlertRepository } from './modules/alerts/infrastructure/prisma-alert.repository.js';
+import { PrismaUserTimeZoneRepository } from './modules/alerts/infrastructure/prisma-user-time-zone.repository.js';
 import { GetStreakUseCase } from './modules/streaks/application/get-streak.use-case.js';
 import { ProductiveDateAdapter } from './modules/streaks/infrastructure/productive-date.adapter.js';
 import { StreakController } from './modules/streaks/infrastructure/streak.controller.js';
@@ -14,7 +23,7 @@ import { UpdateTaskUseCase } from './modules/tasks/application/update-task.use-c
 import { PrismaTaskRepository } from './modules/tasks/infrastructure/prisma-task.repository.js';
 import { TaskController } from './modules/tasks/infrastructure/task.controller.js';
 import { createTaskRouter } from './modules/tasks/infrastructure/task.routes.js';
-import { GetProductiveDateUseCase } from './modules/tasks/task.facade.js';
+import { GetPendingTaskUseCase, GetProductiveDateUseCase } from './modules/tasks/task.facade.js';
 import type { Clock } from './shared/domain/clock.port.js';
 import type { TimeZoneService } from './shared/domain/time-zone.port.js';
 import { createRequestContextMiddleware } from './shared/infrastructure/http/request-context.middleware.js';
@@ -28,6 +37,7 @@ export interface Container extends AppContainer {
   timeZones: TimeZoneService;
   prisma: PrismaClient;
   requestContext: RequestHandler;
+  alertScheduler: AlertScheduler;
 }
 
 export function createContainer(): Container {
@@ -35,11 +45,14 @@ export function createContainer(): Container {
   const timeZones = new IntlTimeZoneAdapter();
   const prisma = getPrismaClient();
 
+  // Módulo alerts: la zona se recuerda en cuanto las cabeceras son válidas (RF-34, D-1)
+  const userTimeZones = new PrismaUserTimeZoneRepository(prisma);
+  const recordUserTimeZone = new RecordUserTimeZoneUseCase(userTimeZones);
+
   const requestContext = createRequestContextMiddleware({
     clock,
     timeZones,
-    // Se conecta con el módulo de avisos en T124 (RF-34)
-    onAcceptedTimeZone: async () => undefined,
+    onAcceptedTimeZone: (userId, timeZone) => recordUserTimeZone.execute(userId, timeZone),
   });
 
   // Módulo tasks
@@ -60,5 +73,23 @@ export function createContainer(): Container {
     requestContext,
   });
 
-  return { clock, timeZones, prisma, requestContext, routers: [taskRouter, streakRouter] };
+  // Módulo alerts: lee las tareas pendientes a través de la fachada de tasks
+  const alertRepository = new PrismaAlertRepository(prisma);
+  const pendingTasks = new PendingTaskAdapter(new GetPendingTaskUseCase(taskRepository));
+  const alertScheduler = new AlertScheduler(
+    new GenerateDueAlertUseCase(clock, timeZones, userTimeZones, alertRepository, pendingTasks),
+  );
+  const alertRouter = createAlertRouter({
+    controller: new AlertController(new ListAlertsUseCase(alertRepository)),
+    requestContext,
+  });
+
+  return {
+    clock,
+    timeZones,
+    prisma,
+    requestContext,
+    alertScheduler,
+    routers: [taskRouter, streakRouter, alertRouter],
+  };
 }

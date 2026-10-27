@@ -63,6 +63,13 @@ export class InMemoryTaskRepository implements TaskRepository {
     return [...unique].sort().map((value) => LocalDate.parse(value));
   }
 
+  async findPending(userId: string, from: LocalDate, to: LocalDate): Promise<Task[]> {
+    return this.rows
+      .filter((row) => row.userId === userId && !row.completed && !row.date.isBefore(from) && !row.date.isAfter(to))
+      .sort((a, b) => a.date.compare(b.date) || a.createdAt.getTime() - b.createdAt.getTime())
+      .map((row) => Task.restore(row));
+  }
+
   // Ayuda para los tests: número total de tareas guardadas
   count(): number {
     return this.rows.length;

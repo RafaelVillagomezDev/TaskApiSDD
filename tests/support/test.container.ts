@@ -4,6 +4,12 @@ import type { AddressInfo } from 'node:net';
 import type { Express } from 'express';
 
 import type { AppContainer } from '../../src/app.factory.js';
+import { GenerateDueAlertUseCase } from '../../src/modules/alerts/application/generate-due-alert.use-case.js';
+import { ListAlertsUseCase } from '../../src/modules/alerts/application/list-alert.use-case.js';
+import { RecordUserTimeZoneUseCase } from '../../src/modules/alerts/application/record-user-time-zone.use-case.js';
+import { AlertController } from '../../src/modules/alerts/infrastructure/alert.controller.js';
+import { createAlertRouter } from '../../src/modules/alerts/infrastructure/alert.routes.js';
+import { PendingTaskAdapter } from '../../src/modules/alerts/infrastructure/pending-task.adapter.js';
 import { GetStreakUseCase } from '../../src/modules/streaks/application/get-streak.use-case.js';
 import { ProductiveDateAdapter } from '../../src/modules/streaks/infrastructure/productive-date.adapter.js';
 import { StreakController } from '../../src/modules/streaks/infrastructure/streak.controller.js';
@@ -15,11 +21,13 @@ import { ListTasksUseCase } from '../../src/modules/tasks/application/list-task.
 import { UpdateTaskUseCase } from '../../src/modules/tasks/application/update-task.use-case.js';
 import { TaskController } from '../../src/modules/tasks/infrastructure/task.controller.js';
 import { createTaskRouter } from '../../src/modules/tasks/infrastructure/task.routes.js';
-import { GetProductiveDateUseCase } from '../../src/modules/tasks/task.facade.js';
+import { GetPendingTaskUseCase, GetProductiveDateUseCase } from '../../src/modules/tasks/task.facade.js';
 import { createRequestContextMiddleware } from '../../src/shared/infrastructure/http/request-context.middleware.js';
 import { IntlTimeZoneAdapter } from '../../src/shared/infrastructure/time/intl-time-zone.adapter.js';
 import { FakeClock } from './fake-clock.adapter.js';
+import { InMemoryAlertRepository } from './in-memory-alert.repository.js';
 import { InMemoryTaskRepository } from './in-memory-task.repository.js';
+import { InMemoryUserTimeZoneRepository } from './in-memory-user-time-zone.repository.js';
 
 // Mismo cableado que dependency.container.ts pero con fakes en memoria (plan, D-21).
 // Reloj por defecto: 2026-10-24T10:00:00Z (12:00 en Madrid)
@@ -27,17 +35,24 @@ export interface TestContainer extends AppContainer {
   clock: FakeClock;
   timeZones: IntlTimeZoneAdapter;
   tasks: InMemoryTaskRepository;
+  alerts: InMemoryAlertRepository;
+  userTimeZones: InMemoryUserTimeZoneRepository;
+  // Una pasada del planificador, para ejecutarla a mano tras mover el reloj
+  generateAlerts: GenerateDueAlertUseCase;
 }
 
 export function createTestContainer(): TestContainer {
   const clock = new FakeClock('2026-10-24T10:00:00Z');
   const timeZones = new IntlTimeZoneAdapter();
   const tasks = new InMemoryTaskRepository();
+  const alerts = new InMemoryAlertRepository(clock);
+  const userTimeZones = new InMemoryUserTimeZoneRepository();
+  const recordUserTimeZone = new RecordUserTimeZoneUseCase(userTimeZones);
 
   const requestContext = createRequestContextMiddleware({
     clock,
     timeZones,
-    onAcceptedTimeZone: async () => undefined,
+    onAcceptedTimeZone: (userId, timeZone) => recordUserTimeZone.execute(userId, timeZone),
   });
 
   const taskController = new TaskController(
@@ -55,7 +70,27 @@ export function createTestContainer(): TestContainer {
     requestContext,
   });
 
-  return { clock, timeZones, tasks, routers: [taskRouter, streakRouter] };
+  const generateAlerts = new GenerateDueAlertUseCase(
+    clock,
+    timeZones,
+    userTimeZones,
+    alerts,
+    new PendingTaskAdapter(new GetPendingTaskUseCase(tasks)),
+  );
+  const alertRouter = createAlertRouter({
+    controller: new AlertController(new ListAlertsUseCase(alerts)),
+    requestContext,
+  });
+
+  return {
+    clock,
+    timeZones,
+    tasks,
+    alerts,
+    userTimeZones,
+    generateAlerts,
+    routers: [taskRouter, streakRouter, alertRouter],
+  };
 }
 
 export interface ClientHeaderOptions {

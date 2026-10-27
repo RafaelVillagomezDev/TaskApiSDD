@@ -264,3 +264,51 @@ E=$(api -X POST $API/tasks -d "{\"title\":\"Borrador\",\"description\":\"Nota\",
   api -X PATCH $API/tasks/$Y -d '{"title":"Otro"}'
   ```
   → `409 DAY_CLOSED` en las dos; la tarea sigue existiendo.
+
+## QS-H6 — Recibir avisos de tareas que van a quedar sin completar (HU-06)
+
+Los avisos se disparan a las 22:00 en la zona recordada del usuario. Para no esperar a la noche, se usa una zona IANA cuya hora local actual esté entre las 22:00 y las 23:59. Usa `api` e `id` de las secciones anteriores; abre una terminal nueva o restaura `TZ` y `TZ_NAME` al terminar.
+
+```bash
+# Busca una zona donde ahora sean entre las 22:00 y las 23:59 (si no sale ninguna, prueba dentro de una hora)
+for z in Pacific/Pago_Pago Pacific/Honolulu America/Anchorage America/Los_Angeles America/Denver America/Chicago \
+         America/New_York America/Halifax America/Sao_Paulo Atlantic/South_Georgia Atlantic/Azores Atlantic/Reykjavik \
+         Europe/Madrid Europe/Athens Europe/Moscow Asia/Dubai Asia/Karachi Asia/Dhaka Asia/Bangkok Asia/Shanghai \
+         Asia/Tokyo Australia/Brisbane Pacific/Noumea Pacific/Auckland Pacific/Kiritimati; do
+  [ "$(TZ=$z date +%H)" -ge 22 ] && { ZONE=$z; break; }
+done; echo "$ZONE"
+export TZ=$ZONE TZ_NAME=$ZONE            # `now` y las cabeceras de `api` pasan a usar esa zona
+export USER_ID=h6-$RANDOM
+ZTODAY=$(date +%F)                       # "hoy" en esa zona
+```
+
+- **QS-H6.1** Una petición con esa zona (la API la recuerda) y una tarea pendiente para su "hoy":
+  ```bash
+  N=$(api -X POST $API/tasks -d "{\"title\":\"Llamar al banco\",\"date\":\"$ZTODAY\"}" | id)
+  ```
+  → `201`.
+- **QS-H6.2** Esperar como mucho 5 minutos (el planificador pasa cada 60 s) y consultar los avisos:
+  ```bash
+  api $API/alerts
+  ```
+  → `200` con un aviso `daily` de `periodStart` y `periodEnd` `$ZTODAY` cuya copia de `tasks` incluye `Llamar al banco`. Si ese día es viernes o el primero de los 3 últimos del mes, aparecen también el semanal o el mensual.
+- **QS-H6.3** Completar la tarea y volver a consultar:
+  ```bash
+  api -X PATCH $API/tasks/$N -d '{"completed":true}' > /dev/null
+  api $API/alerts
+  ```
+  → el aviso no cambia: sigue incluyendo la tarea con su título y su fecha de entonces (RF-30).
+- **QS-H6.4** Reiniciar la API antes del fin del día local y consultar de nuevo:
+  ```bash
+  docker compose -f docker-compose.dev.yml restart api
+  docker compose -f docker-compose.dev.yml logs --since 1m api | grep ALERT_PASS   # pasada inicial sin errores
+  api $API/alerts
+  ```
+  → los mismos avisos, sin duplicados (RF-28, RF-47).
+- **QS-H6.5** Un usuario que nunca ha hecho una petición no recibe avisos. Su tarea se inserta directamente en la base de datos y se comprueba allí, porque consultar `GET /alerts` con ese usuario ya recordaría su zona:
+  ```bash
+  docker compose -f docker-compose.dev.yml exec -T db sh -c "psql -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" -qc \"insert into tasks (user_id, title, date, updated_at) values ('nunca-$USER_ID', 'Sin zona', '$ZTODAY', now())\""
+  sleep 65
+  docker compose -f docker-compose.dev.yml exec -T db sh -c "psql -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" -Atc \"select count(*) from alerts where user_id = 'nunca-$USER_ID'\""
+  ```
+  → `0` (RF-36).

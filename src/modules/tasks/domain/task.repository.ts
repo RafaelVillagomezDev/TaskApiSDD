@@ -31,4 +31,6 @@ export interface TaskRepository {
   findPage(userId: string, filters: TaskFilters, pagination: Pagination): Promise<TaskPageResult>;
   // Días distintos con al menos una tarea completada, hasta `until` incluido, en orden ascendente (RF-17)
   findProductiveDates(userId: string, until: LocalDate): Promise<LocalDate[]>;
+  // Tareas pendientes entre dos días, ambos incluidos, en orden de fecha y creación (RF-24 a RF-26)
+  findPending(userId: string, from: LocalDate, to: LocalDate): Promise<Task[]>;
 }
