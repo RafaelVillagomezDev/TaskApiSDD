@@ -39,6 +39,8 @@ export class InMemoryTaskRepository implements TaskRepository {
     const matching = this.rows
       .filter((row) => row.userId === userId)
       .filter((row) => !filters.date || row.date.equals(filters.date))
+      .filter((row) => !filters.from || !row.date.isBefore(filters.from))
+      .filter((row) => !filters.to || !row.date.isAfter(filters.to))
       .filter((row) => filters.status === 'all' || row.completed === (filters.status === 'completed'))
       .sort((a, b) => a.date.compare(b.date) || a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id));
     return {

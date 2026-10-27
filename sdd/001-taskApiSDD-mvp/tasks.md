@@ -215,33 +215,33 @@ Spec: `sdd/001-taskApiSDD-mvp/spec.md` (Aprobada) · Plan: `sdd/001-taskApiSDD-m
 ## Fase H4 — Consultar todas mis tareas por estado (HU-04, P2)
 
 ### Tests (deben fallar)
-- [ ] T071 [P] [H4] Test de schemas de consulta: `status` inválido, `from`/`to`, `from > to`, `date` + `from`, `page`/`pageSize` inválidos (RF-10, RF-40, RF-42, RF-43) — `src/modules/tasks/infrastructure/tests/task.schema.test.ts`
+- [x] T071 [P] [H4] Test de schemas de consulta: `status` inválido, `from`/`to`, `from > to`, `date` + `from`, `page`/`pageSize` inválidos (RF-10, RF-40, RF-42, RF-43) — `src/modules/tasks/infrastructure/tests/task.schema.test.ts`
   - Verifica: `dce pnpm test src/modules/tasks/infrastructure/tests/task.schema` **falla**.
-- [ ] T072 [P] [H4] Test de listar: todas, por estado, por rango inclusivo, página fuera de rango (RF-09, RF-10, RF-39, RF-40) — `src/modules/tasks/application/tests/list-task.use-case.test.ts`
+- [x] T072 [P] [H4] Test de listar: todas, por estado, por rango inclusivo, página fuera de rango (RF-09, RF-10, RF-39, RF-40) — `src/modules/tasks/application/tests/list-task.use-case.test.ts`
   - Verifica: `dce pnpm test src/modules/tasks/application/tests/list-task` **falla**.
-- [ ] T073 [P] [H4] Test de consultar por id: propia (también de días pasados), ajena, inexistente, id no UUID (RF-16, RF-44) — `src/modules/tasks/application/tests/get-task.use-case.test.ts`
+- [x] T073 [P] [H4] Test de consultar por id: propia (también de días pasados), ajena, inexistente, id no UUID (RF-16, RF-44) — `src/modules/tasks/application/tests/get-task.use-case.test.ts`
   - Verifica: `dce pnpm test src/modules/tasks/application/tests/get-task` **falla**.
-- [ ] T074 [P] [H4] Test HTTP de `GET /tasks` con filtros y paginación y de `GET /tasks/{id}` (RF-09, RF-10, RF-39 a RF-44) — `src/modules/tasks/infrastructure/tests/task.routes.test.ts`
+- [x] T074 [P] [H4] Test HTTP de `GET /tasks` con filtros y paginación y de `GET /tasks/{id}` (RF-09, RF-10, RF-39 a RF-44) — `src/modules/tasks/infrastructure/tests/task.routes.test.ts`
   - Verifica: `dce pnpm test src/modules/tasks/infrastructure/tests/task.routes` **falla**.
-- [ ] T075 [P] [H4] Test de integración de filtros por estado y rango con `count` (RF-10, RF-40) — `src/modules/tasks/infrastructure/tests/prisma-task.repository.int.test.ts`
+- [x] T075 [P] [H4] Test de integración de filtros por estado y rango con `count` (RF-10, RF-40) — `src/modules/tasks/infrastructure/tests/prisma-task.repository.int.test.ts`
   - Verifica: `dce pnpm test src/modules/tasks/infrastructure/tests/prisma-task` **falla**.
 
 ### Implementación
-- [ ] T076 [H4] Schemas de consulta completos (RF-10, RF-40, RF-42, RF-43) — `src/modules/tasks/infrastructure/task.schema.ts`
+- [x] T076 [H4] Schemas de consulta completos (RF-10, RF-40, RF-42, RF-43) — `src/modules/tasks/infrastructure/task.schema.ts`
   - Verifica: `dce pnpm test src/modules/tasks/infrastructure/tests/task.schema` pasa.
-- [ ] T077 [H4] Puerto y repositorio en memoria con filtros de estado y rango — `src/modules/tasks/domain/task.repository.ts`, `tests/support/in-memory-task.repository.ts`
+- [x] T077 [H4] Puerto y repositorio en memoria con filtros de estado y rango — `src/modules/tasks/domain/task.repository.ts`, `tests/support/in-memory-task.repository.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
-- [ ] T078 [H4] Caso de uso listar con todos los filtros (RF-09, RF-10, RF-40) — `src/modules/tasks/application/list-task.use-case.ts`
+- [x] T078 [H4] Caso de uso listar con todos los filtros (RF-09, RF-10, RF-40) — `src/modules/tasks/application/list-task.use-case.ts`
   - Verifica: `dce pnpm test src/modules/tasks/application/tests/list-task` pasa.
-- [ ] T079 [P] [H4] Caso de uso consultar por id (RF-16, RF-44) — `src/modules/tasks/application/get-task.use-case.ts`
+- [x] T079 [P] [H4] Caso de uso consultar por id (RF-16, RF-44) — `src/modules/tasks/application/get-task.use-case.ts`
   - Verifica: `dce pnpm test src/modules/tasks/application/tests/get-task` pasa.
-- [ ] T080 [H4] Repositorio Prisma con filtros (RF-10, RF-40) — `src/modules/tasks/infrastructure/prisma-task.repository.ts`
+- [x] T080 [H4] Repositorio Prisma con filtros (RF-10, RF-40) — `src/modules/tasks/infrastructure/prisma-task.repository.ts`
   - Verifica: `dce pnpm test src/modules/tasks/infrastructure/tests/prisma-task` pasa.
-- [ ] T081 [H4] Controlador y ruta `GET /tasks/{id}`; filtros en `GET /tasks` (RF-44) — `src/modules/tasks/infrastructure/task.controller.ts`, `src/modules/tasks/infrastructure/task.routes.ts`
+- [x] T081 [H4] Controlador y ruta `GET /tasks/{id}`; filtros en `GET /tasks` (RF-44) — `src/modules/tasks/infrastructure/task.controller.ts`, `src/modules/tasks/infrastructure/task.routes.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
-- [ ] T082 [H4] Cablear el caso de uso consultar por id — `src/dependency.container.ts`, `tests/support/test.container.ts`
+- [x] T082 [H4] Cablear el caso de uso consultar por id — `src/dependency.container.ts`, `tests/support/test.container.ts`
   - Verifica: `dce pnpm test src/modules/tasks` pasa entero.
-- [ ] T083 [H4] Guía manual, sección QS-H4 — `sdd/001-taskApiSDD-mvp/quickstart.md`
+- [x] T083 [H4] Guía manual, sección QS-H4 — `sdd/001-taskApiSDD-mvp/quickstart.md`
   - Verifica: ejecutar QS-H4 a mano.
 
 ### Checkpoint H4
@@ -372,6 +372,7 @@ Spec: `sdd/001-taskApiSDD-mvp/spec.md` (Aprobada) · Plan: `sdd/001-taskApiSDD-m
 
 - [x] T130 [P] [Rob] Colección de Postman del MVP P1 (H1–H3): flujo, casos de error y carpeta "Mis tareas" con usuario fijo (RF-01 a RF-03, RF-07, RF-08, RF-10, RF-11, RF-12, RF-16, RF-19 a RF-21, RF-31 a RF-33, RF-45, RF-46) — `sdd/001-taskApiSDD-mvp/mvp-p1.postman-collection.json`
   - Verifica: `docker run --rm -e TZ=Europe/Madrid -v "$PWD/sdd/001-taskApiSDD-mvp":/etc/newman postman/newman:6-alpine run mvp-p1.postman-collection.json --env-var baseUrl=http://host.docker.internal:3000` → 22 peticiones y 25 comprobaciones sin fallos.
+  - Nota: ampliada con H4 (filtros `status`, `from`/`to`, paginación, `GET /tasks/{id}` y errores RF-42, RF-43 y RF-16): mismo comando → 34 peticiones y 38 comprobaciones sin fallos.
 
 ### Checkpoint Robustez
 - `dce pnpm test` y `dce pnpm test:coverage` pasan; `dce pnpm test:perf` pasa.

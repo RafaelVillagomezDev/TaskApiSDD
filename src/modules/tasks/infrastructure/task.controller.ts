@@ -5,6 +5,7 @@ import { getRequestContext } from '../../../shared/infrastructure/http/request-c
 import { parseOrThrow } from '../../../shared/infrastructure/http/request-validation.helper.js';
 import { sendSuccess } from '../../../shared/infrastructure/http/response-envelope.helper.js';
 import type { CreateTaskUseCase } from '../application/create-task.use-case.js';
+import type { GetTaskUseCase } from '../application/get-task.use-case.js';
 import type { ListTasksUseCase } from '../application/list-task.use-case.js';
 import type { UpdateTaskUseCase } from '../application/update-task.use-case.js';
 import { toTaskResponse } from './task.mapper.js';
@@ -16,6 +17,7 @@ export class TaskController {
     private readonly createTask: CreateTaskUseCase,
     private readonly listTasks: ListTasksUseCase,
     private readonly updateTask: UpdateTaskUseCase,
+    private readonly getTask: GetTaskUseCase,
   ) {}
 
   create: RequestHandler = async (req, res) => {
@@ -33,11 +35,20 @@ export class TaskController {
     sendSuccess(res, 200, 'Tarea actualizada con éxito', toTaskResponse(task));
   };
 
+  get: RequestHandler = async (req, res) => {
+    const context = getRequestContext(res);
+    const { id } = parseOrThrow(taskIdParamsSchema, req.params);
+    const task = await this.getTask.execute(context, id);
+    sendSuccess(res, 200, 'Operación realizada con éxito', toTaskResponse(task));
+  };
+
   list: RequestHandler = async (req, res) => {
     const context = getRequestContext(res);
     const query = parseOrThrow(listTasksQuerySchema, req.query);
     const page = await this.listTasks.execute(context, {
       date: query.date,
+      from: query.from,
+      to: query.to,
       status: query.status,
       pagination: new Pagination(query.page, query.pageSize),
     });

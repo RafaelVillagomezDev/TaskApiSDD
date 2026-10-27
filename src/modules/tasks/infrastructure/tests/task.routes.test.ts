@@ -90,6 +90,125 @@ describe('rutas de tareas', () => {
     });
   });
 
+  describe('GET /tasks con filtros y paginación (HU-04)', () => {
+    const titles = (body: Envelope) => body.data.items.map((task: { title: string }) => task.title);
+
+    beforeEach(async () => {
+      const seed = async (title: string, date: string, completed: boolean) => {
+        const task = await container.tasks.create({ userId: 'user-1', title, description: null, date: LocalDate.parse(date) });
+        if (completed) {
+          task.complete(LocalDate.parse(date));
+          await container.tasks.update(task);
+        }
+      };
+      await seed('Hecha 20', '2026-10-20', true);
+      await seed('Pendiente 21', '2026-10-21', false);
+      await seed('Hecha 22', '2026-10-22', true);
+      await seed('Pendiente 23', '2026-10-23', false);
+      await seed('Hecha 24', '2026-10-24', true);
+    });
+
+    it('sin filtros devuelve todas, paginadas y ordenadas por fecha (RF-09, RF-39, RF-41)', async () => {
+      const { status, body } = await call('/tasks');
+      expect(status).toBe(200);
+      expect(body).toMatchObject({ success: true, status: 200, message: 'Operación realizada con éxito' });
+      expect(body.data).toMatchObject({ page: 1, pageSize: 50, totalItems: 5, totalPages: 1 });
+      expect(titles(body)).toEqual(['Hecha 20', 'Pendiente 21', 'Hecha 22', 'Pendiente 23', 'Hecha 24']);
+    });
+
+    it('?status=pending devuelve solo las pendientes (RF-10)', async () => {
+      expect(titles((await call('/tasks?status=pending')).body)).toEqual(['Pendiente 21', 'Pendiente 23']);
+    });
+
+    it('?status=completed devuelve solo las completadas (RF-10)', async () => {
+      expect(titles((await call('/tasks?status=completed')).body)).toEqual(['Hecha 20', 'Hecha 22', 'Hecha 24']);
+    });
+
+    it('?from=&to= devuelve el rango con ambos días incluidos (RF-40)', async () => {
+      const { body } = await call('/tasks?from=2026-10-21&to=2026-10-23');
+      expect(titles(body)).toEqual(['Pendiente 21', 'Hecha 22', 'Pendiente 23']);
+      expect(body.data.totalItems).toBe(3);
+    });
+
+    it('pagina con page y pageSize y devuelve items vacío fuera de rango (RF-39)', async () => {
+      const second = await call('/tasks?page=2&pageSize=2');
+      expect(second.body.data).toMatchObject({ page: 2, pageSize: 2, totalItems: 5, totalPages: 3 });
+      expect(titles(second.body)).toEqual(['Hecha 22', 'Pendiente 23']);
+      const outOfRange = await call('/tasks?page=9&pageSize=2');
+      expect(outOfRange.status).toBe(200);
+      expect(outOfRange.body.data).toMatchObject({ items: [], totalItems: 5, totalPages: 3 });
+    });
+
+    it.each([
+      ['pageSize=101', 'pageSize'],
+      ['page=0', 'page'],
+      ['status=done', 'status'],
+      ['from=2026-10-25&to=2026-10-24', 'to'],
+      [`date=${TODAY}&from=2026-10-20`, 'date'],
+    ])('?%s → 400 VALIDATION_ERROR sobre el campo %s (RF-42, RF-43)', async (query, field) => {
+      const { status, body } = await call(`/tasks?${query}`);
+      expect(status).toBe(400);
+      expect(body.error?.code).toBe('VALIDATION_ERROR');
+      expect(body.error?.details).toEqual([expect.objectContaining({ field })]);
+    });
+
+    it('INVALID_TIMEZONE gana a una query no válida (RF-46)', async () => {
+      const headers = clientHeaders({ timeZone: 'Mars/Olympus' });
+      expect((await call('/tasks?pageSize=101', {}, headers)).body.error?.code).toBe('INVALID_TIMEZONE');
+    });
+  });
+
+  describe('GET /tasks/{id}', () => {
+    const seed = (date: string, userId = 'user-1') =>
+      container.tasks.create({ userId, title: 'Tarea', description: null, date: LocalDate.parse(date) });
+
+    it('una tarea propia → 200 con el recurso Task en data (RF-44)', async () => {
+      const task = await seed(TODAY);
+      const { status, body } = await call(`/tasks/${task.id}`);
+      expect(status).toBe(200);
+      expect(body).toMatchObject({ success: true, status: 200, message: 'Operación realizada con éxito' });
+      expect(body.data).toEqual({
+        id: task.id,
+        title: 'Tarea',
+        description: null,
+        date: TODAY,
+        completed: false,
+        createdAt: expect.stringMatching(/Z$/),
+        updatedAt: expect.stringMatching(/Z$/),
+      });
+    });
+
+    it('una tarea propia de un día pasado → 200 (RF-44)', async () => {
+      const task = await seed('2026-10-20');
+      const { status, body } = await call(`/tasks/${task.id}`);
+      expect(status).toBe(200);
+      expect(body.data.date).toBe('2026-10-20');
+    });
+
+    it.each([
+      ['de otro usuario', async () => (await seed(TODAY, 'user-2')).id],
+      ['inexistente', async () => '6f1c9a52-3e0b-4f6e-9a77-1c2d3e4f5a6b'],
+      ['con id no UUID', async () => 'abc'],
+    ])('una tarea %s → 404 TASK_NOT_FOUND (RF-16)', async (_case, idOf) => {
+      const { status, body } = await call(`/tasks/${await idOf()}`);
+      expect(status).toBe(404);
+      expect(body.error?.code).toBe('TASK_NOT_FOUND');
+    });
+
+    it('sin cabeceras de hora y con un id inexistente → INVALID_CLIENT_TIME (RF-46)', async () => {
+      const { 'X-Client-Time': _omitted, ...headers } = clientHeaders();
+      const { status, body } = await call('/tasks/6f1c9a52-3e0b-4f6e-9a77-1c2d3e4f5a6b', {}, headers);
+      expect(status).toBe(400);
+      expect(body.error?.code).toBe('INVALID_CLIENT_TIME');
+    });
+
+    it('sin X-User-Id → 401 MISSING_USER', async () => {
+      const task = await seed(TODAY);
+      const { 'X-User-Id': _omitted, ...headers } = clientHeaders();
+      expect((await call(`/tasks/${task.id}`, {}, headers)).body.error?.code).toBe('MISSING_USER');
+    });
+  });
+
   describe('PATCH /tasks/{id} con completed', () => {
     const seed = (date: string, userId = 'user-1') =>
       container.tasks.create({ userId, title: 'Tarea', description: null, date: LocalDate.parse(date) });

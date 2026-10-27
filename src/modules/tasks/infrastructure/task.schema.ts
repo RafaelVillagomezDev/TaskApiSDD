@@ -39,8 +39,19 @@ export const updateTaskBodySchema = z
   })
   .refine((body) => Object.keys(body).length > 0, { message: 'Debe incluir al menos un campo' });
 
-export const listTasksQuerySchema = z.object({
-  date: daySchema.optional(),
-  status: z.enum(['all', 'completed', 'pending']).default('all'),
-  ...paginationQueryShape,
-});
+// Consulta de tareas: un día (`date`) o un rango inclusivo (`from`/`to`), nunca ambos (RF-08 a RF-10, RF-40, RF-43)
+export const listTasksQuerySchema = z
+  .object({
+    date: daySchema.optional(),
+    from: daySchema.optional(),
+    to: daySchema.optional(),
+    status: z.enum(['all', 'completed', 'pending']).default('all'),
+    ...paginationQueryShape,
+  })
+  .superRefine((query, ctx) => {
+    if (query.date && (query.from || query.to)) {
+      ctx.addIssue({ code: 'custom', path: ['date'], message: 'No se puede combinar date con from o to' });
+    } else if (query.from && query.to && query.from.isAfter(query.to)) {
+      ctx.addIssue({ code: 'custom', path: ['to'], message: 'Debe ser igual o posterior a from' });
+    }
+  });

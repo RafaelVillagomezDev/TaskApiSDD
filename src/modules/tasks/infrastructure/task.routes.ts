@@ -13,6 +13,7 @@ export function createTaskRouter({ controller, requestContext }: TaskRouterDepen
   const router = Router();
   router.post('/tasks', requestContext, jsonBodyMiddleware, controller.create);
   router.get('/tasks', requestContext, controller.list);
+  router.get('/tasks/:id', requestContext, controller.get);
   router.patch('/tasks/:id', requestContext, jsonBodyMiddleware, controller.update);
   return router;
 }

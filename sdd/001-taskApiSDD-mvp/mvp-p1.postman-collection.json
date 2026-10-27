@@ -1,7 +1,7 @@
 {
   "info": {
-    "name": "TaskApiSDD — MVP P1",
-    "description": "Flujo del MVP P1 (H1 tareas del día, H2 completar, H3 racha) y casos de error. Las cabeceras X-User-Id, X-Client-Time y X-Timezone se calculan solas. Ejecuta la carpeta '1. Flujo MVP' en orden (Run folder) antes de '2. Errores'. La carpeta '3. Mis tareas' consulta las tareas del usuario de la variable myUserId.",
+    "name": "TaskApiSDD — MVP (H1–H4)",
+    "description": "Flujo del MVP (H1 tareas del día, H2 completar, H3 racha, H4 filtros de estado y rango y consulta por id) y casos de error. Las cabeceras X-User-Id, X-Client-Time y X-Timezone se calculan solas. Ejecuta la carpeta '1. Flujo MVP' en orden (Run folder) antes de '2. Errores'. La carpeta '3. Mis tareas' consulta las tareas del usuario de la variable myUserId.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "event": [
@@ -550,6 +550,340 @@
               ]
             }
           }
+        },
+        {
+          "name": "10 Volver a completar la tarea de hoy (preparación H4)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 completada', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().data.completed).to.equal(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tasks/{{taskId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks",
+                "{{taskId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"completed\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "11 Solo las pendientes (H4)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 solo con la tarea de mañana', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const { data } = pm.response.json();",
+                  "  pm.expect(data.totalItems).to.equal(1);",
+                  "  pm.expect(data.items[0].id).to.equal(pm.collectionVariables.get('tomorrowTaskId'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tasks?status=pending",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "pending"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "12 Solo las completadas (H4)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 solo con la tarea de hoy', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const { data } = pm.response.json();",
+                  "  pm.expect(data.totalItems).to.equal(1);",
+                  "  pm.expect(data.items[0]).to.include({ id: pm.collectionVariables.get('taskId'), completed: true });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tasks?status=completed",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "completed"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "13 Rango de fechas inclusivo (H4)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 solo con la tarea de mañana (from y to incluidos)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const { data } = pm.response.json();",
+                  "  pm.expect(data.items.map((task) => task.id)).to.eql([pm.collectionVariables.get('tomorrowTaskId')]);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tasks?from={{tomorrow}}&to={{tomorrow}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "{{tomorrow}}"
+                },
+                {
+                  "key": "to",
+                  "value": "{{tomorrow}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "14 Segunda página de tamaño 1 (H4)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con la tarea de mañana y los totales', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const { data } = pm.response.json();",
+                  "  pm.expect(data).to.include({ page: 2, pageSize: 1, totalItems: 2, totalPages: 2 });",
+                  "  pm.expect(data.items[0].id).to.equal(pm.collectionVariables.get('tomorrowTaskId'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tasks?page=2&pageSize=1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "2"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "1"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "15 Consultar una tarea por id (H4)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con el recurso Task', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const { message, data } = pm.response.json();",
+                  "  pm.expect(message).to.equal('Operación realizada con éxito');",
+                  "  pm.expect(data).to.include({ id: pm.collectionVariables.get('taskId'), title: 'Comprar pan', completed: true });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tasks/{{taskId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks",
+                "{{taskId}}"
+              ]
+            }
+          }
         }
       ]
     },
@@ -1039,6 +1373,275 @@
           }
         },
         {
+          "name": "pageSize 101 → VALIDATION_ERROR (RF-42)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 VALIDATION_ERROR sobre pageSize', () => {",
+                  "  pm.response.to.have.status(400);",
+                  "  const { error } = pm.response.json();",
+                  "  pm.expect(error.code).to.equal('VALIDATION_ERROR');",
+                  "  pm.expect(error.details.map((detail) => detail.field)).to.eql(['pageSize']);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tasks?pageSize=101",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks"
+              ],
+              "query": [
+                {
+                  "key": "pageSize",
+                  "value": "101"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "date con from → VALIDATION_ERROR (RF-43)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 VALIDATION_ERROR sobre date', () => {",
+                  "  pm.response.to.have.status(400);",
+                  "  const { error } = pm.response.json();",
+                  "  pm.expect(error.code).to.equal('VALIDATION_ERROR');",
+                  "  pm.expect(error.details.map((detail) => detail.field)).to.eql(['date']);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tasks?date={{today}}&from={{today}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks"
+              ],
+              "query": [
+                {
+                  "key": "date",
+                  "value": "{{today}}"
+                },
+                {
+                  "key": "from",
+                  "value": "{{today}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "from posterior a to → VALIDATION_ERROR (RF-43)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 VALIDATION_ERROR sobre to', () => {",
+                  "  pm.response.to.have.status(400);",
+                  "  const { error } = pm.response.json();",
+                  "  pm.expect(error.code).to.equal('VALIDATION_ERROR');",
+                  "  pm.expect(error.details.map((detail) => detail.field)).to.eql(['to']);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tasks?from={{tomorrow}}&to={{today}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "{{tomorrow}}"
+                },
+                {
+                  "key": "to",
+                  "value": "{{today}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Consultar id no UUID → TASK_NOT_FOUND",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 TASK_NOT_FOUND', () => {",
+                  "  pm.response.to.have.status(404);",
+                  "  pm.expect(pm.response.json().error.code).to.equal('TASK_NOT_FOUND');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tasks/abc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks",
+                "abc"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Consultar tarea de otro usuario → TASK_NOT_FOUND (RF-16)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 TASK_NOT_FOUND', () => {",
+                  "  pm.response.to.have.status(404);",
+                  "  pm.expect(pm.response.json().error.code).to.equal('TASK_NOT_FOUND');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "otro-usuario"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tasks/{{taskId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks",
+                "{{taskId}}"
+              ]
+            }
+          }
+        },
+        {
           "name": "Método inexistente → ROUTE_NOT_FOUND",
           "event": [
             {
@@ -1236,6 +1839,62 @@
                 {
                   "key": "status",
                   "value": "pending"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Mis tareas de hoy en adelante",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con la lista paginada', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().data.items).to.be.an('array');",
+                  "});",
+                  "pm.test('ninguna tarea anterior a hoy', () => {",
+                  "  pm.response.json().data.items.forEach((task) => pm.expect(task.date >= pm.variables.get('today')).to.equal(true));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "{{myUserId}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tasks?from={{today}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "{{today}}"
                 }
               ]
             }

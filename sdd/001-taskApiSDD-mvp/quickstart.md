@@ -3,7 +3,7 @@
 Guía para probar a mano cada historia. Los *checkpoints* de `tasks.md` citan estos pasos (QS-0.1, QS-H1.1…).
 Todo el servidor corre en Docker (AGENTS.md); en tu máquina solo se usan `curl` y `date`.
 
-> **Alternativa con Postman (MVP P1, QS-H1 a QS-H3):** importa `sdd/001-taskApiSDD-mvp/mvp-p1.postman-collection.json`, ajusta la variable de colección `timeZone` a la zona de tu ordenador y ejecuta la carpeta "1. Flujo MVP" (*Run folder*) y después "2. Errores". La carpeta "3. Mis tareas" lista las tareas del usuario de la variable `myUserId`: ponle el mismo valor que uses en `X-User-Id` al crear tus tareas. Para ejecutarla desde la terminal sin instalar nada:
+> **Alternativa con Postman (QS-H1 a QS-H4):** importa `sdd/001-taskApiSDD-mvp/mvp-p1.postman-collection.json`, ajusta la variable de colección `timeZone` a la zona de tu ordenador y ejecuta la carpeta "1. Flujo MVP" (*Run folder*) y después "2. Errores". La carpeta "3. Mis tareas" lista las tareas del usuario de la variable `myUserId`: ponle el mismo valor que uses en `X-User-Id` al crear tus tareas. Para ejecutarla desde la terminal sin instalar nada:
 > ```bash
 > docker run --rm -e TZ=Europe/Madrid -v "$PWD/sdd/001-taskApiSDD-mvp":/etc/newman postman/newman:6-alpine \
 >   run mvp-p1.postman-collection.json --env-var baseUrl=http://host.docker.internal:3000
@@ -178,3 +178,55 @@ Usa `api`, `id` y `TODAY` de las secciones anteriores, con un usuario nuevo: `ex
   api $API/streak
   ```
   → `{ "current": 2, "best": 2 }`.
+
+---
+
+## QS-H4 — Consultar todas mis tareas por estado (HU-04)
+
+Usa `api`, `id` y `TODAY` de las secciones anteriores, con un usuario nuevo para que la lista solo tenga estas tareas. La API no deja crear tareas en días pasados, así que el rango se prueba con días futuros:
+
+```bash
+export USER_ID=h4-$RANDOM
+D1=$(date -v+1d +%F 2>/dev/null || date -d '1 day' +%F)
+D2=$(date -v+2d +%F 2>/dev/null || date -d '2 days' +%F)
+D3=$(date -v+3d +%F 2>/dev/null || date -d '3 days' +%F)
+A=$(api -X POST $API/tasks -d "{\"title\":\"A hoy\",\"date\":\"$TODAY\"}" | id)
+api -X POST $API/tasks -d "{\"title\":\"B hoy\",\"date\":\"$TODAY\"}" > /dev/null
+for d in $D1 $D2 $D3; do api -X POST $API/tasks -d "{\"title\":\"Tarea $d\",\"date\":\"$d\"}" > /dev/null; done
+api -X PATCH $API/tasks/$A -d '{"completed":true}' > /dev/null   # A queda completada; el resto, pendientes
+```
+
+- **QS-H4.1** Todas las tareas, paginadas:
+  ```bash
+  api $API/tasks
+  api "$API/tasks?page=2&pageSize=2"
+  ```
+  → `200` con las 5 tareas ordenadas por fecha y creación (`A hoy`, `B hoy`, `Tarea $D1`, `$D2`, `$D3`), `totalItems: 5`, `totalPages: 1`. La segunda petición → `Tarea $D1` y `Tarea $D2`, `page: 2`, `pageSize: 2`, `totalPages: 3`.
+- **QS-H4.2** Solo las pendientes (y solo las completadas):
+  ```bash
+  api "$API/tasks?status=pending"
+  api "$API/tasks?status=completed"
+  ```
+  → 4 pendientes (todas menos `A hoy`); la segunda → solo `A hoy` con `completed: true`.
+- **QS-H4.3** Rango con ambos días incluidos:
+  ```bash
+  api "$API/tasks?from=$D1&to=$D2"
+  ```
+  → `Tarea $D1` y `Tarea $D2`, `totalItems: 2`.
+- **QS-H4.4** Página demasiado grande:
+  ```bash
+  api "$API/tasks?pageSize=101"
+  ```
+  → `400 VALIDATION_ERROR` con `details` sobre `pageSize`.
+- **QS-H4.5** `date` combinado con `from`, y `from` posterior a `to`:
+  ```bash
+  api "$API/tasks?date=$TODAY&from=$TODAY"
+  api "$API/tasks?from=$D2&to=$D1"
+  ```
+  → `400 VALIDATION_ERROR` con `details` sobre `date`; la segunda, sobre `to`.
+- **QS-H4.6** Consultar una tarea por id, propia y ajena:
+  ```bash
+  api $API/tasks/$A
+  USER_ID=otra api $API/tasks/$A
+  ```
+  → `200` con la tarea `A hoy` y `completed: true`; la segunda → `404 TASK_NOT_FOUND`.

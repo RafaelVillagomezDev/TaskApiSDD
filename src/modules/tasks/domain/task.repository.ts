@@ -8,6 +8,9 @@ export interface TaskFilters {
   status: TaskStatusFilter;
   // Solo las tareas de ese día (RF-08)
   date?: LocalDate;
+  // Rango de días, ambos incluidos; cualquiera de los dos puede faltar (RF-40)
+  from?: LocalDate;
+  to?: LocalDate;
 }
 
 export interface TaskPageResult {

@@ -46,6 +46,60 @@ describe('PrismaTaskRepository', () => {
     expect(first.total).toBe(3);
   });
 
+  describe('findPage con filtros de estado y rango (HU-04)', () => {
+    const all = new Pagination(1, 50);
+    const titles = (result: { items: { title: string }[] }) => result.items.map((task) => task.title);
+
+    beforeEach(async () => {
+      const seed = async (title: string, date: string, completed: boolean, userId = 'user-1') => {
+        const task = await repository.create({ userId, title, description: null, date: day(date) });
+        if (completed) {
+          task.complete(day(date));
+          await repository.update(task);
+        }
+      };
+      await seed('Hecha 20', '2026-10-20', true);
+      await seed('Pendiente 21', '2026-10-21', false);
+      await seed('Hecha 22', '2026-10-22', true);
+      await seed('Pendiente 23', '2026-10-23', false);
+      await seed('Hecha 24', '2026-10-24', true);
+      await seed('Ajena 22', '2026-10-22', false, 'user-2');
+    });
+
+    it('filtra por estado y cuenta solo las que coinciden (RF-10)', async () => {
+      const pending = await repository.findPage('user-1', { status: 'pending' }, all);
+      expect(titles(pending)).toEqual(['Pendiente 21', 'Pendiente 23']);
+      expect(pending.total).toBe(2);
+      const completed = await repository.findPage('user-1', { status: 'completed' }, all);
+      expect(titles(completed)).toEqual(['Hecha 20', 'Hecha 22', 'Hecha 24']);
+      expect(completed.total).toBe(3);
+    });
+
+    it('filtra por rango con ambos extremos incluidos y sin desplazamiento de día (RF-40, R-4)', async () => {
+      const result = await repository.findPage('user-1', { status: 'all', from: day('2026-10-21'), to: day('2026-10-23') }, all);
+      expect(titles(result)).toEqual(['Pendiente 21', 'Hecha 22', 'Pendiente 23']);
+      expect(result.total).toBe(3);
+    });
+
+    it('acepta un rango abierto por un extremo (RF-40)', async () => {
+      expect(titles(await repository.findPage('user-1', { status: 'all', from: day('2026-10-24') }, all))).toEqual([
+        'Hecha 24',
+      ]);
+      expect(titles(await repository.findPage('user-1', { status: 'all', to: day('2026-10-20') }, all))).toEqual([
+        'Hecha 20',
+      ]);
+    });
+
+    it('combina rango, estado y paginación, con count sobre el total filtrado (RF-10, RF-39, RF-40)', async () => {
+      const filters = { status: 'completed' as const, from: day('2026-10-21'), to: day('2026-10-24') };
+      const first = await repository.findPage('user-1', filters, new Pagination(1, 1));
+      const second = await repository.findPage('user-1', filters, new Pagination(2, 1));
+      expect(titles(first)).toEqual(['Hecha 22']);
+      expect(titles(second)).toEqual(['Hecha 24']);
+      expect(first.total).toBe(2);
+    });
+  });
+
   it('findById solo encuentra la tarea de su usuario (RF-02, RF-16)', async () => {
     const task = await repository.create({ userId: 'user-1', title: 'Mía', description: null, date: day('2026-10-24') });
     expect((await repository.findById('user-1', task.id))?.title).toBe('Mía');

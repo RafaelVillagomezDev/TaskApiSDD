@@ -56,4 +56,50 @@ describe('listTasksQuerySchema', () => {
   it('rechaza una fecha no válida (RF-06)', () => {
     expect(listTasksQuerySchema.safeParse({ date: '2026-13-01' }).success).toBe(false);
   });
+
+  it('rechaza un status desconocido (RF-10)', () => {
+    expect(listTasksQuerySchema.safeParse({ status: 'done' }).success).toBe(false);
+  });
+
+  it('convierte from y to en LocalDate, juntos o por separado (RF-40)', () => {
+    const both = listTasksQuerySchema.parse({ from: '2026-10-20', to: '2026-10-24' });
+    expect(both.from?.toString()).toBe('2026-10-20');
+    expect(both.to?.toString()).toBe('2026-10-24');
+    expect(listTasksQuerySchema.parse({ from: '2026-10-20' }).to).toBeUndefined();
+    expect(listTasksQuerySchema.parse({ to: '2026-10-24' }).from).toBeUndefined();
+  });
+
+  it('acepta from igual a to (rango de un día)', () => {
+    expect(listTasksQuerySchema.safeParse({ from: '2026-10-24', to: '2026-10-24' }).success).toBe(true);
+  });
+
+  it.each([{ from: '2026-02-30' }, { to: '24/10/2026' }])('rechaza un día no válido en el rango %p (RF-06)', (query) => {
+    expect(listTasksQuerySchema.safeParse(query).success).toBe(false);
+  });
+
+  it('rechaza from posterior a to, señalando el campo to (RF-43)', () => {
+    const result = listTasksQuerySchema.safeParse({ from: '2026-10-25', to: '2026-10-24' });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues.map((issue) => issue.path)).toEqual([['to']]);
+  });
+
+  it.each([{ from: '2026-10-20' }, { to: '2026-10-24' }, { from: '2026-10-20', to: '2026-10-24' }])(
+    'rechaza date combinado con %p, señalando el campo date (RF-43)',
+    (range) => {
+      const result = listTasksQuerySchema.safeParse({ date: '2026-10-24', ...range });
+      expect(result.success).toBe(false);
+      expect(result.error?.issues.map((issue) => issue.path)).toEqual([['date']]);
+    },
+  );
+
+  it.each([{ page: '0' }, { page: '-1' }, { page: '1.5' }, { page: 'uno' }, { pageSize: '0' }, { pageSize: '101' }])(
+    'rechaza la paginación %p (RF-42)',
+    (query) => {
+      expect(listTasksQuerySchema.safeParse(query).success).toBe(false);
+    },
+  );
+
+  it('acepta pageSize 100 (RF-42)', () => {
+    expect(listTasksQuerySchema.parse({ pageSize: '100' }).pageSize).toBe(100);
+  });
 });

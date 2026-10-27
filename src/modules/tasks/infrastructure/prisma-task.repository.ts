@@ -41,6 +41,10 @@ export class PrismaTaskRepository implements TaskRepository {
     const where: Prisma.TaskWhereInput = {
       userId,
       ...(filters.date ? { date: filters.date.toUtcDate() } : {}),
+      // Rango inclusivo sobre la columna DATE (RF-40)
+      ...(filters.from || filters.to
+        ? { date: { ...(filters.from ? { gte: filters.from.toUtcDate() } : {}), ...(filters.to ? { lte: filters.to.toUtcDate() } : {}) } }
+        : {}),
       ...(filters.status !== 'all' ? { completed: filters.status === 'completed' } : {}),
     };
     const [rows, total] = await this.prisma.$transaction([
