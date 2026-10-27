@@ -96,8 +96,8 @@ cp .env.example .env.dev
 # 4. Construir y levantar la API y la base de datos
 docker compose -f docker-compose.dev.yml up -d --build
 
-# 5. Instalar las dependencias en ./node_modules (desde el contenedor; así tu editor ve los tipos)
-docker compose -f docker-compose.dev.yml run --rm api pnpm install
+# 5. Copiar las dependencias del contenedor a ./node_modules (solo para que tu editor vea los tipos)
+docker compose -f docker-compose.dev.yml cp api:/app/node_modules ./
 
 # 6. Aplicar las migraciones de la base de datos
 docker compose -f docker-compose.dev.yml exec api pnpm prisma migrate deploy
@@ -369,7 +369,10 @@ TaskApiSDD/
 ├── CONSTITUTION.md            # Las 7 leyes del proyecto (prevalece sobre todo lo demás)
 ├── README.md                  # Este fichero (se mantiene al día: ver "README vivo")
 ├── .githooks/pre-commit       # Rechaza commits que cambian CONSTITUTION.md, AGENTS.md o sdd/ sin actualizar README.md
-├── .claude/settings.json      # Claude Code: recuerda al agente actualizar README.md tras editar esos ficheros
+├── .claude/settings.json      # Claude Code: recuerda al agente actualizar README.md tras editar esos ficheros, y hooks de graphify
+├── .claude/skills/graphify/   # Skill /graphify para Claude Code
+├── CLAUDE.md                  # Reglas de graphify para Claude Code (generado por la herramienta)
+├── graphify-out/              # Grafo de conocimiento del repo (no versionado)
 ├── sdd/001-taskApiSDD-mvp/    # Documentación SDD de la funcionalidad
 │   ├── spec.md                #   QUÉ se construye (requisitos, contrato de la API)
 │   ├── plan.md                #   CÓMO se construye (arquitectura, decisiones, riesgos)
@@ -530,7 +533,8 @@ docker compose -f docker-compose.dev.yml down                   # parar (los dat
 docker compose -f docker-compose.dev.yml down -v                # parar y BORRAR la base de datos
 
 # Dependencias
-docker compose -f docker-compose.dev.yml run --rm api pnpm install      # tras clonar o cambiar package.json
+docker compose -f docker-compose.dev.yml up --build -d -V               # tras cambiar package.json: reconstruir y renovar node_modules
+docker compose -f docker-compose.dev.yml cp api:/app/node_modules ./    # copiar node_modules al host para el editor
 
 # Base de datos (Prisma)
 docker compose -f docker-compose.dev.yml exec api pnpm prisma migrate deploy   # aplicar migraciones pendientes
@@ -541,6 +545,10 @@ docker compose -f docker-compose.dev.yml exec api pnpm prisma studio           #
 docker compose -f docker-compose.dev.yml exec db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
 ```
 
+> **Dependencias:** `node_modules` vive en un volumen del contenedor, no en tu carpeta. El `./node_modules` de tu ordenador es solo una copia para el editor. Si cambias `package.json`, levanta con `-V`; sin él, Docker reutiliza el volumen anterior con las dependencias viejas.
+>
+> **Base de datos desde tu ordenador:** PostgreSQL está publicado en `localhost:5432`. Conecta tu cliente (DBeaver, TablePlus, `psql`…) con el usuario, contraseña y base de `.env.dev`.
+
 Para **crear una migración nueva** después de cambiar `schema.prisma`:
 
 ```bash
@@ -548,6 +556,20 @@ docker compose -f docker-compose.dev.yml run --rm api pnpm prisma migrate dev --
 ```
 
 Si no tienes terminal interactiva (por ejemplo, desde un script), consulta la alternativa con `migrate diff` + `migrate deploy` en `AGENTS.md`.
+
+### Explorar el código con un grafo (graphify, opcional)
+
+[graphify](https://github.com/safishamsi/graphify) convierte el repo en un grafo de conocimiento (`graphify-out/`, no versionado) que Claude Code consulta antes de leer ficheros. No forma parte del stack de la API: se instala en tu máquina, no en Docker.
+
+```bash
+uv tool install graphifyy                     # o: pip install graphifyy
+# En Claude Code: /graphify .                 # construir el grafo la primera vez
+graphify update .                             # actualizarlo tras cambiar código (sin coste de LLM)
+graphify query "¿cómo se calcula la racha?"   # preguntar al grafo
+graphify explain "LocalDate"                  # ver un nodo y sus conexiones
+```
+
+Abre `graphify-out/graph.html` en el navegador para verlo de forma interactiva.
 
 ---
 
@@ -561,7 +583,9 @@ Si no tienes terminal interactiva (por ejemplo, desde un script), consulta la al
 | `409 DAY_CLOSED` | Intentas crear o tocar una tarea de un día pasado. Está prohibido a propósito. |
 | `409 DAY_NOT_STARTED` | Intentas completar una tarea de un día futuro. Espera a ese día. |
 | La tarea de "hoy" tiene un `createdAt` del día anterior | Es correcto: `createdAt` está en UTC y `date` es tu día local. |
-| El editor marca errores como "Cannot find module" | Ejecuta `docker compose -f docker-compose.dev.yml run --rm api pnpm install` y reinicia el servidor de TypeScript del editor. |
+| El editor marca errores como "Cannot find module" | Borra `./node_modules`, cópialo del contenedor con `docker compose -f docker-compose.dev.yml cp api:/app/node_modules ./` y reinicia el servidor de TypeScript del editor. |
+| La API no encuentra un paquete recién añadido a `package.json` | El volumen de `node_modules` es el anterior. Levanta con `docker compose -f docker-compose.dev.yml up --build -d -V`. |
+| El puerto 5432 ya está en uso al levantar | Tienes otro PostgreSQL en tu ordenador. Páralo o cambia el puerto publicado en `docker-compose.dev.yml` (por ejemplo `"5433:5432"`). |
 | `ERR_PNPM_IGNORED_BUILDS` al construir | pnpm bloquea los scripts de instalación. Los de Prisma están autorizados en `pnpm-workspace.yaml`. |
 | `prisma migrate dev` dice "environment is non-interactive" | Usa `docker compose ... run --rm api ...` (asigna terminal) o la alternativa de `AGENTS.md`. |
 | `git commit` falla con "✖ README vivo" | El commit toca `CONSTITUTION.md`, `AGENTS.md` o `sdd/` sin tocar `README.md`. Actualiza el README con lo que ha cambiado, `git add README.md` y repite el commit. |
@@ -594,6 +618,7 @@ Funcionalidad `001-taskApiSDD-mvp`. Progreso en [`tasks.md`](sdd/001-taskApiSDD-
 | :--- | :--- |
 | [`CONSTITUTION.md`](CONSTITUTION.md) | **Antes de tocar nada.** Las 7 leyes del proyecto. |
 | [`AGENTS.md`](AGENTS.md) | Comandos completos, estructura y convenciones de nombres. |
+| [`CLAUDE.md`](CLAUDE.md) | Si usas Claude Code con graphify: cómo debe consultar el grafo. |
 | [`spec.md`](sdd/001-taskApiSDD-mvp/spec.md) | Para saber exactamente qué debe hacer la API: requisitos `RF-xx` y contrato completo. |
 | [`plan.md`](sdd/001-taskApiSDD-mvp/plan.md) | Para entender por qué el código está hecho así: decisiones `D-xx` y riesgos `R-xx`. |
 | [`tasks.md`](sdd/001-taskApiSDD-mvp/tasks.md) | Para saber qué está hecho y qué falta. |

@@ -22,7 +22,7 @@ RUN pnpm install
 
 COPY . .
 
-# Cliente de Prisma generado dentro de la imagen (imagen autosuficiente); en desarrollo se usa ./node_modules montado
+# Cliente de Prisma generado dentro de la imagen (imagen autosuficiente); en desarrollo node_modules vive en un volumen anónimo con este contenido
 RUN pnpm prisma generate
 
 # API y Prisma Studio

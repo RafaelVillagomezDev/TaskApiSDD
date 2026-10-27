@@ -34,7 +34,10 @@ El código fuente se organiza en módulos de negocio independientes bajo `src/mo
 ├── prisma/                       # schema.prisma y migraciones
 ├── tests/                        # Soporte común de tests: fakes (support/), setup de integración (integration/) y rendimiento (performance/)
 ├── .githooks/                    # Hooks de git versionados (pre-commit: README vivo); activar con git config core.hooksPath .githooks
-├── .claude/settings.json         # Configuración de Claude Code del proyecto (hook que recuerda actualizar README.md)
+├── .claude/settings.json         # Configuración de Claude Code del proyecto (hook que recuerda actualizar README.md y hooks de graphify)
+├── .claude/skills/graphify/      # Skill /graphify para Claude Code (generado por `graphify install --project`)
+├── CLAUDE.md                     # Reglas de graphify para Claude Code (generado por `graphify install --project`)
+├── graphify-out/                 # Grafo de conocimiento del repo (no versionado; cada uno genera el suyo)
 ├── README.md                     # Documentación general del proyecto; se mantiene al día (CONSTITUTION.md, Gobierno 7)
 └── src/
     ├── shared/                   # Infraestructura global, errores base (AppError) y utilidades
@@ -68,8 +71,15 @@ docker compose -f docker-compose.dev.yml logs -f api              # Ver logs de 
 docker compose -f docker-compose.dev.yml down                     # Parar los contenedores
 docker compose -f docker-compose.dev.yml down -v                  # Parar y borrar volúmenes (incluida la BDD)
 docker compose -f docker-compose.dev.yml exec api pnpm add <pkg>  # Añadir una dependencia dentro del contenedor
-docker compose -f docker-compose.dev.yml run --rm api pnpm install # Instalar las dependencias en ./node_modules desde el contenedor (tras clonar o cambiar package.json); así el editor ve los tipos sin instalar nada en el host
+docker compose -f docker-compose.dev.yml up --build -d -V         # Tras cambiar package.json (o un pull que lo cambie): reconstruir y renovar el volumen de node_modules
+docker compose -f docker-compose.dev.yml cp api:/app/node_modules ./  # Copiar node_modules del contenedor al host para que el editor vea los tipos (tras clonar o cambiar dependencias)
 ```
+
+> **`node_modules` vive en un volumen anónimo del contenedor** (`/app/node_modules` en `docker-compose.dev.yml`), así que el montaje del código no lo pisa. Consecuencias:
+> - `docker compose ... run --rm api pnpm install` ya **no** sirve: instala en un volumen temporal que se borra al terminar.
+> - `up --build` sin `-V` reutiliza el volumen anterior y mantiene las dependencias viejas; tras cambiar `package.json` hay que usar `-V` (`--renew-anon-volumes`).
+> - El `./node_modules` del host es solo una copia para el editor (`docker compose cp`); la API nunca lo usa. Para refrescarlo sin restos, bórralo antes de copiar.
+> - PostgreSQL publica el puerto `5432` en el host: un cliente de base de datos o `psql` local se conecta a `localhost:5432` con las credenciales de `.env.dev` (dentro de Docker el host sigue siendo `db`).
 
 ### Producción (`Dockerfile.prod`)
 ```bash
@@ -100,6 +110,16 @@ docker compose -f docker-compose.prod.yml exec api pnpm prisma migrate deploy   
 docker compose -f docker-compose.dev.yml exec api pnpm test                 # Ejecutar todos los tests
 docker compose -f docker-compose.dev.yml exec api pnpm test:watch           # Tests en modo watch
 docker compose -f docker-compose.dev.yml exec api pnpm test:coverage        # Tests con informe de cobertura
+```
+
+### Grafo de conocimiento (graphify)
+Herramienta de apoyo para explorar el código. **No es una dependencia del proyecto** (no está en `package.json`) y es la única excepción a la ejecución en Docker: se instala y se ejecuta en el host (`uv tool install graphifyy` o `pip install graphifyy`). Los hooks de `.claude/settings.json` llaman al binario `graphify`; si no está instalado, no hacen nada.
+```bash
+/graphify .                                   # (en Claude Code) Construir el grafo completo en graphify-out/
+graphify update .                             # Actualizar el grafo tras cambiar código (solo AST, sin coste de LLM)
+graphify query "<pregunta>"                   # Consultar el grafo antes de buscar o leer ficheros
+graphify path "<A>" "<B>"                     # Camino más corto entre dos nodos
+graphify explain "<nodo>"                     # Explicar un nodo y sus conexiones
 ```
 ### 4. Convención de Nombres (Naming Conventions)
 
@@ -145,6 +165,7 @@ Los documentos AGENTS.md y Constitution.md  del proyecto están en la raíz:
 
 - **`AGENTS.md`**: Contexto, estructura, comandos y convenciones para agentes de IA.
 - **`CONSTITUTION.md`**: Ley suprema del proyecto. Prevalece sobre cualquier otro documento en caso de conflicto.
+- **`CLAUDE.md`**: Reglas de uso del grafo de graphify para Claude Code (generado por la herramienta, en inglés). En caso de conflicto prevalecen `CONSTITUTION.md` y este fichero.
 
 Los documentos del flujo Spec-Driven Development se guardan en `sdd/`, con una carpeta numerada por funcionalidad que contiene su spec, plan y tasks:
 

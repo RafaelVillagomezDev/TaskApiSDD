@@ -151,3 +151,5 @@ vite.config.ts.timestamp-*
 
 # Graphify local output
 graphify-out/
+# Copias de seguridad que graphify deja al tocar la configuración
+*.graphify-bak

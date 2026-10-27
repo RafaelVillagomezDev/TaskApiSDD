@@ -21,7 +21,7 @@ Todo el servidor corre en Docker (AGENTS.md); en tu máquina solo se usan `curl`
 - **QS-0.1** Construir y levantar `api` y `db`:
   ```bash
   docker compose -f docker-compose.dev.yml up -d --build
-  docker compose -f docker-compose.dev.yml run --rm api pnpm install   # solo la primera vez o tras cambiar package.json
+  docker compose -f docker-compose.dev.yml cp api:/app/node_modules ./   # copia para el editor: la primera vez o tras cambiar package.json
   docker compose -f docker-compose.dev.yml logs api --tail 5           # debe mostrar {"event":"SERVER_STARTED","port":3000}
   ```
 - **QS-0.2** Aplicar las migraciones:
