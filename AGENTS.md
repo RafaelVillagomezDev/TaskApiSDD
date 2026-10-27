@@ -33,7 +33,9 @@ El código fuente se organiza en módulos de negocio independientes bajo `src/mo
 ├── .env.prod                     # Variables de producción (no versionado), cargado por docker-compose.prod.yml
 ├── prisma/                       # schema.prisma y migraciones
 ├── tests/                        # Soporte común de tests: fakes (support/), setup de integración (integration/) y rendimiento (performance/)
-├── .githooks/                    # Hooks de git versionados (pre-commit: README vivo); activar con git config core.hooksPath .githooks
+├── .githooks/                    # Hooks de git versionados (pre-commit: README vivo; pre-push: quality gate de SonarQube); activar con git config core.hooksPath .githooks
+├── docker-compose.sonar.yml      # Servidor SonarQube local para el análisis estático (se añade al implementar SonarQube)
+├── sonar-project.properties      # Configuración del análisis: fuentes, tests, exclusiones y cobertura (se añade al implementar SonarQube)
 ├── .claude/settings.json         # Configuración de Claude Code del proyecto (hook que recuerda actualizar README.md y hooks de graphify)
 ├── .claude/skills/graphify/      # Skill /graphify para Claude Code (generado por `graphify install --project`)
 ├── CLAUDE.md                     # Reglas de graphify para Claude Code (generado por `graphify install --project`)
@@ -209,7 +211,48 @@ Dos hooks lo refuerzan:
 
 ---
 
+### Quality gate antes del push (CONSTITUTION.md, principio III)
+Antes de proponer o hacer un `git push`, el código debe cumplir las reglas de §8. El hook `.githooks/pre-push` ejecuta los tests con cobertura, lanza el análisis de SonarQube y rechaza el push si el quality gate no pasa o si SonarQube no está levantado. Si el análisis encuentra incidencias, se informa de cada una (fichero, línea, regla) y se corrigen en el código; nunca se marcan como falso positivo ni se salta el hook (`--no-verify`) sin aprobación explícita del usuario.
+
+---
+
 ## 7. Reglas
 - Lee `CONSTITUTION.md` y la spec activa (`sdd/[NNN]-[funcionalidad]/spec.md`) antes de tocar código.
 - No añadas dependencias sin justificarlas antes en el `plan.md` de la funcionalidad (CONSTITUTION.md, principio I), ni cambies el formato del JSON sin actualizar antes la spec.
 - No modifiques ningún `spec.md` dentro de `sdd/` salvo petición explícita.
+- Escribe el código cumpliendo las reglas de §8 desde el principio: es más barato que corregir lo que encuentre SonarQube.
+
+---
+
+## 8. Código que pasa SonarQube
+El push solo pasa si el quality gate de SonarQube está en verde (CONSTITUTION.md, principio III). Se mide sobre **todo** el código, no solo el nuevo:
+
+| Métrica | Condición para pasar |
+| :--- | :--- |
+| Bugs | 0 |
+| Vulnerabilidades | 0 |
+| Security hotspots revisados | 100 % |
+| Calificación de fiabilidad, seguridad y mantenibilidad | A |
+| Cobertura de tests | ≥ 80 % |
+| Líneas duplicadas | ≤ 3 % |
+
+Reglas de código (prohibiciones comprobables):
+
+**Fiabilidad y seguridad**
+- Sin secretos, tokens ni contraseñas en el código ni en ficheros versionados: viven en `.env.dev` y `.env.prod` (principio IV).
+- Sin SQL concatenado: solo la API de Prisma o `$queryRaw`/`$executeRaw` con plantilla etiquetada (parámetros enlazados). Prohibido `$queryRawUnsafe`/`$executeRawUnsafe` con datos de entrada.
+- Toda promesa se espera con `await` o se descarta explícitamente con `void`; ninguna promesa queda flotando.
+- Sin `catch` vacíos: cada error capturado se relanza, se convierte en `AppError` o se registra. Solo se lanzan instancias de `Error`/`AppError`, nunca cadenas ni objetos literales.
+- Sin `Math.random()` para identificadores ni nada relacionado con seguridad: `crypto.randomUUID()` o los ids de PostgreSQL.
+
+**Mantenibilidad**
+- Complejidad cognitiva ≤ 15 por función: si se supera, se extraen funciones con nombre.
+- Sin `any`: se usa `unknown` y se valida (Zod en `infrastructure/`) o se estrecha el tipo. Sin aserciones no nulas `!` que se puedan evitar comprobando el valor.
+- Sin variables, imports, parámetros ni funciones sin usar.
+- Sin bloques duplicados: lo común se extrae a `src/shared/` o dentro del módulo.
+- Sin código comentado ni `TODO`/`FIXME` en lo que se sube.
+- Sin ternarios anidados ni funciones con más de 4 parámetros; los constructores con inyección de dependencias quedan exceptuados.
+- Sin números mágicos: los valores con significado (límites, minutos, tamaños de lote) van en constantes con nombre.
+
+**Tests**
+- Cobertura ≥ 80 %, con un fichero de test por cada `*.use-case.ts` y cada fichero de `domain/` con lógica (principio III).

@@ -1,8 +1,8 @@
 # CONSTITUTION.md — TaskApiSDD
 
-- **Versión:** 1.6.0
+- **Versión:** 1.7.0
 - **Ratificada:** 2026-10-23
-- **Última enmienda:** 2026-10-25
+- **Última enmienda:** 2026-10-28
 
 TaskApiSDD es una API REST para registrar tareas diarias y seguir la racha de productividad (días consecutivos) de cada usuario. Se desarrolla con Spec-Driven Development: primero se especifica, después se construye.
 
@@ -24,11 +24,13 @@ Prohibido cambiar un comportamiento observable (endpoints, códigos de estado, f
 - **Excepción:** no requieren spec ni tarea los cambios sin efecto observable (erratas, renombrados internos, refactors con los tests en verde, comentarios, documentación) ni la corrección urgente de un fallo en producción; en este último caso la spec se actualiza antes de empezar la siguiente funcionalidad.
 - **Por qué:** la spec es la única fuente que comparten humano y agente; si el código cambia sin ella, la siguiente sesión del agente partirá de una spec falsa.
 
-### III. Los tests no se negocian
+### III. Tests y calidad no se negocian
 Mínimo: cada fichero `*.use-case.ts` y cada fichero de `domain/` con lógica (en particular el cálculo de rachas) tiene su fichero de test. Al terminar una tarea se ejecuta `pnpm test` dentro del contenedor de desarrollo y se informa del resultado real. Si fallan, prohibido corregirlos o volver a ejecutarlos por iniciativa propia: se informa de qué tests fallan (fichero y nombre) y por qué, y decide el usuario. Prohibido afirmar que pasan sin haberlos ejecutado; si no se pueden ejecutar, se dice.
-- **Verificable:** la respuesta final de cada tarea incluye la salida resumida de `pnpm test`, y ningún `*.use-case.ts` carece de test.
-- **Excepción:** las tareas que solo modifican ficheros `*.md` no ejecutan tests.
-- **Por qué:** un agente que arregla tests por su cuenta tiende a adaptar el test al código en lugar del código al contrato, y el fallo desaparece sin que nadie lo vea.
+
+Prohibido hacer `git push` sin pasar el quality gate de SonarQube del proyecto, medido sobre todo el código: 0 bugs, 0 vulnerabilidades, 100 % de security hotspots revisados, calificación A en fiabilidad, seguridad y mantenibilidad, cobertura de tests ≥ 80 % y duplicación ≤ 3 %. El hook `.githooks/pre-push` lo comprueba y rechaza el push si el quality gate falla o si SonarQube no está disponible. Prohibido saltárselo (`git push --no-verify`), rebajar el quality gate o marcar una incidencia como falso positivo o «no se corregirá» sin aprobación explícita del usuario: las incidencias se corrigen en el código. Las reglas de código para pasarlo están en `AGENTS.md` §8.
+- **Verificable:** la respuesta final de cada tarea incluye la salida resumida de `pnpm test`, ningún `*.use-case.ts` carece de test, y todo commit que se sube tiene su análisis de SonarQube con el quality gate en verde.
+- **Excepción:** las tareas que solo modifican ficheros `*.md` no ejecutan tests; su push pasa igualmente por el quality gate.
+- **Por qué:** un agente que arregla tests por su cuenta tiende a adaptar el test al código en lugar del código al contrato, y el fallo desaparece sin que nadie lo vea. El análisis estático ve lo que los tests no ven (vulnerabilidades, código muerto, complejidad), y un control que se puede saltar no controla nada.
 
 ### IV. El esquema solo cambia con migraciones
 Prohibido cambiar el esquema de la base de datos fuera de una migración de Prisma versionada en `prisma/migrations/`. Prohibido editar una migración ya aplicada: se corrige con una nueva. Prohibido versionar secretos; viven solo en `.env.dev` y `.env.prod`.

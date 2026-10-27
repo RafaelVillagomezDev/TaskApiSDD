@@ -392,6 +392,7 @@ TaskApiSDD/
 ├── CONSTITUTION.md            # Las 7 leyes del proyecto (prevalece sobre todo lo demás)
 ├── README.md                  # Este fichero (se mantiene al día: ver "README vivo")
 ├── .githooks/pre-commit       # Rechaza commits que cambian CONSTITUTION.md, AGENTS.md o sdd/ sin actualizar README.md
+│                              # (pre-push: quality gate de SonarQube, se añade al implementar SonarQube)
 ├── .claude/settings.json      # Claude Code: recuerda al agente actualizar README.md tras editar esos ficheros, y hooks de graphify
 ├── .claude/skills/graphify/   # Skill /graphify para Claude Code
 ├── CLAUDE.md                  # Reglas de graphify para Claude Code (generado por la herramienta)
@@ -506,7 +507,7 @@ Ideas clave:
 - Los requisitos funcionales siguen el formato **EARS** ("Cuando…, el sistema deberá…") y tienen un identificador `RF-xx`. Los tests y las tareas citan esos identificadores, así que todo es trazable: requisito → tarea → fichero → test.
 - Ante una duda, no se inventa la respuesta: se marca `[NEEDS CLARIFICATION]` en la spec y se pregunta.
 
-Las 7 leyes del proyecto están en [`CONSTITUTION.md`](CONSTITUTION.md). Léelas antes de tocar código.
+Las 7 leyes del proyecto están en [`CONSTITUTION.md`](CONSTITUTION.md) (versión 1.7.0). Léelas antes de tocar código.
 
 ### README vivo: este fichero nunca se queda atrás
 
@@ -541,6 +542,26 @@ Dos mecanismos lo hacen cumplir:
 | Imports relativos | Con extensión `.js` (ESM) | `from './task.entity.js'` |
 
 Sufijos más usados: `.entity.ts`, `.value-object.ts`, `.use-case.ts`, `.controller.ts`, `.routes.ts`, `.schema.ts`, `.mapper.ts`, `prisma-*.repository.ts`, `.port.ts`, `.adapter.ts`, `.middleware.ts`, `.facade.ts`. La lista completa está en `AGENTS.md`.
+
+### Calidad: el código debe pasar SonarQube
+
+Desde la versión 1.7.0 de la constitución, el principio III se llama **«Tests y calidad no se negocian»**: además de los tests, **no se puede hacer `git push`** si el código no pasa el *quality gate* de SonarQube. Se mide sobre todo el código, no solo el nuevo:
+
+| Métrica | Para pasar |
+| :--- | :--- |
+| Bugs y vulnerabilidades | 0 |
+| *Security hotspots* revisados | 100 % |
+| Fiabilidad, seguridad y mantenibilidad | Calificación A |
+| Cobertura de tests | ≥ 80 % |
+| Líneas duplicadas | ≤ 3 % |
+
+Lo comprobará un hook `.githooks/pre-push`, que rechazará el push si el *quality gate* falla o si SonarQube no está levantado. Saltárselo (`--no-verify`) o marcar incidencias como falso positivo sin aprobación del responsable del proyecto está prohibido: las incidencias se corrigen en el código.
+
+Para pasar a la primera, `AGENTS.md` §8 recoge las reglas de código. En resumen:
+- **Fiabilidad y seguridad:** sin secretos en el código, sin SQL concatenado (solo Prisma o `$queryRaw` con plantilla), sin promesas flotantes, sin `catch` vacíos, solo se lanzan `Error`/`AppError`, y nada de `Math.random()` para ids.
+- **Mantenibilidad:** complejidad cognitiva ≤ 15 por función, sin `any` ni `!` evitables, nada sin usar, sin duplicados, sin código comentado ni `TODO`, sin ternarios anidados ni más de 4 parámetros (salvo constructores con inyección de dependencias), y sin números mágicos.
+
+> **Estado:** las reglas ya están en vigor. SonarQube local (`docker-compose.sonar.yml`, `sonar-project.properties`) y el hook `pre-push` se implementan en el siguiente paso; hasta entonces el push no se bloquea automáticamente.
 
 ---
 
@@ -641,7 +662,7 @@ Funcionalidad `001-taskApiSDD-mvp`. Progreso en [`tasks.md`](sdd/001-taskApiSDD-
 | Documento | Cuándo leerlo |
 | :--- | :--- |
 | [`CONSTITUTION.md`](CONSTITUTION.md) | **Antes de tocar nada.** Las 7 leyes del proyecto. |
-| [`AGENTS.md`](AGENTS.md) | Comandos completos, estructura y convenciones de nombres. |
+| [`AGENTS.md`](AGENTS.md) | Comandos completos, estructura, convenciones de nombres y reglas de código para pasar SonarQube (§8). |
 | [`CLAUDE.md`](CLAUDE.md) | Si usas Claude Code con graphify: cómo debe consultar el grafo. |
 | [`spec.md`](sdd/001-taskApiSDD-mvp/spec.md) | Para saber exactamente qué debe hacer la API: requisitos `RF-xx` y contrato completo. |
 | [`plan.md`](sdd/001-taskApiSDD-mvp/plan.md) | Para entender por qué el código está hecho así: decisiones `D-xx` y riesgos `R-xx`. |
