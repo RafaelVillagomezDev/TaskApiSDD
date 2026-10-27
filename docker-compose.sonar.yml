@@ -13,7 +13,7 @@ services:
       - sonarqube-extensions:/opt/sonarqube/extensions
       - sonarqube-logs:/opt/sonarqube/logs
 
-  # Solo se ejecuta bajo demanda: docker compose -f docker-compose.sonar.yml run --rm sonar-scanner
+  # Solo se ejecuta bajo demanda, mediante scripts/sonar-scan.sh, que fija el proyecto de la rama actual
   sonar-scanner:
     image: sonarsource/sonar-scanner-cli:11.1
     profiles: ["scan"]
@@ -24,6 +24,7 @@ services:
     volumes:
       # Misma ruta que en el contenedor api: coverage/lcov.info guarda rutas absolutas /app/...
       - .:/app
+    # scripts/sonar-scan.sh añade el proyecto de la rama actual (sonar.projectKey); sin él, el scanner falla
     command: ["-Dsonar.projectBaseDir=/app", "-Dsonar.qualitygate.wait=true"]
     depends_on:
       - sonarqube

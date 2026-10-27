@@ -36,7 +36,8 @@ El código fuente se organiza en módulos de negocio independientes bajo `src/mo
 ├── .githooks/                    # Hooks de git versionados (pre-commit: README vivo; pre-push: quality gate de SonarQube); activar con git config core.hooksPath .githooks
 ├── docker-compose.sonar.yml      # SonarQube local (servidor en :9000) y el scanner bajo demanda, sin tocar package.json
 ├── sonar-project.properties      # Configuración del análisis: fuentes, tests, exclusiones y cobertura (coverage/lcov.info)
-├── scripts/sonar-setup.sh        # Prepara SonarQube una vez (contraseña de admin, proyecto, quality gate, token); idempotente
+├── scripts/sonar-setup.sh        # Prepara SonarQube una vez (contraseña de admin, quality gate predeterminado, token global); idempotente
+├── scripts/sonar-scan.sh         # Analiza la rama actual en su proyecto taskapisdd-<rama> y espera el quality gate (lo usa pre-push)
 ├── vite.config.ts                # Solo para `pnpm dev`: carpetas generadas (coverage/, .scannerwork/, graphify-out/) que no reinician la API
 ├── .claude/settings.json         # Configuración de Claude Code del proyecto (hook que recuerda actualizar README.md y hooks de graphify)
 ├── .claude/skills/graphify/      # Skill /graphify para Claude Code (generado por `graphify install --project`)
@@ -86,12 +87,12 @@ docker compose -f docker-compose.dev.yml cp api:/app/node_modules ./  # Copiar n
 > - PostgreSQL publica el puerto `5432` en el host: un cliente de base de datos o `psql` local se conecta a `localhost:5432` con las credenciales de `.env.dev` (dentro de Docker el host sigue siendo `db`).
 
 ### Análisis estático (SonarQube)
-SonarQube corre en su propio compose y el scanner es una imagen de Docker: nada se añade a `package.json` (principio I). `scripts/sonar-setup.sh` y el hook `pre-push` se ejecutan en el host, pero solo llaman a `docker compose` y a la API HTTP de SonarQube.
+SonarQube corre en su propio compose y el scanner es una imagen de Docker: nada se añade a `package.json` (principio I). Los scripts de `scripts/` y el hook `pre-push` se ejecutan en el host, pero solo llaman a `docker compose` y a la API HTTP de SonarQube. SonarQube Community no distingue ramas, así que **cada rama de git tiene su propio proyecto**, `taskapisdd-<rama>` (`feature/x` → `taskapisdd-feature-x`), con su historial y su comparación de código nuevo. El proyecto de una rama se crea en su primer análisis y hereda el quality gate «TaskApiSDD», que es el predeterminado.
 ```bash
 docker compose -f docker-compose.sonar.yml up -d sonarqube              # Levantar SonarQube en http://localhost:9000
-./scripts/sonar-setup.sh                                                # Primera vez (y tras borrar sus volúmenes): admin, proyecto, quality gate y token
+./scripts/sonar-setup.sh                                                # Primera vez (y tras borrar sus volúmenes): admin, quality gate predeterminado y token global
 docker compose -f docker-compose.dev.yml exec api pnpm test:coverage    # Tests con cobertura → coverage/lcov.info
-docker compose -f docker-compose.sonar.yml run --rm sonar-scanner       # Analizar y esperar el quality gate (falla si no pasa)
+./scripts/sonar-scan.sh                                                 # Analizar la rama actual (taskapisdd-<rama>) y esperar el quality gate (falla si no pasa)
 docker compose -f docker-compose.sonar.yml down                         # Parar SonarQube (conserva configuración y análisis)
 ```
 > El hook `.githooks/pre-push` hace los dos últimos pasos en cada `git push` y rechaza el push si el quality gate no pasa, si SonarQube o `api` no están levantados, si hay cambios de código sin commitear o si lo que se sube no es la rama actual (el análisis se hace sobre el árbol de trabajo).

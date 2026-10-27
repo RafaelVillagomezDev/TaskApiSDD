@@ -33,9 +33,9 @@ echo "▶ Tests con cobertura..."
 docker compose -f docker-compose.dev.yml exec -T api pnpm test:coverage < /dev/null ||
   fail "Los tests no pasan o el contenedor api no está levantado (docker compose -f docker-compose.dev.yml up -d)."
 
-# 4. Análisis: el scanner espera al quality gate y termina con error si no pasa
+# 4. Análisis en el proyecto de la rama actual: espera al quality gate y termina con error si no pasa
 echo "▶ Análisis de SonarQube..."
-docker compose -f docker-compose.sonar.yml run --rm sonar-scanner < /dev/null ||
-  fail "El quality gate no pasa: revisa las incidencias en $SONAR_URL/dashboard?id=taskapisdd"
+./scripts/sonar-scan.sh < /dev/null ||
+  fail "El quality gate no pasa: revisa las incidencias en el proyecto de esta rama en $SONAR_URL/projects"
 
 echo "✔ Quality gate de SonarQube en verde"

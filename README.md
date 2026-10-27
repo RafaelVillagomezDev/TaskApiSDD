@@ -400,7 +400,8 @@ TaskApiSDD/
 ├── .githooks/pre-push         # Rechaza el push si el quality gate de SonarQube no pasa
 ├── docker-compose.sonar.yml   # SonarQube local (:9000) y el scanner
 ├── sonar-project.properties   # Qué analiza SonarQube y dónde está la cobertura
-├── scripts/sonar-setup.sh     # Prepara SonarQube: admin, proyecto, quality gate y token
+├── scripts/sonar-setup.sh     # Prepara SonarQube: admin, quality gate y token
+├── scripts/sonar-scan.sh      # Analiza la rama actual en su propio proyecto de SonarQube
 ├── vite.config.ts             # Solo para `pnpm dev`: carpetas que no reinician la API
 ├── .claude/settings.json      # Claude Code: recuerda al agente actualizar README.md tras editar esos ficheros, y hooks de graphify
 ├── .claude/skills/graphify/   # Skill /graphify para Claude Code
@@ -575,10 +576,12 @@ Para pasar a la primera, `AGENTS.md` §8 recoge las reglas de código. En resume
 ```bash
 docker compose -f docker-compose.sonar.yml up -d sonarqube              # SonarQube en http://localhost:9000 (usuario admin, SONAR_ADMIN_PASSWORD)
 docker compose -f docker-compose.dev.yml exec api pnpm test:coverage    # tests con cobertura
-docker compose -f docker-compose.sonar.yml run --rm sonar-scanner       # analizar a mano, sin hacer push
+./scripts/sonar-scan.sh                                                 # analizar a mano la rama actual, sin hacer push
 ```
 
-Estado actual: *quality gate* en verde, con 0 bugs, 0 vulnerabilidades, 0 hotspots, 0 *code smells*, un 92 % de cobertura según SonarQube y un 0 % de duplicación.
+> **Un proyecto por rama:** SonarQube Community no distingue ramas, así que cada rama de git se analiza en su propio proyecto: `taskapisdd-dev`, `taskapisdd-main`, etc. Así cada rama tiene su historial y su comparación de código nuevo, y un push de `main` no se mezcla con los de `dev`. Los ves todos en http://localhost:9000/projects. El de una rama nueva se crea en su primer análisis, con el mismo quality gate.
+
+Estado actual (`taskapisdd-dev`): *quality gate* en verde, con 0 bugs, 0 vulnerabilidades, 0 hotspots, 0 *code smells*, un 92 % de cobertura según SonarQube y un 0 % de duplicación.
 
 ---
 
@@ -651,7 +654,7 @@ Abre `graphify-out/graph.html` en el navegador para verlo de forma interactiva.
 | `ERR_PNPM_IGNORED_BUILDS` al construir | pnpm bloquea los scripts de instalación. Los de Prisma están autorizados en `pnpm-workspace.yaml`. |
 | `prisma migrate dev` dice "environment is non-interactive" | Usa `docker compose ... run --rm api ...` (asigna terminal) o la alternativa de `AGENTS.md`. |
 | `git commit` falla con "✖ README vivo" | El commit toca `CONSTITUTION.md`, `AGENTS.md` o `sdd/` sin tocar `README.md`. Actualiza el README con lo que ha cambiado, `git add README.md` y repite el commit. |
-| `git push` falla con "✖ … Push rechazado" | El hook `pre-push` explica el motivo: SonarQube o la API sin levantar, cambios sin commitear o incidencias. Las incidencias se ven en `http://localhost:9000/dashboard?id=taskapisdd` y se corrigen en el código. Nunca uses `--no-verify` (principio III). |
+| `git push` falla con "✖ … Push rechazado" | El hook `pre-push` explica el motivo: SonarQube o la API sin levantar, cambios sin commitear o incidencias. Las incidencias se ven en el proyecto de tu rama (`http://localhost:9000/dashboard?id=taskapisdd-<rama>`) y se corrigen en el código. Nunca uses `--no-verify` (principio III). |
 | `scripts/sonar-setup.sh` dice que falta `SONAR_ADMIN_PASSWORD` | Añádela a `.env.dev`: mínimo 12 caracteres con mayúscula, minúscula, dígito y símbolo. |
 | `FATAL: sorry, too many clients already` | PostgreSQL se ha quedado sin conexiones. Reinicia la API (`docker compose -f docker-compose.dev.yml restart api`). La recarga en caliente ya desconecta Prisma y no se dispara al generar la cobertura. |
 | El contenedor `api` se para nada más arrancar | Mira `docker compose -f docker-compose.dev.yml logs api`. Suele ser `.env.dev` mal rellenado o la base de datos sin migrar. |
