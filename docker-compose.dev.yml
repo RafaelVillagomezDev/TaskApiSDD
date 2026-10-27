@@ -13,7 +13,7 @@ services:
     volumes:
       # Código montado para la recarga en caliente
       - .:/app
-      # ⚠️ RECOMENDADO: Evita que el volumen general pise las dependencias del contenedor
+      # Evita que el volumen general pise las dependencias del contenedor
       - /app/node_modules
     depends_on:
       db:
@@ -23,7 +23,7 @@ services:
     image: postgres:16-alpine
     env_file: .env.dev
     ports:
-      # ⚠️ NECESARIO para que Database Client o psql se conecten desde tu host
+      # Expone PostgreSQL a tu máquina anfitriona (para Database Client)
       - "5432:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
