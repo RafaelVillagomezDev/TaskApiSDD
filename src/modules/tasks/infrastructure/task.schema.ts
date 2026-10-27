@@ -15,13 +15,21 @@ export const daySchema = z
 // Título: 1–200 caracteres tras recortar espacios (RF-04, RF-38)
 const titleSchema = z.string().trim().min(1).max(TITLE_MAX_LENGTH);
 
+// Una descripción vacía (ya recortada) o ausente se guarda como null (RF-38)
+function emptyToNull(value: string | null | undefined): string | null {
+  if (!value) {
+    return null;
+  }
+  return value;
+}
+
 // Descripción: hasta 1000 caracteres tras recortar; vacía o ausente se guarda como null (RF-05, RF-38)
 const descriptionSchema = z
   .string()
   .trim()
   .max(DESCRIPTION_MAX_LENGTH)
   .nullish()
-  .transform((value) => (value ? value : null));
+  .transform(emptyToNull);
 
 export const createTaskBodySchema = z.object({
   title: titleSchema,
@@ -42,7 +50,7 @@ export const updateTaskBodySchema = z
       .trim()
       .max(DESCRIPTION_MAX_LENGTH)
       .nullable()
-      .transform((value) => (value ? value : null))
+      .transform(emptyToNull)
       .optional(),
     completed: z.boolean().optional(),
   })

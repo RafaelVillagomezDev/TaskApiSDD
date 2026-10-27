@@ -27,4 +27,6 @@ const hot = (import.meta as ImportMeta & { hot?: { on(event: string, callback: (
 hot?.on('vite:beforeFullReload', () => {
   container.alertScheduler.stop();
   server.close();
+  // Sin esto, cada recarga deja abierto el pool del PrismaClient anterior y PostgreSQL se queda sin conexiones
+  void container.prisma.$disconnect();
 });

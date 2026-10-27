@@ -11,9 +11,13 @@ const esmProject = {
   transform: {
     '^.+\\.ts$': ['ts-jest', { useESM: true }],
   },
+  // Cobertura sobre todo el código de src/, también el que no tiene test (quality gate de SonarQube, principio III)
+  collectCoverageFrom: ['<rootDir>/src/**/*.ts', '!<rootDir>/src/**/tests/**'],
 } satisfies Config;
 
 const config: Config = {
+  // lcov para SonarQube (sonar-project.properties) y un resumen en consola
+  coverageReporters: ['lcov', 'text-summary'],
   projects: [
     {
       ...esmProject,

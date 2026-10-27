@@ -34,8 +34,10 @@ El código fuente se organiza en módulos de negocio independientes bajo `src/mo
 ├── prisma/                       # schema.prisma y migraciones
 ├── tests/                        # Soporte común de tests: fakes (support/), setup de integración (integration/) y rendimiento (performance/)
 ├── .githooks/                    # Hooks de git versionados (pre-commit: README vivo; pre-push: quality gate de SonarQube); activar con git config core.hooksPath .githooks
-├── docker-compose.sonar.yml      # Servidor SonarQube local para el análisis estático (se añade al implementar SonarQube)
-├── sonar-project.properties      # Configuración del análisis: fuentes, tests, exclusiones y cobertura (se añade al implementar SonarQube)
+├── docker-compose.sonar.yml      # SonarQube local (servidor en :9000) y el scanner bajo demanda, sin tocar package.json
+├── sonar-project.properties      # Configuración del análisis: fuentes, tests, exclusiones y cobertura (coverage/lcov.info)
+├── scripts/sonar-setup.sh        # Prepara SonarQube una vez (contraseña de admin, proyecto, quality gate, token); idempotente
+├── vite.config.ts                # Solo para `pnpm dev`: carpetas generadas (coverage/, .scannerwork/, graphify-out/) que no reinician la API
 ├── .claude/settings.json         # Configuración de Claude Code del proyecto (hook que recuerda actualizar README.md y hooks de graphify)
 ├── .claude/skills/graphify/      # Skill /graphify para Claude Code (generado por `graphify install --project`)
 ├── CLAUDE.md                     # Reglas de graphify para Claude Code (generado por `graphify install --project`)
@@ -63,7 +65,7 @@ Todos los comandos se ejecutan a través de Docker Compose. El servicio de la AP
 ### Configuración inicial
 Cada entorno tiene su propio fichero de variables, que su `docker-compose.*.yml` carga mediante `env_file`. `.env.dev` y `.env.prod` están ignorados por git y nunca deben versionarse.
 
-Crear ambos ficheros en la raíz con las variables: `DATABASE_URL`, `PORT`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`.
+Crear ambos ficheros en la raíz con las variables: `DATABASE_URL`, `PORT`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`. `.env.dev` lleva además `SONAR_ADMIN_PASSWORD` (mínimo 12 caracteres con mayúscula, minúscula, dígito y símbolo) y `SONAR_TOKEN`, que rellena `scripts/sonar-setup.sh`.
 
 ### Desarrollo (`Dockerfile.dev`)
 ```bash
@@ -82,6 +84,17 @@ docker compose -f docker-compose.dev.yml cp api:/app/node_modules ./  # Copiar n
 > - `up --build` sin `-V` reutiliza el volumen anterior y mantiene las dependencias viejas; tras cambiar `package.json` hay que usar `-V` (`--renew-anon-volumes`).
 > - El `./node_modules` del host es solo una copia para el editor (`docker compose cp`); la API nunca lo usa. Para refrescarlo sin restos, bórralo antes de copiar.
 > - PostgreSQL publica el puerto `5432` en el host: un cliente de base de datos o `psql` local se conecta a `localhost:5432` con las credenciales de `.env.dev` (dentro de Docker el host sigue siendo `db`).
+
+### Análisis estático (SonarQube)
+SonarQube corre en su propio compose y el scanner es una imagen de Docker: nada se añade a `package.json` (principio I). `scripts/sonar-setup.sh` y el hook `pre-push` se ejecutan en el host, pero solo llaman a `docker compose` y a la API HTTP de SonarQube.
+```bash
+docker compose -f docker-compose.sonar.yml up -d sonarqube              # Levantar SonarQube en http://localhost:9000
+./scripts/sonar-setup.sh                                                # Primera vez (y tras borrar sus volúmenes): admin, proyecto, quality gate y token
+docker compose -f docker-compose.dev.yml exec api pnpm test:coverage    # Tests con cobertura → coverage/lcov.info
+docker compose -f docker-compose.sonar.yml run --rm sonar-scanner       # Analizar y esperar el quality gate (falla si no pasa)
+docker compose -f docker-compose.sonar.yml down                         # Parar SonarQube (conserva configuración y análisis)
+```
+> El hook `.githooks/pre-push` hace los dos últimos pasos en cada `git push` y rechaza el push si el quality gate no pasa, si SonarQube o `api` no están levantados, si hay cambios de código sin commitear o si lo que se sube no es la rama actual (el análisis se hace sobre el árbol de trabajo).
 
 ### Producción (`Dockerfile.prod`)
 ```bash
@@ -225,7 +238,7 @@ Antes de proponer o hacer un `git push`, el código debe cumplir las reglas de �
 ---
 
 ## 8. Código que pasa SonarQube
-El push solo pasa si el quality gate de SonarQube está en verde (CONSTITUTION.md, principio III). Se mide sobre **todo** el código, no solo el nuevo:
+El push solo pasa si el quality gate de SonarQube está en verde (CONSTITUTION.md, principio III). Se mide sobre **todo** el código y, además, sobre el código nuevo de cada análisis: cualquier incidencia nueva, aunque sea un *code smell* menor, bloquea el push.
 
 | Métrica | Condición para pasar |
 | :--- | :--- |
@@ -235,6 +248,8 @@ El push solo pasa si el quality gate de SonarQube está en verde (CONSTITUTION.m
 | Calificación de fiabilidad, seguridad y mantenibilidad | A |
 | Cobertura de tests | ≥ 80 % |
 | Líneas duplicadas | ≤ 3 % |
+| **Código nuevo:** incidencias nuevas de cualquier tipo, incluidos *code smells* | 0 |
+| **Código nuevo:** cobertura / duplicación / hotspots revisados | ≥ 80 % / ≤ 3 % / 100 % |
 
 Reglas de código (prohibiciones comprobables):
 

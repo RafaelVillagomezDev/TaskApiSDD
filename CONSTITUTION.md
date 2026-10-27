@@ -1,6 +1,6 @@
 # CONSTITUTION.md — TaskApiSDD
 
-- **Versión:** 1.7.0
+- **Versión:** 1.7.1
 - **Ratificada:** 2026-10-23
 - **Última enmienda:** 2026-10-28
 
@@ -27,7 +27,7 @@ Prohibido cambiar un comportamiento observable (endpoints, códigos de estado, f
 ### III. Tests y calidad no se negocian
 Mínimo: cada fichero `*.use-case.ts` y cada fichero de `domain/` con lógica (en particular el cálculo de rachas) tiene su fichero de test. Al terminar una tarea se ejecuta `pnpm test` dentro del contenedor de desarrollo y se informa del resultado real. Si fallan, prohibido corregirlos o volver a ejecutarlos por iniciativa propia: se informa de qué tests fallan (fichero y nombre) y por qué, y decide el usuario. Prohibido afirmar que pasan sin haberlos ejecutado; si no se pueden ejecutar, se dice.
 
-Prohibido hacer `git push` sin pasar el quality gate de SonarQube del proyecto, medido sobre todo el código: 0 bugs, 0 vulnerabilidades, 100 % de security hotspots revisados, calificación A en fiabilidad, seguridad y mantenibilidad, cobertura de tests ≥ 80 % y duplicación ≤ 3 %. El hook `.githooks/pre-push` lo comprueba y rechaza el push si el quality gate falla o si SonarQube no está disponible. Prohibido saltárselo (`git push --no-verify`), rebajar el quality gate o marcar una incidencia como falso positivo o «no se corregirá» sin aprobación explícita del usuario: las incidencias se corrigen en el código. Las reglas de código para pasarlo están en `AGENTS.md` §8.
+Prohibido hacer `git push` sin pasar el quality gate de SonarQube del proyecto, medido sobre todo el código: 0 bugs, 0 vulnerabilidades, 100 % de security hotspots revisados, calificación A en fiabilidad, seguridad y mantenibilidad, cobertura de tests ≥ 80 % y duplicación ≤ 3 %; y, sobre el código nuevo de cada análisis, ninguna incidencia nueva de cualquier tipo (incluidos los *code smells*), cobertura ≥ 80 %, duplicación ≤ 3 % y todos los hotspots revisados. El hook `.githooks/pre-push` lo comprueba y rechaza el push si el quality gate falla o si SonarQube no está disponible. Prohibido saltárselo (`git push --no-verify`), rebajar el quality gate o marcar una incidencia como falso positivo o «no se corregirá» sin aprobación explícita del usuario: las incidencias se corrigen en el código. Las reglas de código para pasarlo están en `AGENTS.md` §8.
 - **Verificable:** la respuesta final de cada tarea incluye la salida resumida de `pnpm test`, ningún `*.use-case.ts` carece de test, y todo commit que se sube tiene su análisis de SonarQube con el quality gate en verde.
 - **Excepción:** las tareas que solo modifican ficheros `*.md` no ejecutan tests; su push pasa igualmente por el quality gate.
 - **Por qué:** un agente que arregla tests por su cuenta tiende a adaptar el test al código en lugar del código al contrato, y el fallo desaparece sin que nadie lo vea. El análisis estático ve lo que los tests no ven (vulnerabilidades, código muerto, complejidad), y un control que se puede saltar no controla nada.

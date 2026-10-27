@@ -108,6 +108,11 @@ curl -s http://localhost:3000/foo                            # {"success":false,
 
 # 8. Ejecutar los tests
 docker compose -f docker-compose.dev.yml exec api pnpm test
+
+# 9. Levantar y preparar SonarQube (sin él no se puede hacer push; ver "Calidad")
+#    Añade antes a .env.dev: SONAR_ADMIN_PASSWORD=<12+ caracteres con mayúscula, minúscula, dígito y símbolo> y SONAR_TOKEN=
+docker compose -f docker-compose.sonar.yml up -d sonarqube
+./scripts/sonar-setup.sh                                     # rellena SONAR_TOKEN en .env.dev
 ```
 
 > **¿Por qué `.env.dev` no está en git?** Contiene contraseñas. Los secretos solo viven en `.env.dev` y `.env.prod`, que nunca se versionan (principio IV de la constitución). `.env.example` sí está en git, pero sin ningún valor.
@@ -392,7 +397,11 @@ TaskApiSDD/
 ├── CONSTITUTION.md            # Las 7 leyes del proyecto (prevalece sobre todo lo demás)
 ├── README.md                  # Este fichero (se mantiene al día: ver "README vivo")
 ├── .githooks/pre-commit       # Rechaza commits que cambian CONSTITUTION.md, AGENTS.md o sdd/ sin actualizar README.md
-│                              # (pre-push: quality gate de SonarQube, se añade al implementar SonarQube)
+├── .githooks/pre-push         # Rechaza el push si el quality gate de SonarQube no pasa
+├── docker-compose.sonar.yml   # SonarQube local (:9000) y el scanner
+├── sonar-project.properties   # Qué analiza SonarQube y dónde está la cobertura
+├── scripts/sonar-setup.sh     # Prepara SonarQube: admin, proyecto, quality gate y token
+├── vite.config.ts             # Solo para `pnpm dev`: carpetas que no reinician la API
 ├── .claude/settings.json      # Claude Code: recuerda al agente actualizar README.md tras editar esos ficheros, y hooks de graphify
 ├── .claude/skills/graphify/   # Skill /graphify para Claude Code
 ├── CLAUDE.md                  # Reglas de graphify para Claude Code (generado por la herramienta)
@@ -507,7 +516,7 @@ Ideas clave:
 - Los requisitos funcionales siguen el formato **EARS** ("Cuando…, el sistema deberá…") y tienen un identificador `RF-xx`. Los tests y las tareas citan esos identificadores, así que todo es trazable: requisito → tarea → fichero → test.
 - Ante una duda, no se inventa la respuesta: se marca `[NEEDS CLARIFICATION]` en la spec y se pregunta.
 
-Las 7 leyes del proyecto están en [`CONSTITUTION.md`](CONSTITUTION.md) (versión 1.7.0). Léelas antes de tocar código.
+Las 7 leyes del proyecto están en [`CONSTITUTION.md`](CONSTITUTION.md) (versión 1.7.1). Léelas antes de tocar código.
 
 ### README vivo: este fichero nunca se queda atrás
 
@@ -545,7 +554,7 @@ Sufijos más usados: `.entity.ts`, `.value-object.ts`, `.use-case.ts`, `.control
 
 ### Calidad: el código debe pasar SonarQube
 
-Desde la versión 1.7.0 de la constitución, el principio III se llama **«Tests y calidad no se negocian»**: además de los tests, **no se puede hacer `git push`** si el código no pasa el *quality gate* de SonarQube. Se mide sobre todo el código, no solo el nuevo:
+Desde la versión 1.7.0 de la constitución (1.7.1: también el código nuevo), el principio III se llama **«Tests y calidad no se negocian»**: además de los tests, **no se puede hacer `git push`** si el código no pasa el *quality gate* de SonarQube. Se mide sobre todo el código, no solo el nuevo:
 
 | Métrica | Para pasar |
 | :--- | :--- |
@@ -554,14 +563,22 @@ Desde la versión 1.7.0 de la constitución, el principio III se llama **«Tests
 | Fiabilidad, seguridad y mantenibilidad | Calificación A |
 | Cobertura de tests | ≥ 80 % |
 | Líneas duplicadas | ≤ 3 % |
+| **Código nuevo:** incidencias nuevas, incluidos *code smells* | 0 |
+| **Código nuevo:** cobertura / duplicación / hotspots revisados | ≥ 80 % / ≤ 3 % / 100 % |
 
-Lo comprobará un hook `.githooks/pre-push`, que rechazará el push si el *quality gate* falla o si SonarQube no está levantado. Saltárselo (`--no-verify`) o marcar incidencias como falso positivo sin aprobación del responsable del proyecto está prohibido: las incidencias se corrigen en el código.
+Lo comprueba el hook `.githooks/pre-push`: ejecuta `pnpm test:coverage`, lanza el análisis y rechaza el push si el *quality gate* falla, si SonarQube o la API no están levantados o si tienes cambios de código sin commitear (el análisis tiene que corresponder exactamente a lo que subes). Saltárselo (`--no-verify`) o marcar incidencias como falso positivo sin aprobación del responsable del proyecto está prohibido: las incidencias se corrigen en el código.
 
 Para pasar a la primera, `AGENTS.md` §8 recoge las reglas de código. En resumen:
 - **Fiabilidad y seguridad:** sin secretos en el código, sin SQL concatenado (solo Prisma o `$queryRaw` con plantilla), sin promesas flotantes, sin `catch` vacíos, solo se lanzan `Error`/`AppError`, y nada de `Math.random()` para ids.
 - **Mantenibilidad:** complejidad cognitiva ≤ 15 por función, sin `any` ni `!` evitables, nada sin usar, sin duplicados, sin código comentado ni `TODO`, sin ternarios anidados ni más de 4 parámetros (salvo constructores con inyección de dependencias), y sin números mágicos.
 
-> **Estado:** las reglas ya están en vigor. SonarQube local (`docker-compose.sonar.yml`, `sonar-project.properties`) y el hook `pre-push` se implementan en el siguiente paso; hasta entonces el push no se bloquea automáticamente.
+```bash
+docker compose -f docker-compose.sonar.yml up -d sonarqube              # SonarQube en http://localhost:9000 (usuario admin, SONAR_ADMIN_PASSWORD)
+docker compose -f docker-compose.dev.yml exec api pnpm test:coverage    # tests con cobertura
+docker compose -f docker-compose.sonar.yml run --rm sonar-scanner       # analizar a mano, sin hacer push
+```
+
+Estado actual: *quality gate* en verde, con 0 bugs, 0 vulnerabilidades, 0 hotspots, 0 *code smells*, un 92 % de cobertura según SonarQube y un 0 % de duplicación.
 
 ---
 
@@ -634,6 +651,9 @@ Abre `graphify-out/graph.html` en el navegador para verlo de forma interactiva.
 | `ERR_PNPM_IGNORED_BUILDS` al construir | pnpm bloquea los scripts de instalación. Los de Prisma están autorizados en `pnpm-workspace.yaml`. |
 | `prisma migrate dev` dice "environment is non-interactive" | Usa `docker compose ... run --rm api ...` (asigna terminal) o la alternativa de `AGENTS.md`. |
 | `git commit` falla con "✖ README vivo" | El commit toca `CONSTITUTION.md`, `AGENTS.md` o `sdd/` sin tocar `README.md`. Actualiza el README con lo que ha cambiado, `git add README.md` y repite el commit. |
+| `git push` falla con "✖ … Push rechazado" | El hook `pre-push` explica el motivo: SonarQube o la API sin levantar, cambios sin commitear o incidencias. Las incidencias se ven en `http://localhost:9000/dashboard?id=taskapisdd` y se corrigen en el código. Nunca uses `--no-verify` (principio III). |
+| `scripts/sonar-setup.sh` dice que falta `SONAR_ADMIN_PASSWORD` | Añádela a `.env.dev`: mínimo 12 caracteres con mayúscula, minúscula, dígito y símbolo. |
+| `FATAL: sorry, too many clients already` | PostgreSQL se ha quedado sin conexiones. Reinicia la API (`docker compose -f docker-compose.dev.yml restart api`). La recarga en caliente ya desconecta Prisma y no se dispara al generar la cobertura. |
 | El contenedor `api` se para nada más arrancar | Mira `docker compose -f docker-compose.dev.yml logs api`. Suele ser `.env.dev` mal rellenado o la base de datos sin migrar. |
 
 ---

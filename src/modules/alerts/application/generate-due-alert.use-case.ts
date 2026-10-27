@@ -46,7 +46,7 @@ export class GenerateDueAlertUseCase {
         }
       }
       if (batch.length < this.batchSize) break;
-      afterUserId = batch[batch.length - 1]!.userId;
+      afterUserId = batch[batch.length - 1].userId;
     }
 
     return result;

@@ -153,3 +153,6 @@ vite.config.ts.timestamp-*
 graphify-out/
 # Copias de seguridad que graphify deja al tocar la configuración
 *.graphify-bak
+
+# SonarQube: directorio de trabajo del scanner
+.scannerwork/

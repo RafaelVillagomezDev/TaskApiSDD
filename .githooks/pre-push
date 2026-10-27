@@ -1,0 +1,41 @@
+#!/bin/sh
+# Quality gate de SonarQube antes de cada push (CONSTITUTION.md, principio III; AGENTS.md §8).
+# Activar una vez por clon: git config core.hooksPath .githooks. Saltárselo con --no-verify está prohibido.
+
+SONAR_URL=http://localhost:9000
+ZERO=0000000000000000000000000000000000000000
+
+fail() {
+  {
+    echo "✖ $1"
+    echo "  Push rechazado: el quality gate de SonarQube debe estar en verde (CONSTITUTION.md, principio III)."
+  } >&2
+  exit 1
+}
+
+# 1. Lo que se analiza (el árbol de trabajo) tiene que ser exactamente lo que se sube
+head=$(git rev-parse HEAD)
+while read -r _local_ref local_sha _remote_ref _remote_sha; do
+  # Borrar una rama remota no sube código
+  [ "$local_sha" = "$ZERO" ] && continue
+  [ "$local_sha" = "$head" ] || fail "Solo se puede subir la rama en la que estás (HEAD): el análisis se hace sobre el árbol de trabajo."
+done
+if [ -n "$(git status --porcelain -- src tests prisma package.json pnpm-lock.yaml jest.config.ts tsconfig.json sonar-project.properties)" ]; then
+  fail "Hay cambios sin commitear en el código: haz commit o guárdalos con git stash para que el análisis corresponda a lo que subes."
+fi
+
+# 2. SonarQube levantado
+curl -fsS "$SONAR_URL/api/system/status" 2>/dev/null | grep -q '"status":"UP"' ||
+  fail "SonarQube no está levantado: docker compose -f docker-compose.sonar.yml up -d sonarqube"
+
+# 3. Tests con cobertura (genera coverage/lcov.info para el análisis)
+echo "▶ Tests con cobertura..."
+docker compose -f docker-compose.dev.yml exec -T api pnpm test:coverage < /dev/null ||
+  fail "Los tests no pasan o el contenedor api no está levantado (docker compose -f docker-compose.dev.yml up -d)."
+
+# 4. Análisis: el scanner espera al quality gate y termina con error si no pasa
+echo "▶ Análisis de SonarQube..."
+docker compose -f docker-compose.sonar.yml run --rm sonar-scanner < /dev/null ||
+  fail "El quality gate no pasa: revisa las incidencias en $SONAR_URL/dashboard?id=taskapisdd"
+
+echo "✔ Quality gate de SonarQube en verde"
