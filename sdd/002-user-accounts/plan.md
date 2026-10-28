@@ -84,7 +84,7 @@ Un módulo vertical nuevo, `users`, gestiona cuentas, sesiones, tokens CSRF y bl
 | `application/change-password.use-case.ts` | Verifica la actual con bloqueo, cambia la contraseña y cierra las demás sesiones (RF-09, RF-27, RF-28). |
 | `application/delete-account.use-case.ts` | Verifica la contraseña con bloqueo y borra la cuenta (RF-09, RF-28, RF-29). |
 | `application/purge-expired-auth-data.use-case.ts` | Borra las copias cifradas de más de 30 s, los tokens CSRF previos caducados, las sesiones caducadas y los bloqueos vencidos (D-12). |
-| `infrastructure/argon2-password-hasher.adapter.ts` | Implementa `PasswordHasher` con el paquete `argon2` en modo Argon2id (D-2); el hash ficticio de `verifyDummy` se calcula una vez al arrancar (D-3). |
+| `infrastructure/argon2-password-hasher.adapter.ts` | Implementa `PasswordHasher` con el paquete `argon2` en modo Argon2id (D-2); el hash ficticio de `verifyDummy` se calcula la primera vez que hace falta y se reutiliza, fuera del constructor (D-3; regla S7059 de SonarQube). |
 | `infrastructure/crypto-token.adapter.ts` | Implementa `TokenService` con `crypto.randomBytes`, SHA-256 y `timingSafeEqual` (D-1). |
 | `infrastructure/aes-gcm-grace-cipher.adapter.ts` | Implementa `GraceTokenCipher` con AES-256-GCM y `SESSION_ENCRYPTION_KEY`, con un IV aleatorio de 12 bytes por cifrado (D-1). |
 | `infrastructure/prisma-user.repository.ts`, `prisma-session.repository.ts`, `prisma-login-attempt.repository.ts`, `prisma-csrf-token.repository.ts` | Implementan los puertos con Prisma; la rotación usa una transacción con `SELECT … FOR UPDATE` (D-4). |
