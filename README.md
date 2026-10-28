@@ -4,7 +4,7 @@ API REST para **organizar tareas diarias** y medir la **constancia** con una **r
 
 Está construida con **Spec-Driven Development (SDD)**: primero se escribe *qué* debe hacer el sistema (la spec), después *cómo* (el plan), después las *tareas*, y solo al final el código.
 
-> **Estado:** el MVP P1 funciona de principio a fin: crear tareas, consultarlas, completarlas y ver la racha. Las historias P2 y P3 también están hechas: listar todas las tareas con filtros de estado y rango de fechas, consultar una tarea por su id (H4), editar el título y la descripción o borrar tareas (H5), y avisos diarios, semanales y mensuales de tareas pendientes (H6). La fase de robustez también está hecha (precedencia de errores por pares y rendimiento). La imagen de producción está construida y probada en local (`Dockerfile.prod`, `docker-compose.prod.yml`): todas las tareas de la funcionalidad 001 están hechas. Ver [Estado del proyecto](#estado-del-proyecto).
+> **Estado:** el MVP P1 funciona de principio a fin: crear tareas, consultarlas, completarlas y ver la racha. Las historias P2 y P3 también están hechas: listar todas las tareas con filtros de estado y rango de fechas, consultar una tarea por su id (H4), editar el título y la descripción o borrar tareas (H5), y avisos diarios, semanales y mensuales de tareas pendientes (H6). La fase de robustez también está hecha (precedencia de errores por pares y rendimiento). La imagen de producción está construida y probada en local (`Dockerfile.prod`, `docker-compose.prod.yml`): todas las tareas de la funcionalidad 001 están hechas. **En curso:** funcionalidad 002, cuentas de usuario (registro, login, sesión en cookies con refresh token y protección CSRF), con la spec aprobada; siguiente paso: `plan.md`. Ver [Estado del proyecto](#estado-del-proyecto).
 
 ---
 
@@ -413,6 +413,8 @@ TaskApiSDD/
 │   ├── tasks.md               #   Tareas ejecutables, con su estado [x]/[ ]
 │   ├── quickstart.md          #   Pruebas manuales paso a paso con curl
 │   └── mvp-p1.postman-collection.json
+├── sdd/002-user-accounts/     # Funcionalidad 002: cuentas de usuario (en curso)
+│   └── spec.md                #   Registro, login, sesiones en cookies, refresh token, CSRF y gestión de la cuenta
 ├── prisma/
 │   ├── schema.prisma          # Modelo de datos
 │   └── migrations/            # Migraciones versionadas (nunca se editan)
@@ -664,7 +666,21 @@ Abre `graphify-out/graph.html` en el navegador para verlo de forma interactiva.
 
 ## Estado del proyecto
 
-Funcionalidad `001-taskApiSDD-mvp`. Progreso en [`tasks.md`](sdd/001-taskApiSDD-mvp/tasks.md):
+### Funcionalidad 002 — Cuentas de usuario (en curso)
+
+[`spec.md`](sdd/002-user-accounts/spec.md) en estado *Aprobada*; después vendrán `plan.md` y `tasks.md`. Lo que cambia respecto a la 001:
+
+- **Cuentas propias:** registro con email y contraseña (12–128 caracteres), login, perfil (`GET`/`PATCH /me`), cambio de contraseña y borrado de la cuenta.
+- **Sesión en cookies `HttpOnly`:** es la única forma de identificarse; `X-User-Id` y `MISSING_USER` se eliminan de la API; los datos guardados con identificadores antiguos se borran al migrar. Token de acceso de 15 minutos y *refresh token* de 7 días que rota en cada renovación, con un margen de gracia de 30 segundos y un tope de 30 días por sesión.
+- **CSRF:** cabecera `X-CSRF-Token` en todo `POST`, `PATCH` y `DELETE`, también en el login y el registro (con un token previo de `GET /auth/csrf`).
+- **Fuerza bruta:** 5 intentos fallidos en 15 minutos bloquean la cuenta 15 minutos.
+- **Dominio:** frontend en `https://kompitu.yandrydev.cloud` y API en `https://apikompitu.yandrydev.cloud`, con CORS con credenciales solo para el origen del frontend; la petición previa `OPTIONS` de CORS responde `200` con el sobre de éxito.
+- **Errores nuevos:** `INVALID_CSRF_TOKEN`, `MISSING_TOKEN`, `INVALID_TOKEN`, `TOKEN_EXPIRED`, `INVALID_REFRESH_TOKEN`, `SESSION_EXPIRED`, `INVALID_CREDENTIALS`, `TOO_MANY_ATTEMPTS`, `WRONG_PASSWORD` y `EMAIL_ALREADY_REGISTERED`. `MISSING_USER` desaparece.
+- **Fuera de alcance:** recuperar la contraseña y verificar el email (necesitan enviar emails), cambiar el email, login con Google/GitHub y 2FA.
+
+### Funcionalidad 001 — Tareas, rachas y avisos (completa)
+
+Progreso en [`tasks.md`](sdd/001-taskApiSDD-mvp/tasks.md):
 
 | Fase | Historia | Prioridad | Estado |
 | :--- | :--- | :--- | :--- |
@@ -699,6 +715,7 @@ Necesita `.env.prod` con las mismas variables que `.env.dev` y `PORT=3000`. La g
 | [`AGENTS.md`](AGENTS.md) | Comandos completos, estructura, convenciones de nombres y reglas de código para pasar SonarQube (§8). |
 | [`CLAUDE.md`](CLAUDE.md) | Si usas Claude Code con graphify: cómo debe consultar el grafo. |
 | [`spec.md`](sdd/001-taskApiSDD-mvp/spec.md) | Para saber exactamente qué debe hacer la API: requisitos `RF-xx` y contrato completo. |
+| [`spec.md` de la 002](sdd/002-user-accounts/spec.md) | Cuentas de usuario y sesiones: qué cambia de la 001 (sección *Relación con la funcionalidad 001*) y el contrato de `/auth` y `/me`. |
 | [`plan.md`](sdd/001-taskApiSDD-mvp/plan.md) | Para entender por qué el código está hecho así: decisiones `D-xx` y riesgos `R-xx`. |
 | [`tasks.md`](sdd/001-taskApiSDD-mvp/tasks.md) | Para saber qué está hecho y qué falta. |
 | [`quickstart.md`](sdd/001-taskApiSDD-mvp/quickstart.md) | Para probar la API a mano, historia por historia. |
