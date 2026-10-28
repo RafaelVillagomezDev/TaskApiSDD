@@ -135,29 +135,29 @@ Spec: `sdd/002-user-accounts/spec.md` (Aprobada) · Plan: `sdd/002-user-accounts
 ## Fase H1 — Registrarme (HU-01, P1)
 
 ### Tests (deben fallar)
-- [ ] T044 [P] [H1] Test del schema de registro: email 254/255, formato, recorte y minúsculas; contraseña 11/12/128/129 sin recortar, con espacios y no ASCII; nombre 100/101, vacío → `null` (RF-02 a RF-05) — `users/infrastructure/tests/user.schema.test.ts`
+- [x] T044 [P] [H1] Test del schema de registro: email 254/255, formato, recorte y minúsculas; contraseña 11/12/128/129 sin recortar, con espacios y no ASCII; nombre 100/101, vacío → `null` (RF-02 a RF-05) — `users/infrastructure/tests/user.schema.test.ts`
   - Verifica: `dce pnpm test src/modules/users/infrastructure/tests/user.schema` **falla**.
-- [ ] T045 [P] [H1] Test de emitir token CSRF previo: guarda solo la huella con caducidad de 30 min (RF-22, RNF-06) — `users/application/tests/issue-csrf-token.use-case.test.ts`
+- [x] T045 [P] [H1] Test de emitir token CSRF previo: guarda solo la huella con caducidad de 30 min (RF-22, RNF-06) — `users/application/tests/issue-csrf-token.use-case.test.ts`
   - Verifica: `dce pnpm test src/modules/users/application/tests/issue-csrf-token` **falla**.
-- [ ] T046 [P] [H1] Test de registro: crea la cuenta sin sesión, guarda la huella y no la contraseña, email repetido con otras mayúsculas → `EMAIL_ALREADY_REGISTERED` (RF-01, RF-03, RF-06, RNF-03) — `users/application/tests/register-user.use-case.test.ts`
+- [x] T046 [P] [H1] Test de registro: crea la cuenta sin sesión, guarda la huella y no la contraseña, email repetido con otras mayúsculas → `EMAIL_ALREADY_REGISTERED` (RF-01, RF-03, RF-06, RNF-03) — `users/application/tests/register-user.use-case.test.ts`
   - Verifica: `dce pnpm test src/modules/users/application/tests/register-user` **falla**.
-- [ ] T047 [H1] Test HTTP de `GET /auth/csrf` y `POST /auth/register`: `201` con `User` y sin cookies, `409`, `400` con `details`, sin `X-CSRF-Token` o con token caducado (31 min) o de otro tipo → `INVALID_CSRF_TOKEN`, token reutilizable dentro de los 30 min, ningún cuerpo con la contraseña, petición previa de CORS (RF-01 a RF-06, RF-22, RF-23, RF-36, RNF-04) — `users/infrastructure/tests/auth.routes.test.ts`
+- [x] T047 [H1] Test HTTP de `GET /auth/csrf` y `POST /auth/register`: `201` con `User` y sin cookies, `409`, `400` con `details`, sin `X-CSRF-Token` o con token caducado (31 min) o de otro tipo → `INVALID_CSRF_TOKEN`, token reutilizable dentro de los 30 min, ningún cuerpo con la contraseña, petición previa de CORS (RF-01 a RF-06, RF-22, RF-23, RF-36, RNF-04) — `users/infrastructure/tests/auth.routes.test.ts`
   - Verifica: `dce pnpm test src/modules/users/infrastructure/tests/auth.routes` **falla**.
 
 ### Implementación
-- [ ] T048 [H1] Schema de registro (RF-02 a RF-05) — `users/infrastructure/user.schema.ts`
+- [x] T048 [H1] Schema de registro (RF-02 a RF-05) — `users/infrastructure/user.schema.ts`
   - Verifica: `dce pnpm test src/modules/users/infrastructure/tests/user.schema` pasa.
-- [ ] T049 [P] [H1] Caso de uso emitir token CSRF previo (RF-22) — `users/application/issue-csrf-token.use-case.ts`
+- [x] T049 [P] [H1] Caso de uso emitir token CSRF previo (RF-22) — `users/application/issue-csrf-token.use-case.ts`
   - Verifica: `dce pnpm test src/modules/users/application/tests/issue-csrf-token` pasa.
-- [ ] T050 [P] [H1] Caso de uso registro, con `P2002` traducido a `EMAIL_ALREADY_REGISTERED` (RF-01, RF-03, RF-06) — `users/application/register-user.use-case.ts`
+- [x] T050 [P] [H1] Caso de uso registro, con `P2002` traducido a `EMAIL_ALREADY_REGISTERED` (RF-01, RF-03, RF-06) — `users/application/register-user.use-case.ts`
   - Verifica: `dce pnpm test src/modules/users/application/tests/register-user` pasa.
-- [ ] T051 [H1] Middleware de CSRF previo a la sesión (RF-22, RF-23) — `users/infrastructure/presession-csrf.middleware.ts`
+- [x] T051 [H1] Middleware de CSRF previo a la sesión (RF-22, RF-23) — `users/infrastructure/presession-csrf.middleware.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
-- [ ] T052 [H1] Controlador y rutas `GET /auth/csrf` y `POST /auth/register`, con sus peticiones previas de CORS (RF-01, RF-06, RF-22, RF-36) — `users/infrastructure/auth.controller.ts`, `users/infrastructure/auth.routes.ts`
+- [x] T052 [H1] Controlador y rutas `GET /auth/csrf` y `POST /auth/register`, con sus peticiones previas de CORS (RF-01, RF-06, RF-22, RF-36) — `users/infrastructure/auth.controller.ts`, `users/infrastructure/auth.routes.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
-- [ ] T053 [H1] Cablear el módulo `users` (repositorios, adaptadores, router de `/auth`) en los dos contenedores (plan §3) — `src/dependency.container.ts`, `tests/support/test.container.ts`
+- [x] T053 [H1] Cablear el módulo `users` (repositorios, adaptadores, router de `/auth`) en los dos contenedores (plan §3) — `src/dependency.container.ts`, `tests/support/test.container.ts`
   - Verifica: `dce pnpm test src/modules/users` pasa entero.
-- [ ] T054 [H1] Guía manual: QS-0 (variables nuevas, migración, función `api` con `curl -c/-b` y `X-CSRF-Token`, aviso de Safari, R-2) y QS-H1 — `sdd/002-user-accounts/quickstart.md`
+- [x] T054 [H1] Guía manual: QS-0 (variables nuevas, migración, función `api` con `curl -c/-b` y `X-CSRF-Token`, aviso de Safari, R-2) y QS-H1 — `sdd/002-user-accounts/quickstart.md`
   - Verifica: ejecutar QS-0 y QS-H1 a mano.
 
 ### Checkpoint H1

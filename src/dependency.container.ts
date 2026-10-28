@@ -24,9 +24,19 @@ import { PrismaTaskRepository } from './modules/tasks/infrastructure/prisma-task
 import { TaskController } from './modules/tasks/infrastructure/task.controller.js';
 import { createTaskRouter } from './modules/tasks/infrastructure/task.routes.js';
 import { GetPendingTaskUseCase, GetProductiveDateUseCase } from './modules/tasks/task.facade.js';
+import { IssueCsrfTokenUseCase } from './modules/users/application/issue-csrf-token.use-case.js';
+import { RegisterUserUseCase } from './modules/users/application/register-user.use-case.js';
+import { Argon2PasswordHasher } from './modules/users/infrastructure/argon2-password-hasher.adapter.js';
+import { AuthController } from './modules/users/infrastructure/auth.controller.js';
+import { createAuthRouter } from './modules/users/infrastructure/auth.routes.js';
+import { CryptoTokenService } from './modules/users/infrastructure/crypto-token.adapter.js';
+import { createPresessionCsrfMiddleware } from './modules/users/infrastructure/presession-csrf.middleware.js';
+import { PrismaCsrfTokenRepository } from './modules/users/infrastructure/prisma-csrf-token.repository.js';
+import { PrismaUserRepository } from './modules/users/infrastructure/prisma-user.repository.js';
 import type { Clock } from './shared/domain/clock.port.js';
 import type { TimeZoneService } from './shared/domain/time-zone.port.js';
 import { createRequestContextMiddleware } from './shared/infrastructure/http/request-context.middleware.js';
+import { loadAppConfig } from './shared/infrastructure/config/app.config.js';
 import { getPrismaClient } from './shared/infrastructure/prisma/prisma.client.js';
 import { IntlTimeZoneAdapter } from './shared/infrastructure/time/intl-time-zone.adapter.js';
 import { SystemClockAdapter } from './shared/infrastructure/time/system-clock.adapter.js';
@@ -41,6 +51,8 @@ export interface Container extends AppContainer {
 }
 
 export function createContainer(): Container {
+  // Falla al arrancar si falta o es inválida alguna variable de .env (D-11 de la 002)
+  const config = loadAppConfig();
   const clock = new SystemClockAdapter();
   const timeZones = new IntlTimeZoneAdapter();
   const prisma = getPrismaClient();
@@ -84,12 +96,25 @@ export function createContainer(): Container {
     requestContext,
   });
 
+  // Módulo users (spec 002): registro con token CSRF previo a la sesión
+  const tokens = new CryptoTokenService();
+  const csrfTokens = new PrismaCsrfTokenRepository(prisma);
+  const users = new PrismaUserRepository(prisma);
+  const authRouter = createAuthRouter({
+    controller: new AuthController(
+      new IssueCsrfTokenUseCase(tokens, csrfTokens, clock),
+      new RegisterUserUseCase(users, new Argon2PasswordHasher()),
+    ),
+    presessionCsrf: createPresessionCsrfMiddleware({ tokens, csrfTokens, clock }),
+  });
+
   return {
     clock,
     timeZones,
     prisma,
     requestContext,
     alertScheduler,
-    routers: [taskRouter, streakRouter, alertRouter],
+    corsOrigin: config.corsOrigin,
+    routers: [authRouter, taskRouter, streakRouter, alertRouter],
   };
 }

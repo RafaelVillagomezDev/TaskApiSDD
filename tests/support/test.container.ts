@@ -22,12 +22,24 @@ import { UpdateTaskUseCase } from '../../src/modules/tasks/application/update-ta
 import { TaskController } from '../../src/modules/tasks/infrastructure/task.controller.js';
 import { createTaskRouter } from '../../src/modules/tasks/infrastructure/task.routes.js';
 import { GetPendingTaskUseCase, GetProductiveDateUseCase } from '../../src/modules/tasks/task.facade.js';
+import { IssueCsrfTokenUseCase } from '../../src/modules/users/application/issue-csrf-token.use-case.js';
+import { RegisterUserUseCase } from '../../src/modules/users/application/register-user.use-case.js';
+import { AuthController } from '../../src/modules/users/infrastructure/auth.controller.js';
+import { createAuthRouter } from '../../src/modules/users/infrastructure/auth.routes.js';
+import { CryptoTokenService } from '../../src/modules/users/infrastructure/crypto-token.adapter.js';
+import { createPresessionCsrfMiddleware } from '../../src/modules/users/infrastructure/presession-csrf.middleware.js';
 import { createRequestContextMiddleware } from '../../src/shared/infrastructure/http/request-context.middleware.js';
 import { IntlTimeZoneAdapter } from '../../src/shared/infrastructure/time/intl-time-zone.adapter.js';
 import { FakeClock } from './fake-clock.adapter.js';
+import { FakePasswordHasher } from './fake-password-hasher.adapter.js';
 import { InMemoryAlertRepository } from './in-memory-alert.repository.js';
+import { InMemoryCsrfTokenRepository } from './in-memory-csrf-token.repository.js';
 import { InMemoryTaskRepository } from './in-memory-task.repository.js';
 import { InMemoryUserTimeZoneRepository } from './in-memory-user-time-zone.repository.js';
+import { InMemoryUserRepository } from './in-memory-user.repository.js';
+
+// Origen del frontend permitido por CORS en los tests, el mismo que en .env.dev (RF-35 de la 002)
+export const FRONTEND_ORIGIN = 'http://localhost:5173';
 
 // Mismo cableado que dependency.container.ts pero con fakes en memoria (plan, D-21).
 // Reloj por defecto: 2026-10-24T10:00:00Z (12:00 en Madrid)
@@ -39,6 +51,8 @@ export interface TestContainer extends AppContainer {
   userTimeZones: InMemoryUserTimeZoneRepository;
   // Una pasada del planificador, para ejecutarla a mano tras mover el reloj
   generateAlerts: GenerateDueAlertUseCase;
+  users: InMemoryUserRepository;
+  csrfTokens: InMemoryCsrfTokenRepository;
 }
 
 export function createTestContainer(): TestContainer {
@@ -82,6 +96,17 @@ export function createTestContainer(): TestContainer {
     requestContext,
   });
 
+  const tokens = new CryptoTokenService();
+  const users = new InMemoryUserRepository();
+  const csrfTokens = new InMemoryCsrfTokenRepository();
+  const authRouter = createAuthRouter({
+    controller: new AuthController(
+      new IssueCsrfTokenUseCase(tokens, csrfTokens, clock),
+      new RegisterUserUseCase(users, new FakePasswordHasher()),
+    ),
+    presessionCsrf: createPresessionCsrfMiddleware({ tokens, csrfTokens, clock }),
+  });
+
   return {
     clock,
     timeZones,
@@ -89,7 +114,10 @@ export function createTestContainer(): TestContainer {
     alerts,
     userTimeZones,
     generateAlerts,
-    routers: [taskRouter, streakRouter, alertRouter],
+    users,
+    csrfTokens,
+    corsOrigin: FRONTEND_ORIGIN,
+    routers: [authRouter, taskRouter, streakRouter, alertRouter],
   };
 }
 
