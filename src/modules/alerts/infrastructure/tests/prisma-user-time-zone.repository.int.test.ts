@@ -1,7 +1,12 @@
 import { PrismaClient } from '@prisma/client';
 
 import { createTestUser, truncateTables } from '../../../../../tests/integration/test-database.helper.js';
+import type { UserTimeZone } from '../../domain/user-time-zone.repository.js';
 import { PrismaUserTimeZoneRepository } from '../prisma-user-time-zone.repository.js';
+
+// Lotes pequeños para recorrer varios con pocas zonas, y un tope para que un fallo del cursor no deje el test colgado
+const BATCH_SIZE = 2;
+const MAX_BATCHES = 100;
 
 const prisma = new PrismaClient();
 const repository = new PrismaUserTimeZoneRepository(prisma);
@@ -50,17 +55,23 @@ describe('PrismaUserTimeZoneRepository', () => {
     for (const userId of userIds) {
       await repository.record(userId, 'Europe/Madrid');
     }
-    // Mismo orden que el de los UUID en PostgreSQL: hexadecimal en minúsculas
-    const [a, b, c, d, e] = [...userIds].sort();
-    const first = await repository.listBatch(null, 2);
-    const second = await repository.listBatch(first.at(-1)!.userId, 2);
-    const third = await repository.listBatch(second.at(-1)!.userId, 2);
-    expect([first, second, third].map((batch) => batch.map((zone) => zone.userId))).toEqual([
-      [a, b],
-      [c, d],
-      [e],
-    ]);
-    expect(first[0]).toEqual({ userId: a, timeZone: 'Europe/Madrid' });
-    expect(await repository.listBatch(e, 2)).toEqual([]);
+    // Recorre la tabla entera por lotes, como el planificador. Otros ficheros de integración escriben zonas en
+    // paralelo (prisma-user.repository.int.test.ts), así que se comprueba el recorrido y solo las zonas propias
+    const batches: UserTimeZone[][] = [];
+    let cursor: string | null = null;
+    for (let page = 0; page < MAX_BATCHES; page++) {
+      const batch = await repository.listBatch(cursor, BATCH_SIZE);
+      if (batch.length === 0) break;
+      batches.push(batch);
+      cursor = batch[batch.length - 1]?.userId ?? null;
+    }
+    const visited = batches.flat();
+
+    expect(batches.every((batch) => batch.length <= BATCH_SIZE)).toBe(true);
+    // Orden estrictamente creciente de UUID (hexadecimal en minúsculas): ninguna zona se repite ni se salta
+    expect(visited.map((zone) => zone.userId)).toEqual([...new Set(visited.map((zone) => zone.userId))].sort());
+    const own = visited.filter((zone) => userIds.includes(zone.userId));
+    expect(own).toEqual([...userIds].sort().map((userId) => ({ userId, timeZone: 'Europe/Madrid' })));
+    expect(await repository.listBatch(cursor, BATCH_SIZE)).toEqual([]);
   });
 });
