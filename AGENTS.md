@@ -38,6 +38,7 @@ El código fuente se organiza en módulos de negocio independientes bajo `src/mo
 ├── sonar-project.properties      # Configuración del análisis: fuentes, tests, exclusiones y cobertura (coverage/lcov.info)
 ├── scripts/sonar-setup.sh        # Prepara SonarQube una vez (contraseña de admin, quality gate predeterminado, token global); idempotente
 ├── scripts/sonar-scan.sh         # Analiza la rama actual en su proyecto taskapisdd-<rama> y espera el quality gate (lo usa pre-push)
+├── scripts/sonar-issues.sh       # Detalle del proyecto de la rama: condiciones del gate, incidencias y hotspots con fichero y línea (pre-push lo muestra si el gate falla)
 ├── vite.config.ts                # Build SSR de producción (dist/server.js) y, para `pnpm dev`, carpetas generadas que no reinician la API
 ├── .claude/settings.json         # Configuración de Claude Code del proyecto: hook que recuerda actualizar README.md, hooks de graphify y permisos que impiden leer secretos (.env.*, *.pem) y ficheros generados
 ├── .claudeignore                 # Ficheros que Claude no debe leer (dependencias, builds, secretos, cobertura); la protección efectiva son los permisos de .claude/settings.json
@@ -94,9 +95,12 @@ docker compose -f docker-compose.sonar.yml up -d sonarqube              # Levant
 ./scripts/sonar-setup.sh                                                # Primera vez (y tras borrar sus volúmenes): admin, quality gate predeterminado y token global
 docker compose -f docker-compose.dev.yml exec api pnpm test:coverage    # Tests con cobertura → coverage/lcov.info
 ./scripts/sonar-scan.sh                                                 # Analizar la rama actual (taskapisdd-<rama>) y esperar el quality gate (falla si no pasa)
+./scripts/sonar-issues.sh                                               # Ver por qué no pasa: condiciones, incidencias y hotspots con fichero, línea y regla
 docker compose -f docker-compose.sonar.yml down                         # Parar SonarQube (conserva configuración y análisis)
 ```
-> El hook `.githooks/pre-push` hace los dos últimos pasos en cada `git push` y rechaza el push si el quality gate no pasa, si SonarQube o `api` no están levantados, si hay cambios de código sin commitear o si lo que se sube no es la rama actual (el análisis se hace sobre el árbol de trabajo).
+> `scripts/sonar-issues.sh` usa la cuenta de administrador (`SONAR_ADMIN_PASSWORD`), porque el token de análisis (`SONAR_TOKEN`) no puede leer hotspots ni métricas, y nunca imprime las credenciales; formatea la respuesta con `node` en el contenedor `api`.
+>
+> El hook `.githooks/pre-push` hace los dos últimos pasos en cada `git push` y rechaza el push si el quality gate no pasa (y entonces muestra el detalle con `scripts/sonar-issues.sh`), si SonarQube o `api` no están levantados, si hay cambios de código sin commitear o si lo que se sube no es la rama actual (el análisis se hace sobre el árbol de trabajo).
 
 ### Producción (`Dockerfile.prod`)
 Proyecto de Compose propio (`taskapisdd-prod`): convive con desarrollo sin sustituir sus contenedores. Las migraciones se aplican **antes** de levantar la API. `.env.prod` lleva `PORT=3000`; `API_HOST_PORT` publica la API en otro puerto del host (por ejemplo `3001` si desarrollo ocupa el 3000).
@@ -230,7 +234,7 @@ Dos hooks lo refuerzan:
 ---
 
 ### Quality gate antes del push (CONSTITUTION.md, principio III)
-Antes de proponer o hacer un `git push`, el código debe cumplir las reglas de §8. El hook `.githooks/pre-push` ejecuta los tests con cobertura, lanza el análisis de SonarQube y rechaza el push si el quality gate no pasa o si SonarQube no está levantado. Si el análisis encuentra incidencias, se informa de cada una (fichero, línea, regla) y se corrigen en el código; nunca se marcan como falso positivo ni se salta el hook (`--no-verify`) sin aprobación explícita del usuario.
+Antes de proponer o hacer un `git push`, el código debe cumplir las reglas de §8. El hook `.githooks/pre-push` ejecuta los tests con cobertura, lanza el análisis de SonarQube y rechaza el push si el quality gate no pasa o si SonarQube no está levantado. Si el análisis encuentra incidencias, el hook las muestra con `scripts/sonar-issues.sh`; se informa de cada una (fichero, línea, regla) y se corrigen en el código; nunca se marcan como falso positivo ni se salta el hook (`--no-verify`) sin aprobación explícita del usuario.
 
 ---
 

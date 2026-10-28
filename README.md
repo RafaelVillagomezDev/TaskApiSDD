@@ -417,6 +417,7 @@ TaskApiSDD/
 ├── sonar-project.properties   # Qué analiza SonarQube y dónde está la cobertura
 ├── scripts/sonar-setup.sh     # Prepara SonarQube: admin, quality gate y token
 ├── scripts/sonar-scan.sh      # Analiza la rama actual en su propio proyecto de SonarQube
+├── scripts/sonar-issues.sh    # Por qué no pasa el gate: condiciones, incidencias y hotspots con fichero y línea
 ├── vite.config.ts             # Build de producción (dist/server.js) y carpetas que no reinician la API en desarrollo
 ├── .claude/settings.json      # Claude Code: recuerda al agente actualizar README.md tras editar esos ficheros, hooks de graphify
 │                              # y permisos que le impiden leer .env.dev, .env.prod, *.pem, node_modules, dist y coverage
@@ -602,11 +603,14 @@ Para pasar a la primera, `AGENTS.md` §8 recoge las reglas de código. En resume
 docker compose -f docker-compose.sonar.yml up -d sonarqube              # SonarQube en http://localhost:9000 (usuario admin, SONAR_ADMIN_PASSWORD)
 docker compose -f docker-compose.dev.yml exec api pnpm test:coverage    # tests con cobertura
 ./scripts/sonar-scan.sh                                                 # analizar a mano la rama actual, sin hacer push
+./scripts/sonar-issues.sh                                               # ver por qué no pasa el gate: condiciones, incidencias y hotspots
 ```
 
 > **Un proyecto por rama:** SonarQube Community no distingue ramas, así que cada rama de git se analiza en su propio proyecto: `taskapisdd-dev`, `taskapisdd-main`, etc. Así cada rama tiene su historial y su comparación de código nuevo, y un push de `main` no se mezcla con los de `dev`. Los ves todos en http://localhost:9000/projects. El de una rama nueva se crea en su primer análisis, con el mismo quality gate.
 
-Estado actual (`taskapisdd-dev`): *quality gate* en verde, con 0 bugs, 0 vulnerabilidades, 0 hotspots, 0 *code smells*, un 94,6 % de cobertura según SonarQube y un 0 % de duplicación.
+Si el push se rechaza, el hook `pre-push` muestra con `scripts/sonar-issues.sh` qué condición falla y cada incidencia o hotspot con su fichero, línea y regla. El script usa la cuenta de administrador de `.env.dev` (el token de análisis no puede leer hotspots) y nunca imprime las credenciales.
+
+Estado actual (`taskapisdd-dev`): *quality gate* en verde, con 0 bugs, 0 vulnerabilidades, 0 hotspots, 0 *code smells*, un 95,7 % de cobertura según SonarQube y un 0 % de duplicación.
 
 ---
 

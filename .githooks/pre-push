@@ -35,7 +35,10 @@ docker compose -f docker-compose.dev.yml exec -T api pnpm test:coverage < /dev/n
 
 # 4. Análisis en el proyecto de la rama actual: espera al quality gate y termina con error si no pasa
 echo "▶ Análisis de SonarQube..."
-./scripts/sonar-scan.sh < /dev/null ||
-  fail "El quality gate no pasa: revisa las incidencias en el proyecto de esta rama en $SONAR_URL/projects"
+if ! ./scripts/sonar-scan.sh < /dev/null; then
+  # Detalle de lo que falla (condiciones, incidencias y hotspots con fichero y línea) para corregirlo en el código
+  ./scripts/sonar-issues.sh < /dev/null || echo "  (no se pudo obtener el detalle: ./scripts/sonar-issues.sh)" >&2
+  fail "El quality gate no pasa: corrige las incidencias de arriba (proyecto de esta rama en $SONAR_URL/projects)"
+fi
 
 echo "✔ Quality gate de SonarQube en verde"
