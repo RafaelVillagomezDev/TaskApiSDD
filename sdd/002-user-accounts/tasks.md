@@ -259,34 +259,42 @@ Spec: `sdd/002-user-accounts/spec.md` (Aprobada) · Plan: `sdd/002-user-accounts
 ## Fase H4 — Usar mis tareas, racha y avisos con mi sesión (HU-04, P1)
 
 ### Tests (deben fallar)
-- [ ] T082 [H4] Test del contexto de petición reescrito: sin `X-User-Id`; usa el `SessionContext`; hora y zona como en la 001; recuerda la zona solo con sesión y cabeceras válidas (RF-30 a RF-32) — `src/shared/infrastructure/http/tests/request-context.middleware.test.ts`
+- [x] T082 [H4] Test del contexto de petición reescrito: sin `X-User-Id`; usa el `SessionContext`; hora y zona como en la 001; recuerda la zona solo con sesión y cabeceras válidas (RF-30 a RF-32) — `src/shared/infrastructure/http/tests/request-context.middleware.test.ts`
   - Verifica: `dce pnpm test src/shared/infrastructure/http/tests/request-context` **falla**.
-- [ ] T083 [H4] Test HTTP de tareas reescrito con `signIn`: mismas comprobaciones de la 001 con cookie y CSRF; `X-User-Id` de otro usuario sin efecto; `X-User-Id` sin cookie → `MISSING_TOKEN`; `POST` sin CSRF → `INVALID_CSRF_TOKEN`; aislamiento entre dos cuentas (RF-17, RF-18, RF-21, RF-23, RF-30, RF-32, CE-02, CE-03) — `src/modules/tasks/infrastructure/tests/task.routes.test.ts`
+- [x] T083 [H4] Test HTTP de tareas reescrito con `signIn`: mismas comprobaciones de la 001 con cookie y CSRF; `X-User-Id` de otro usuario sin efecto; `X-User-Id` sin cookie → `MISSING_TOKEN`; `POST` sin CSRF → `INVALID_CSRF_TOKEN`; aislamiento entre dos cuentas (RF-17, RF-18, RF-21, RF-23, RF-30, RF-32, CE-02, CE-03) — `src/modules/tasks/infrastructure/tests/task.routes.test.ts`
   - Verifica: `dce pnpm test src/modules/tasks/infrastructure/tests/task.routes` **falla**.
-- [ ] T084 [P] [H4] Tests HTTP de racha y avisos reescritos con `signIn`; la zona se recuerda en `/alerts` con sesión válida aunque la petición falle (RF-21, RF-30, RF-31) — `src/modules/streaks/infrastructure/tests/streak.routes.test.ts`, `src/modules/alerts/infrastructure/tests/alert.routes.test.ts`
+  - Hecho (2026-10-29): en la batería por pares el nivel de usuario (`MISSING_USER`) pasa a ser el de sesión (sin cookie y con `X-CSRF-Token` → `MISSING_TOKEN`), con los niveles renumerados según RF-34; el nivel CSRF y los pares de la decisión 19 quedan para T116. Además: CE-01 de la 002 (cuatro peticiones hasta la primera tarea), `TOKEN_EXPIRED` y renovación, token CSRF previo en `POST /tasks` y peticiones previas de `/tasks` y `/tasks/{id}`.
+- [x] T084 [P] [H4] Tests HTTP de racha y avisos reescritos con `signIn`; la zona se recuerda en `/alerts` con sesión válida aunque la petición falle (RF-21, RF-30, RF-31) — `src/modules/streaks/infrastructure/tests/streak.routes.test.ts`, `src/modules/alerts/infrastructure/tests/alert.routes.test.ts`
   - Verifica: `dce pnpm test src/modules/streaks src/modules/alerts` **falla**.
-- [ ] T085 [P] [H4] Test del cableado de producción: rutas de `/auth` y `/me` montadas; rutas protegidas sin cookie → `MISSING_TOKEN` (RF-18) — `src/tests/dependency.container.test.ts`
+  - Hecho (2026-10-29): `runAlertPassAt22` adelanta el reloj diez horas y el token de acceso dura 15 minutos, así que los tests de avisos vuelven a iniciar sesión tras la pasada (`nightHeaders`).
+- [x] T085 [P] [H4] Test del cableado de producción: rutas de `/auth` y `/me` montadas; rutas protegidas sin cookie → `MISSING_TOKEN` (RF-18) — `src/tests/dependency.container.test.ts`
   - Verifica: `dce pnpm test src/tests/dependency.container` **falla**.
-- [ ] T086 [P] [H4] Test de errores: `MISSING_USER` ya no existe y la precedencia sigue el orden de RF-34 (RF-32, RF-34) — `src/shared/infrastructure/http/tests/error-handler.middleware.test.ts`
+- [x] T086 [P] [H4] Test de errores: `MISSING_USER` ya no existe y la precedencia sigue el orden de RF-34 (RF-32, RF-34) — `src/shared/infrastructure/http/tests/error-handler.middleware.test.ts`
   - Verifica: `dce pnpm test src/shared/infrastructure/http/tests/error-handler` **falla**.
 
 ### Implementación
-- [ ] T087 [H4] Contexto de petición sin `X-User-Id`: toma el usuario del `SessionContext`, valida hora y zona y recuerda la zona (RF-30 a RF-32) — `src/shared/infrastructure/http/request-context.middleware.ts`, `src/shared/infrastructure/http/request-header.schema.ts`
+- [x] T087 [H4] Contexto de petición sin `X-User-Id`: toma el usuario del `SessionContext`, valida hora y zona y recuerda la zona (RF-30 a RF-32) — `src/shared/infrastructure/http/request-context.middleware.ts`, `src/shared/infrastructure/http/request-header.schema.ts`
   - Verifica: `dce pnpm test src/shared/infrastructure/http/tests/request-context` pasa.
-- [ ] T088 [H4] Eliminar `MISSING_USER` y renumerar la precedencia según RF-34 (RF-32, RF-34) — `src/shared/domain/error-code.constant.ts`
+  - Hecho (2026-10-29): `RequestContext extends SessionContext` (cierra la nota de T016), así que los tests de los casos de uso de la 001 llevan `sessionId`. Sin `SessionContext` el middleware falla como error de montaje (`INTERNAL_ERROR`), no como error del cliente.
+- [x] T088 [H4] Eliminar `MISSING_USER` y renumerar la precedencia según RF-34 (RF-32, RF-34) — `src/shared/domain/error-code.constant.ts`
   - Verifica: `dce pnpm test src/shared/infrastructure/http/tests/error-handler` pasa.
-- [ ] T089 [H4] Rutas de tareas con sesión (CSRF en `POST`/`PATCH`/`DELETE`) → contexto → JSON, y sus peticiones previas (RF-17, RF-23, RF-30, RF-36, D-8) — `src/modules/tasks/infrastructure/task.routes.ts`
+  - Hecho (2026-10-29): cierra la nota de T013; el test comprueba el orden completo de RF-34 sobre `ERROR_CODES`.
+- [x] T089 [H4] Rutas de tareas con sesión (CSRF en `POST`/`PATCH`/`DELETE`) → contexto → JSON, y sus peticiones previas (RF-17, RF-23, RF-30, RF-36, D-8) — `src/modules/tasks/infrastructure/task.routes.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
-- [ ] T090 [P] [H4] Rutas de racha y avisos con sesión → contexto, y sus peticiones previas (RF-17, RF-30, RF-36, D-8) — `src/modules/streaks/infrastructure/streak.routes.ts`, `src/modules/alerts/infrastructure/alert.routes.ts`
+- [x] T090 [P] [H4] Rutas de racha y avisos con sesión → contexto, y sus peticiones previas (RF-17, RF-30, RF-36, D-8) — `src/modules/streaks/infrastructure/streak.routes.ts`, `src/modules/alerts/infrastructure/alert.routes.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
-- [ ] T091 [H4] Inyectar el middleware de sesión en los routers de `tasks`, `streaks` y `alerts` en los dos contenedores (RF-17, RF-21) — `src/dependency.container.ts`, `tests/support/test.container.ts`
+- [x] T091 [H4] Inyectar el middleware de sesión en los routers de `tasks`, `streaks` y `alerts` en los dos contenedores (RF-17, RF-21) — `src/dependency.container.ts`, `tests/support/test.container.ts`
   - Verifica: `dce pnpm test` pasa entero.
-- [ ] T092 [H4] Test de rendimiento con sesión: inicia sesión una vez y envía cookie y `X-CSRF-Token` en lugar de `X-User-Id` (RF-17) — `tests/performance/api.perf.test.ts`
+  - Hecho (2026-10-29): en los dos contenedores la sesión se crea antes que los routers de la 001. `clientHeaders` deja de enviar `X-User-Id` y `userIdOf(container, email?)` da el id de una cuenta para sembrar datos en los repositorios en memoria.
+- [x] T092 [H4] Test de rendimiento con sesión: inicia sesión una vez y envía cookie y `X-CSRF-Token` en lugar de `X-User-Id` (RF-17) — `tests/performance/api.perf.test.ts`
   - Verifica: `dce pnpm test:perf` pasa.
-- [ ] T093 [H4] Guía de la 001: la función `api` inicia sesión y usa cookies y `X-CSRF-Token`; desaparecen `X-User-Id` y `MISSING_USER` (RF-32) — `sdd/001-taskApiSDD-mvp/quickstart.md`
+  - Hecho (2026-10-29): el test registra la cuenta e inicia sesión por HTTP con Argon2id real; p95 de 2,0 a 4,8 ms por endpoint y pasada del planificador de 10,8 s.
+- [x] T093 [H4] Guía de la 001: la función `api` inicia sesión y usa cookies y `X-CSRF-Token`; desaparecen `X-User-Id` y `MISSING_USER` (RF-32) — `sdd/001-taskApiSDD-mvp/quickstart.md`
   - Verifica: ejecutar QS-H1 de la 001 a mano con la nueva función `api`.
-- [ ] T094 [H4] Guía manual, sección QS-H4 — `sdd/002-user-accounts/quickstart.md`
+  - Hecho (2026-10-29): `signin <nombre>` crea la cuenta si no existe, inicia sesión y deja en `USER_ID` su UUID para los `INSERT` de `psql`; QS-H6.5 crea en la base de datos la cuenta sin zona. La colección de Postman de la 001 sigue pendiente de T119 (avisado en la guía y el README). QS-H1 ejecutado a mano con la nueva función.
+- [x] T094 [H4] Guía manual, sección QS-H4 — `sdd/002-user-accounts/quickstart.md`
   - Verifica: ejecutar QS-H4 a mano.
+  - Hecho (2026-10-29): ejecutado a mano contra la API de desarrollo con las cuentas de Ana y Bea.
 
 ### Checkpoint H4
 - `dce pnpm test` y `dce pnpm test:perf` pasan.
@@ -381,8 +389,9 @@ Spec: `sdd/002-user-accounts/spec.md` (Aprobada) · Plan: `sdd/002-user-accounts
   - Verifica: `dce pnpm test src/modules/users/infrastructure/tests` pasa.
 - [ ] T118 [P] [Rob] Rendimiento de registro, login, refresh, `GET /me` y `PATCH /me/password` con p95 < 300 ms (RNF-01, R-1) — `tests/performance/api.perf.test.ts`
   - Verifica: `dce pnpm test:perf` pasa.
-- [ ] T119 [P] [Rob] Colección de Postman con `GET /auth/csrf`, registro y login (cookies de Postman y `csrfToken` en una variable), flujo H1–H6 de la 001 con sesión y errores de sesión y CSRF (RF-17, RF-22, RF-23) — `sdd/001-taskApiSDD-mvp/mvp-p1.postman-collection.json`
+- [x] T119 [P] [Rob] Colección de Postman con `GET /auth/csrf`, registro y login (cookies de Postman y `csrfToken` en una variable), flujo H1–H6 de la 001 con sesión y errores de sesión y CSRF (RF-17, RF-22, RF-23) — `sdd/001-taskApiSDD-mvp/mvp-p1.postman-collection.json`
   - Verifica: `docker run --rm -e TZ=Europe/Madrid -v "$PWD/sdd/001-taskApiSDD-mvp":/etc/newman postman/newman:6-alpine run mvp-p1.postman-collection.json --env-var baseUrl=http://host.docker.internal:3000` sin fallos.
+  - Hecho (2026-10-29): 60 peticiones y 66 comprobaciones con Newman, sin fallos. El flujo pide el token previo, registra una cuenta nueva y entra con ella; las peticiones de la 001 envían su cookie y su token CSRF; "2. Errores" añade una segunda cuenta (en lugar de `X-User-Id: otro-usuario`) y los errores de sesión y CSRF (`MISSING_TOKEN`, también con `X-User-Id`; `INVALID_TOKEN`; `INVALID_CSRF_TOKEN` sin cabecera y con el token previo; decisión 19); "3. Mis tareas" entra con `myEmail` y `myPassword`. Las cookies no las gestiona el almacén de Postman, como decía la tarea, sino variables enviadas en la cabecera `Cookie` con `disableCookies` en cada petición (también en la colección de la 002): Newman no reenvía cookies `Secure` por http a `host.docker.internal`, y así Postman no mezcla las cookies guardadas con las de cada cuenta.
   - Nota (2026-10-28): a petición del usuario, la 002 tiene además su propia colección, `sdd/002-user-accounts/user-accounts.postman-collection.json`, creada tras H1 (token CSRF previo, registro, errores y CORS: 12 peticiones y 12 comprobaciones con Newman, sin fallos) ampliada tras H2 (login, `GET /me`, logout, sus errores y peticiones previas: 26 peticiones y 28 comprobaciones, sin fallos) y tras H3 (renovación, margen de gracia, sus errores y la petición previa: 33 peticiones y 35 comprobaciones, sin fallos; la reutilización a los 31 s queda en los tests y en QS-H3.3). Las cookies se guardan en la variable `sessionCookie` y se envían en la cabecera `Cookie`, porque Newman no reenvía cookies `Secure` por http a `host.docker.internal`. Se amplía en cada historia.
 - [ ] T120 [Rob] AGENTS.md: variables `SESSION_ENCRYPTION_KEY` y `CORS_ORIGIN`, módulo `users` y aviso de Safari en desarrollo (R-2) — `AGENTS.md`
   - Verifica: `grep -c "SESSION_ENCRYPTION_KEY\|CORS_ORIGIN" AGENTS.md` ≥ 2.

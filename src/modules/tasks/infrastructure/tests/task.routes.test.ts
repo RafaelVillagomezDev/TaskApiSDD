@@ -1,9 +1,13 @@
 import {
   clientHeaders,
   createTestContainer,
+  FRONTEND_ORIGIN,
+  type SessionHeaders,
+  signIn,
   startTestServer,
   type TestContainer,
   type TestServer,
+  userIdOf,
 } from '../../../../../tests/support/test.container.js';
 import { createApp } from '../../../../app.factory.js';
 import { ERROR_CODES } from '../../../../shared/domain/error-code.constant.js';
@@ -19,22 +23,31 @@ interface Envelope {
 
 // Reloj de los tests: 2026-10-24T10:00:00Z → hoy es 2026-10-24 en Madrid (12:00 +02:00)
 const TODAY = '2026-10-24';
+// Dueño de las tareas ajenas sembradas directamente en el repositorio en memoria
+const OTHER_USER = 'otro-usuario';
 
 describe('rutas de tareas', () => {
   let container: TestContainer;
   let server: TestServer;
+  let session: SessionHeaders;
+  // Cuenta de la sesión de Ana: sus tareas se siembran con este id
+  let anaId: string;
 
-  const call = async (path: string, init: RequestInit = {}, headers = clientHeaders()) => {
+  // Cabeceras de hora y zona con la sesión de Ana (RF-17 de la 002)
+  const withSession = (options = {}): Record<string, string> => ({ ...clientHeaders(options), ...session });
+  const call = async (path: string, init: RequestInit = {}, headers: Record<string, string> = withSession()) => {
     const response = await server.request(path, { ...init, headers: { ...headers, ...(init.headers ?? {}) } });
     const text = await response.text();
     return { status: response.status, body: (text ? JSON.parse(text) : undefined) as Envelope };
   };
-  const createTask = (body: unknown, headers = clientHeaders()) =>
+  const createTask = (body: unknown, headers: Record<string, string> = withSession()) =>
     call('/tasks', { method: 'POST', body: JSON.stringify(body) }, headers);
 
   beforeEach(async () => {
     container = createTestContainer();
     server = await startTestServer(createApp(container));
+    session = await signIn(server);
+    anaId = await userIdOf(container);
   });
   afterEach(() => server.close());
 
@@ -83,9 +96,10 @@ describe('rutas de tareas', () => {
       expect(body.data.items.map((task: { title: string }) => task.title)).toEqual(['Hoy']);
     });
 
-    it('aísla las tareas de cada usuario (RF-02)', async () => {
+    it('aísla las tareas de cada cuenta (RF-21 de la 002, CE-02)', async () => {
       await createTask({ title: 'Mía', date: TODAY });
-      const { body } = await call(`/tasks?date=${TODAY}`, {}, clientHeaders({ userId: 'otro-usuario' }));
+      const bea = await signIn(server, 'bea@example.com');
+      const { body } = await call(`/tasks?date=${TODAY}`, {}, { ...clientHeaders(), ...bea });
       expect(body.data.items).toEqual([]);
     });
   });
@@ -95,7 +109,7 @@ describe('rutas de tareas', () => {
 
     beforeEach(async () => {
       const seed = async (title: string, date: string, completed: boolean) => {
-        const task = await container.tasks.create({ userId: 'user-1', title, description: null, date: LocalDate.parse(date) });
+        const task = await container.tasks.create({ userId: anaId, title, description: null, date: LocalDate.parse(date) });
         if (completed) {
           task.complete(LocalDate.parse(date));
           await container.tasks.update(task);
@@ -153,13 +167,13 @@ describe('rutas de tareas', () => {
     });
 
     it('INVALID_TIMEZONE gana a una query no válida (RF-46)', async () => {
-      const headers = clientHeaders({ timeZone: 'Mars/Olympus' });
+      const headers = withSession({ timeZone: 'Mars/Olympus' });
       expect((await call('/tasks?pageSize=101', {}, headers)).body.error?.code).toBe('INVALID_TIMEZONE');
     });
   });
 
   describe('GET /tasks/{id}', () => {
-    const seed = (date: string, userId = 'user-1') =>
+    const seed = (date: string, userId = anaId) =>
       container.tasks.create({ userId, title: 'Tarea', description: null, date: LocalDate.parse(date) });
 
     it('una tarea propia → 200 con el recurso Task en data (RF-44)', async () => {
@@ -186,7 +200,7 @@ describe('rutas de tareas', () => {
     });
 
     it.each([
-      ['de otro usuario', async () => (await seed(TODAY, 'user-2')).id],
+      ['de otro usuario', async () => (await seed(TODAY, OTHER_USER)).id],
       ['inexistente', async () => '6f1c9a52-3e0b-4f6e-9a77-1c2d3e4f5a6b'],
       ['con id no UUID', async () => 'abc'],
     ])('una tarea %s → 404 TASK_NOT_FOUND (RF-16)', async (_case, idOf) => {
@@ -196,23 +210,22 @@ describe('rutas de tareas', () => {
     });
 
     it('sin cabeceras de hora y con un id inexistente → INVALID_CLIENT_TIME (RF-46)', async () => {
-      const { 'X-Client-Time': _omitted, ...headers } = clientHeaders();
+      const { 'X-Client-Time': _omitted, ...headers } = withSession();
       const { status, body } = await call('/tasks/6f1c9a52-3e0b-4f6e-9a77-1c2d3e4f5a6b', {}, headers);
       expect(status).toBe(400);
       expect(body.error?.code).toBe('INVALID_CLIENT_TIME');
     });
 
-    it('sin X-User-Id → 401 MISSING_USER', async () => {
+    it('sin cookie de sesión → 401 MISSING_TOKEN (RF-18 de la 002)', async () => {
       const task = await seed(TODAY);
-      const { 'X-User-Id': _omitted, ...headers } = clientHeaders();
-      expect((await call(`/tasks/${task.id}`, {}, headers)).body.error?.code).toBe('MISSING_USER');
+      expect((await call(`/tasks/${task.id}`, {}, clientHeaders())).body.error?.code).toBe('MISSING_TOKEN');
     });
   });
 
   describe('PATCH /tasks/{id} con completed', () => {
-    const seed = (date: string, userId = 'user-1') =>
+    const seed = (date: string, userId = anaId) =>
       container.tasks.create({ userId, title: 'Tarea', description: null, date: LocalDate.parse(date) });
-    const patch = (id: string, body: unknown, headers = clientHeaders()) =>
+    const patch = (id: string, body: unknown, headers: Record<string, string> = withSession()) =>
       call(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(body) }, headers);
 
     it('completa una tarea de hoy → 200 con el recurso actualizado (RF-11)', async () => {
@@ -245,7 +258,7 @@ describe('rutas de tareas', () => {
     });
 
     it('una tarea de otro usuario o con id no UUID → 404 TASK_NOT_FOUND (RF-16)', async () => {
-      const foreign = await seed(TODAY, 'user-2');
+      const foreign = await seed(TODAY, OTHER_USER);
       expect((await patch(foreign.id, { completed: true })).body.error?.code).toBe('TASK_NOT_FOUND');
       const { status, body } = await patch('abc', { completed: true });
       expect(status).toBe(404);
@@ -264,8 +277,8 @@ describe('rutas de tareas', () => {
 
   describe('PATCH /tasks/{id} con edición (HU-05)', () => {
     const seed = (date: string) =>
-      container.tasks.create({ userId: 'user-1', title: 'Tarea', description: 'Original', date: LocalDate.parse(date) });
-    const patch = (id: string, body: unknown, headers = clientHeaders()) =>
+      container.tasks.create({ userId: anaId, title: 'Tarea', description: 'Original', date: LocalDate.parse(date) });
+    const patch = (id: string, body: unknown, headers: Record<string, string> = withSession()) =>
       call(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(body) }, headers);
 
     it('cambia el título recortado y conserva el resto → 200 (RF-13, RF-38)', async () => {
@@ -288,7 +301,7 @@ describe('rutas de tareas', () => {
         const response = await patch(task.id, body);
         expect(response.status).toBe(400);
         expect(response.body.error?.code).toBe('VALIDATION_ERROR');
-        expect((await container.tasks.findById('user-1', task.id))?.title).toBe('Tarea');
+        expect((await container.tasks.findById(anaId, task.id))?.title).toBe('Tarea');
       },
     );
 
@@ -308,9 +321,9 @@ describe('rutas de tareas', () => {
   });
 
   describe('DELETE /tasks/{id} (HU-05)', () => {
-    const seed = (date: string, userId = 'user-1') =>
+    const seed = (date: string, userId = anaId) =>
       container.tasks.create({ userId, title: 'Tarea', description: null, date: LocalDate.parse(date) });
-    const remove = (id: string, headers = clientHeaders()) => call(`/tasks/${id}`, { method: 'DELETE' }, headers);
+    const remove = (id: string, headers: Record<string, string> = withSession()) => call(`/tasks/${id}`, { method: 'DELETE' }, headers);
 
     it('borra una tarea de hoy → 200 con data null y deja de aparecer (RF-15)', async () => {
       const task = await seed(TODAY);
@@ -334,7 +347,7 @@ describe('rutas de tareas', () => {
     });
 
     it.each([
-      ['de otro usuario', async () => (await seed(TODAY, 'user-2')).id],
+      ['de otro usuario', async () => (await seed(TODAY, OTHER_USER)).id],
       ['inexistente', async () => '6f1c9a52-3e0b-4f6e-9a77-1c2d3e4f5a6b'],
       ['con id no UUID', async () => 'abc'],
     ])('una tarea %s → 404 TASK_NOT_FOUND (RF-16)', async (_case, idOf) => {
@@ -351,39 +364,104 @@ describe('rutas de tareas', () => {
       expect(body.error?.code).toBe('TASK_NOT_FOUND');
     });
 
-    it('sin X-User-Id → 401 MISSING_USER y no borra (RF-01, RF-46)', async () => {
+    it('con X-CSRF-Token y sin cookie → 401 MISSING_TOKEN y no borra (RF-18, RF-23 de la 002, decisión 19)', async () => {
       const task = await seed(TODAY);
-      const { 'X-User-Id': _omitted, ...headers } = clientHeaders();
-      expect((await remove(task.id, headers)).body.error?.code).toBe('MISSING_USER');
+      const headers = { ...clientHeaders(), 'X-CSRF-Token': session['X-CSRF-Token'] };
+      expect((await remove(task.id, headers)).body.error?.code).toBe('MISSING_TOKEN');
+      expect(container.tasks.count()).toBe(1);
+    });
+
+    it('sin X-CSRF-Token → 403 INVALID_CSRF_TOKEN y no borra (RF-23 de la 002)', async () => {
+      const task = await seed(TODAY);
+      const { 'X-CSRF-Token': _omitted, ...headers } = withSession();
+      const { status, body } = await remove(task.id, headers);
+      expect(status).toBe(403);
+      expect(body.error?.code).toBe('INVALID_CSRF_TOKEN');
       expect(container.tasks.count()).toBe(1);
     });
 
     it('INVALID_TIMEZONE gana a TASK_NOT_FOUND (RF-46)', async () => {
-      const headers = clientHeaders({ timeZone: 'Mars/Olympus' });
+      const headers = withSession({ timeZone: 'Mars/Olympus' });
       expect((await remove('abc', headers)).body.error?.code).toBe('INVALID_TIMEZONE');
     });
   });
 
-  describe('cabeceras y precedencia de errores (RF-01, RF-46)', () => {
-    it('sin X-User-Id → 401 MISSING_USER con el mensaje en español (RNF-03)', async () => {
-      const { 'X-User-Id': _omitted, ...headers } = clientHeaders();
-      const { status, body } = await call(`/tasks?date=${TODAY}`, {}, headers);
+  describe('sesión, CSRF y precedencia de errores (RF-17 a RF-23 y RF-34 de la 002)', () => {
+    it('sin cookie de sesión → 401 MISSING_TOKEN con el mensaje en español (RNF-02 de la 002)', async () => {
+      const { status, body } = await call(`/tasks?date=${TODAY}`, {}, clientHeaders());
       expect(status).toBe(401);
-      expect(body.error).toEqual({ code: 'MISSING_USER', message: ERROR_CODES.MISSING_USER.message });
+      expect(body.error).toEqual({ code: 'MISSING_TOKEN', message: ERROR_CODES.MISSING_TOKEN.message });
     });
 
-    it('MISSING_USER gana a INVALID_CLIENT_TIME', async () => {
-      const { 'X-User-Id': _omitted, ...headers } = clientHeaders({ clientTime: 'mal' });
-      expect((await createTask({ title: 'Tarea', date: TODAY }, headers)).body.error?.code).toBe('MISSING_USER');
+    it('X-User-Id sin cookie no identifica a nadie → 401 MISSING_TOKEN (RF-18, RF-32 de la 002)', async () => {
+      const { body } = await call('/tasks', {}, { ...clientHeaders(), 'X-User-Id': anaId });
+      expect(body.error?.code).toBe('MISSING_TOKEN');
+    });
+
+    it('X-User-Id de otro usuario con la sesión de Ana no tiene efecto (RF-32 de la 002)', async () => {
+      await createTask({ title: 'Mía', date: TODAY }, { ...withSession(), 'X-User-Id': OTHER_USER });
+      const { body } = await call(`/tasks?date=${TODAY}`, {}, { ...withSession(), 'X-User-Id': OTHER_USER });
+      expect(body.data.items.map((task: { title: string }) => task.title)).toEqual(['Mía']);
+      expect(container.tasks.count()).toBe(1);
+    });
+
+    it('POST sin X-CSRF-Token → 403 INVALID_CSRF_TOKEN y no crea nada; un GET no lo pide (RF-23 de la 002)', async () => {
+      const { 'X-CSRF-Token': _omitted, ...headers } = withSession();
+      const { status, body } = await createTask({ title: 'Tarea', date: TODAY }, headers);
+      expect(status).toBe(403);
+      expect(body.error?.code).toBe('INVALID_CSRF_TOKEN');
+      expect(container.tasks.count()).toBe(0);
+      expect((await call('/tasks', {}, headers)).status).toBe(200);
+    });
+
+    it('con el token CSRF previo a la sesión → 403 INVALID_CSRF_TOKEN: solo sirve para registro y login (RF-22)', async () => {
+      const presession = (await (await server.request('/auth/csrf')).json()) as { data: { csrfToken: string } };
+      const headers = { ...withSession(), 'X-CSRF-Token': presession.data.csrfToken };
+      expect((await createTask({ title: 'Tarea', date: TODAY }, headers)).body.error?.code).toBe('INVALID_CSRF_TOKEN');
+    });
+
+    it('con el token de acceso caducado → 401 TOKEN_EXPIRED; tras renovar, la misma petición → 200 (RF-20, RF-11)', async () => {
+      container.clock.advance(16 * 60_000);
+      const headers = withSession({ clientTime: '2026-10-24T12:16:00+02:00' });
+      expect((await call('/tasks', {}, headers)).body.error?.code).toBe('TOKEN_EXPIRED');
+      const renewed = await server.request('/auth/refresh', { method: 'POST', headers: session });
+      const cookie = renewed.headers
+        .getSetCookie()
+        .map((value) => value.split(';')[0])
+        .join('; ');
+      expect((await call('/tasks', {}, { ...headers, Cookie: cookie })).status).toBe(200);
+    });
+
+    it('CE-01 de la 002: cuatro peticiones hasta la primera tarea (token previo, registro, login y POST /tasks)', async () => {
+      const presession = (await (await server.request('/auth/csrf')).json()) as { data: { csrfToken: string } };
+      const auth = { 'Content-Type': 'application/json', 'X-CSRF-Token': presession.data.csrfToken };
+      const credentials = JSON.stringify({ email: 'cris@example.com', password: 'correct horse battery' });
+      await server.request('/auth/register', { method: 'POST', headers: auth, body: credentials });
+      const login = await server.request('/auth/login', { method: 'POST', headers: auth, body: credentials });
+      const { data } = (await login.json()) as { data: { csrfToken: string } };
+      const cookie = login.headers
+        .getSetCookie()
+        .map((value) => value.split(';')[0])
+        .join('; ');
+      const created = await createTask(
+        { title: 'Primera', date: TODAY },
+        { ...clientHeaders(), Cookie: cookie, 'X-CSRF-Token': data.csrfToken },
+      );
+      expect(created.status).toBe(201);
+    });
+
+    it('sin cookie de sesión gana a INVALID_CLIENT_TIME (RF-34 de la 002)', async () => {
+      const headers = { ...clientHeaders({ clientTime: 'mal' }), 'X-CSRF-Token': session['X-CSRF-Token'] };
+      expect((await createTask({ title: 'Tarea', date: TODAY }, headers)).body.error?.code).toBe('MISSING_TOKEN');
     });
 
     it('INVALID_CLIENT_TIME gana a INVALID_TIMEZONE', async () => {
-      const headers = clientHeaders({ clientTime: 'mal', timeZone: 'Mars/Olympus' });
+      const headers = withSession({ clientTime: 'mal', timeZone: 'Mars/Olympus' });
       expect((await createTask({ title: 'Tarea', date: TODAY }, headers)).body.error?.code).toBe('INVALID_CLIENT_TIME');
     });
 
     it('INVALID_TIMEZONE gana a VALIDATION_ERROR', async () => {
-      const headers = clientHeaders({ timeZone: 'Mars/Olympus' });
+      const headers = withSession({ timeZone: 'Mars/Olympus' });
       expect((await createTask({ title: '' }, headers)).body.error?.code).toBe('INVALID_TIMEZONE');
     });
 
@@ -391,36 +469,60 @@ describe('rutas de tareas', () => {
       expect((await createTask({ title: '', date: '2026-10-23' })).body.error?.code).toBe('VALIDATION_ERROR');
     });
 
-    it('PUT /tasks sin X-User-Id → ROUTE_NOT_FOUND', async () => {
+    it('PUT /tasks sin sesión → ROUTE_NOT_FOUND (RF-34 de la 002)', async () => {
       const { status, body } = await call('/tasks', { method: 'PUT' }, {});
       expect(status).toBe(404);
       expect(body.error?.code).toBe('ROUTE_NOT_FOUND');
     });
   });
 
+  describe('peticiones previas de CORS (RF-36 de la 002)', () => {
+    it.each([
+      ['/tasks', 'POST', 'GET, POST'],
+      ['/tasks/6f1c9a52-3e0b-4f6e-9a77-1c2d3e4f5a6b', 'DELETE', 'GET, PATCH, DELETE'],
+    ])('OPTIONS %s pidiendo %s → 200 con los métodos de la ruta', async (path, method, allowed) => {
+      const response = await server.request(path, {
+        method: 'OPTIONS',
+        headers: { Origin: FRONTEND_ORIGIN, 'Access-Control-Request-Method': method },
+      });
+      expect(response.status).toBe(200);
+      expect(response.headers.get('access-control-allow-methods')).toBe(allowed);
+    });
+
+    it('OPTIONS /tasks pidiendo PUT → 404 ROUTE_NOT_FOUND', async () => {
+      const response = await server.request('/tasks', {
+        method: 'OPTIONS',
+        headers: { Origin: FRONTEND_ORIGIN, 'Access-Control-Request-Method': 'PUT' },
+      });
+      expect(response.status).toBe(404);
+    });
+  });
+
   // Batería por pares (R-8): partiendo de un PATCH válido, se combinan dos fallos de niveles distintos
-  // y la respuesta debe ser el de menor orden. El nivel 7 tiene dos variantes excluyentes entre sí
-  describe('precedencia por pares de RF-46 (R-8)', () => {
-    type Fault = 'route' | 'user' | 'clientTime' | 'timeZone' | 'validation' | 'notFound' | 'dayClosed' | 'dayNotStarted';
+  // y la respuesta debe ser el de menor orden. El nivel 8 tiene dos variantes excluyentes entre sí.
+  // El nivel 3 es la sesión sin cookie, con X-CSRF-Token (decisión 19); el nivel 2 (CSRF) y los pares de
+  // la decisión 19 se añaden en la fase de robustez (T116)
+  describe('precedencia por pares de RF-34 de la 002 (R-8)', () => {
+    type Fault = 'route' | 'session' | 'clientTime' | 'timeZone' | 'validation' | 'notFound' | 'dayClosed' | 'dayNotStarted';
 
     interface PatchRequest {
       method: string;
       headers: Record<string, string>;
       body: unknown;
-      owner: 'user-1' | 'user-2';
+      owner: 'own' | 'other';
       date: string;
     }
 
-    // Código esperado y nivel de cada fallo, en el orden de RF-46
+    // Código esperado y nivel de cada fallo, en el orden de RF-34 de la 002
     const FAULTS: Record<Fault, { level: number; code: string; apply: (request: PatchRequest) => void }> = {
       route: { level: 1, code: 'ROUTE_NOT_FOUND', apply: (request) => (request.method = 'PUT') },
-      user: { level: 2, code: 'MISSING_USER', apply: (request) => delete request.headers['X-User-Id'] },
-      clientTime: { level: 3, code: 'INVALID_CLIENT_TIME', apply: (request) => (request.headers['X-Client-Time'] = 'mal') },
-      timeZone: { level: 4, code: 'INVALID_TIMEZONE', apply: (request) => (request.headers['X-Timezone'] = 'Mars/Olympus') },
-      validation: { level: 5, code: 'VALIDATION_ERROR', apply: (request) => (request.body = { completed: 'sí' }) },
-      notFound: { level: 6, code: 'TASK_NOT_FOUND', apply: (request) => (request.owner = 'user-2') },
-      dayClosed: { level: 7, code: 'DAY_CLOSED', apply: (request) => (request.date = '2026-10-23') },
-      dayNotStarted: { level: 7, code: 'DAY_NOT_STARTED', apply: (request) => (request.date = '2026-10-25') },
+      session: { level: 3, code: 'MISSING_TOKEN', apply: (request) => delete request.headers.Cookie },
+      clientTime: { level: 4, code: 'INVALID_CLIENT_TIME', apply: (request) => (request.headers['X-Client-Time'] = 'mal') },
+      timeZone: { level: 5, code: 'INVALID_TIMEZONE', apply: (request) => (request.headers['X-Timezone'] = 'Mars/Olympus') },
+      validation: { level: 6, code: 'VALIDATION_ERROR', apply: (request) => (request.body = { completed: 'sí' }) },
+      notFound: { level: 7, code: 'TASK_NOT_FOUND', apply: (request) => (request.owner = 'other') },
+      dayClosed: { level: 8, code: 'DAY_CLOSED', apply: (request) => (request.date = '2026-10-23') },
+      dayNotStarted: { level: 8, code: 'DAY_NOT_STARTED', apply: (request) => (request.date = '2026-10-25') },
     };
 
     const faults = Object.keys(FAULTS) as Fault[];
@@ -428,13 +530,14 @@ describe('rutas de tareas', () => {
       .flatMap((first, index) => faults.slice(index + 1).map((second) => [first, second] as const))
       .filter(([first, second]) => FAULTS[first].level !== FAULTS[second].level);
 
-    // Una tarea por dueño y día: el fallo de nivel 6 cambia el dueño y los de nivel 7, el día
+    // Una tarea por dueño y día: el fallo de nivel 7 cambia el dueño y los de nivel 8, el día
     let taskIds: Record<string, string>;
     beforeEach(async () => {
       taskIds = {};
-      for (const owner of ['user-1', 'user-2']) {
+      const owners = { own: anaId, other: OTHER_USER };
+      for (const [owner, userId] of Object.entries(owners)) {
         for (const date of ['2026-10-23', TODAY, '2026-10-25']) {
-          const task = await container.tasks.create({ userId: owner, title: 'Tarea', description: null, date: LocalDate.parse(date) });
+          const task = await container.tasks.create({ userId, title: 'Tarea', description: null, date: LocalDate.parse(date) });
           taskIds[`${owner}|${date}`] = task.id;
         }
       }
@@ -445,7 +548,7 @@ describe('rutas de tareas', () => {
     });
 
     it('sin fallos, el PATCH base es válido → 200', async () => {
-      const { status } = await call(`/tasks/${taskIds[`user-1|${TODAY}`]}`, {
+      const { status } = await call(`/tasks/${taskIds[`own|${TODAY}`]}`, {
         method: 'PATCH',
         body: JSON.stringify({ completed: true }),
       });
@@ -455,9 +558,9 @@ describe('rutas de tareas', () => {
     it.each(pairs)('%s + %s → gana el de menor orden', async (first, second) => {
       const request: PatchRequest = {
         method: 'PATCH',
-        headers: clientHeaders(),
+        headers: withSession(),
         body: { completed: true },
-        owner: 'user-1',
+        owner: 'own',
         date: TODAY,
       };
       FAULTS[first].apply(request);

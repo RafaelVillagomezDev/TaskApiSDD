@@ -4,7 +4,7 @@ API REST para **organizar tareas diarias** y medir la **constancia** con una **r
 
 Está construida con **Spec-Driven Development (SDD)**: primero se escribe *qué* debe hacer el sistema (la spec), después *cómo* (el plan), después las *tareas*, y solo al final el código.
 
-> **Estado:** el MVP P1 funciona de principio a fin: crear tareas, consultarlas, completarlas y ver la racha. Las historias P2 y P3 también están hechas: listar todas las tareas con filtros de estado y rango de fechas, consultar una tarea por su id (H4), editar el título y la descripción o borrar tareas (H5), y avisos diarios, semanales y mensuales de tareas pendientes (H6). La fase de robustez también está hecha (precedencia de errores por pares y rendimiento). La imagen de producción está construida y probada en local (`Dockerfile.prod`, `docker-compose.prod.yml`): todas las tareas de la funcionalidad 001 están hechas. **En curso:** funcionalidad 002, cuentas de usuario (registro, login, sesión en cookies con refresh token y protección CSRF), con la spec y el plan aprobados y la fase base y H1 a H3 de `tasks.md` hechas (81 de 121 tareas): ya se puede registrar una cuenta (`GET /auth/csrf`, `POST /auth/register`), iniciar sesión con cookies (`POST /auth/login`), renovarla con el refresh token (`POST /auth/refresh`), consultar la cuenta (`GET /me`) y cerrar sesión (`POST /auth/logout`); siguiente paso: H4, usar las tareas, la racha y los avisos con la sesión en lugar de `X-User-Id`. Ver [Estado del proyecto](#estado-del-proyecto).
+> **Estado:** el MVP P1 funciona de principio a fin: crear tareas, consultarlas, completarlas y ver la racha. Las historias P2 y P3 también están hechas: listar todas las tareas con filtros de estado y rango de fechas, consultar una tarea por su id (H4), editar el título y la descripción o borrar tareas (H5), y avisos diarios, semanales y mensuales de tareas pendientes (H6). La fase de robustez también está hecha (precedencia de errores por pares y rendimiento). La imagen de producción está construida y probada en local (`Dockerfile.prod`, `docker-compose.prod.yml`): todas las tareas de la funcionalidad 001 están hechas. **En curso:** funcionalidad 002, cuentas de usuario (registro, login, sesión en cookies con refresh token y protección CSRF), con la spec y el plan aprobados y la fase base y H1 a H4 de `tasks.md` hechas, y la colección de Postman de la 001 ya con sesión (95 de 121 tareas): ya se puede registrar una cuenta (`GET /auth/csrf`, `POST /auth/register`), iniciar sesión con cookies (`POST /auth/login`), renovarla con el refresh token (`POST /auth/refresh`), consultar la cuenta (`GET /me`), cerrar sesión (`POST /auth/logout`) y usar las tareas, la racha y los avisos con esa sesión: `X-User-Id` ya no existe. Siguiente paso: H5, editar el perfil. Ver [Estado del proyecto](#estado-del-proyecto).
 
 ---
 
@@ -38,7 +38,7 @@ Imagina una app de tareas en la que:
 
 Detalles importantes desde el principio:
 
-- **No hay login.** Cada petición indica quién eres con la cabecera `X-User-Id`. Cada usuario solo ve sus tareas.
+- **Cuentas con sesión.** Te registras y entras con email y contraseña; la sesión viaja en cookies `HttpOnly` y cada petición que modifica algo lleva además el token CSRF de la sesión. Cada usuario solo ve sus tareas.
 - **La API trabaja con tu día local.** Cada petición envía la hora y la zona horaria de tu dispositivo. Así, las 00:30 en Madrid ya cuentan como "mañana" aunque en UTC sigan siendo las 22:30 del día anterior.
 - **Los días pasados están cerrados.** Las tareas de ayer se pueden consultar, pero no modificar. Así nadie puede "maquillar" su racha.
 
@@ -123,15 +123,18 @@ En la base de datos, `db` es el **nombre del servicio** de PostgreSQL dentro de 
 
 ## Cómo usar la API
 
-### Las tres cabeceras obligatorias
+### Sesión y cabeceras obligatorias
 
-**Todas** las peticiones necesitan estas cabeceras:
+Las rutas de tareas, racha y avisos (`/tasks`, `/streak`, `/alerts`) necesitan:
 
-| Cabecera | Ejemplo | Para qué sirve |
+| Qué | Ejemplo | Para qué sirve |
 | :--- | :--- | :--- |
-| `X-User-Id` | `yandry` | Quién eres. Cualquier texto no vacío vale; no hay registro. |
+| Cookie `access_token` | La pone `POST /auth/login` | Quién eres: la API identifica al usuario **solo** por su sesión. Dura 15 minutos y se renueva con `POST /auth/refresh`. |
+| `X-CSRF-Token` | El `csrfToken` que devuelve el login | Solo en `POST`, `PATCH` y `DELETE`: protege frente a peticiones falsificadas desde otra web. |
 | `X-Client-Time` | `2026-10-25T10:30:00+02:00` | La hora de tu dispositivo, **con desfase `±HH:MM`**. De ella sale tu "día actual". |
 | `X-Timezone` | `Europe/Madrid` | Tu zona horaria en formato IANA. Se usa para los avisos. |
+
+`X-User-Id` ya no existe desde la funcionalidad 002: si llega, se ignora. `/auth` y `/me` no piden `X-Client-Time` ni `X-Timezone`.
 
 Reglas que conviene saber:
 
@@ -141,16 +144,27 @@ Reglas que conviene saber:
 
 ### Ayuda para la terminal
 
-Pega esto en tu terminal (zsh o bash) para no escribir las cabeceras a mano:
+Pega esto en tu terminal (zsh o bash) para no escribir las cabeceras a mano. `signin` crea la cuenta si no existe e inicia sesión (cookies en `$JAR`, token CSRF en `$CSRF`); `api` las envía con la hora y la zona de tu máquina:
 
 ```bash
 export API=http://localhost:3000
 export TZ_NAME=$(readlink /etc/localtime | sed 's#.*/zoneinfo/##')   # tu zona, p. ej. Europe/Madrid
-export USER_ID=yandry
 now() { date +%Y-%m-%dT%H:%M:%S%z | sed -E 's/([+-][0-9]{2})([0-9]{2})$/\1:\2/'; }
-api() { curl -s -H "X-User-Id: $USER_ID" -H "X-Client-Time: $(now)" -H "X-Timezone: $TZ_NAME" \
+signin() {
+  local name=${1:-yandry} presession
+  export EMAIL="$name@example.com" JAR="${TMPDIR:-/tmp}/taskapi-$name.jar"
+  presession=$(curl -s $API/auth/csrf | sed -E 's/.*"csrfToken":"([^"]+)".*/\1/')
+  curl -s -o /dev/null -X POST $API/auth/register -H "Content-Type: application/json" -H "X-CSRF-Token: $presession" \
+       -d "{\"email\":\"$EMAIL\",\"password\":\"correct horse battery\"}"
+  export CSRF=$(curl -s -c "$JAR" -X POST $API/auth/login -H "Content-Type: application/json" -H "X-CSRF-Token: $presession" \
+       -d "{\"email\":\"$EMAIL\",\"password\":\"correct horse battery\"}" | sed -E 's/.*"csrfToken":"([^"]+)".*/\1/')
+}
+api() { curl -s -b "$JAR" -c "$JAR" -H "X-CSRF-Token: ${CSRF:-}" -H "X-Client-Time: $(now)" -H "X-Timezone: $TZ_NAME" \
              -H "Content-Type: application/json" "$@"; echo; }
+signin
 ```
+
+Si una petición responde `401 TOKEN_EXPIRED` (el token de acceso dura 15 minutos), vuelve a ejecutar `signin` o renueva con `curl -s -b "$JAR" -c "$JAR" -X POST -H "X-CSRF-Token: $CSRF" $API/auth/refresh`.
 
 ### Endpoints disponibles
 
@@ -253,30 +267,40 @@ En las listas, `data` es un objeto paginado:
 
 ### Códigos de error
 
-Si una petición tiene **varios** fallos a la vez, la API responde **solo el primero** de esta tabla (RF-46):
+Si una petición tiene **varios** fallos a la vez, la API responde **solo el primero** de esta tabla (RF-34 de la 002, que sustituye a RF-46 de la 001):
 
 | Orden | Código | HTTP | Cuándo |
 | :--- | :--- | :--- | :--- |
 | 1 | `ROUTE_NOT_FOUND` | 404 | La ruta o el método no existen (por ejemplo, `PUT /tasks`) |
-| 2 | `MISSING_USER` | 401 | Falta `X-User-Id` o está vacío |
-| 3 | `INVALID_CLIENT_TIME` | 400 | `X-Client-Time` falta, tiene mal formato o se desvía más de 5 minutos |
-| 4 | `INVALID_TIMEZONE` | 400 | `X-Timezone` falta, no es una zona IANA o no coincide con el desfase |
-| 5 | `VALIDATION_ERROR` | 400 | El cuerpo o los parámetros no son válidos (incluido un JSON mal formado, `date` junto con `from`/`to`, `from` posterior a `to`, o un `PATCH` con un campo distinto de `title`, `description` y `completed`) |
-| 6 | `TASK_NOT_FOUND` | 404 | La tarea no existe o es de otro usuario |
-| 7 | `DAY_CLOSED` | 409 | Se intenta crear, modificar o borrar una tarea de un día pasado |
-| 7 | `DAY_NOT_STARTED` | 409 | Se intenta completar una tarea de un día futuro |
+| 2 | `INVALID_CSRF_TOKEN` | 403 | `POST`, `PATCH` o `DELETE` sin `X-CSRF-Token` o con un token que no vale para esa petición |
+| 3 | `MISSING_TOKEN` | 401 | Ruta protegida sin la cookie de sesión |
+| 3 | `INVALID_TOKEN` | 401 | Token de acceso inexistente o de una sesión cerrada |
+| 3 | `TOKEN_EXPIRED` | 401 | Token de acceso caducado (15 minutos): hay que renovar con `POST /auth/refresh` |
+| 3 | `INVALID_REFRESH_TOKEN` | 401 | En `/auth/refresh`: refresh token inexistente, de una sesión cerrada o reutilizado fuera del margen |
+| 3 | `SESSION_EXPIRED` | 401 | En `/auth/refresh`: 7 días sin renovar o 30 desde el login |
+| 4 | `INVALID_CLIENT_TIME` | 400 | `X-Client-Time` falta, tiene mal formato o se desvía más de 5 minutos |
+| 5 | `INVALID_TIMEZONE` | 400 | `X-Timezone` falta, no es una zona IANA o no coincide con el desfase |
+| 6 | `VALIDATION_ERROR` | 400 | El cuerpo o los parámetros no son válidos (incluido un JSON mal formado, `date` junto con `from`/`to`, `from` posterior a `to`, o un `PATCH` con un campo distinto de `title`, `description` y `completed`) |
+| 7 | `TOO_MANY_ATTEMPTS` | 429 | 5 fallos de contraseña en 15 minutos: el email queda bloqueado 15 minutos |
+| 7 | `INVALID_CREDENTIALS` | 401 | Login con email o contraseña incorrectos (no dice cuál) |
+| 7 | `EMAIL_ALREADY_REGISTERED` | 409 | El email ya pertenece a una cuenta |
+| 7 | `TASK_NOT_FOUND` | 404 | La tarea no existe o es de otro usuario |
+| 8 | `DAY_CLOSED` | 409 | Se intenta crear, modificar o borrar una tarea de un día pasado |
+| 8 | `DAY_NOT_STARTED` | 409 | Se intenta completar una tarea de un día futuro |
 | — | `INTERNAL_ERROR` | 500 | Error inesperado del servidor (sin detalles internos) |
+
+Con `X-CSRF-Token` pero sin sesión con la que compararlo (sin cookies o con una sesión cerrada), gana el error de sesión (decisión 19 de la 002).
 
 ### Probar con Postman
 
 Importa `sdd/001-taskApiSDD-mvp/mvp-p1.postman-collection.json` en Postman y ajusta la variable de colección `timeZone` a la zona de tu ordenador. Después:
 
 - ejecuta la carpeta **"1. Flujo MVP"** (*Run folder*) y luego **"2. Errores"**;
-- en **"3. Mis tareas"**, pon tu usuario en la variable `myUserId` para ver siempre las mismas tareas.
+- en **"3. Mis tareas"**, pon tu email y tu contraseña (12 caracteres como mínimo) en las variables `myEmail` y `myPassword`: la carpeta crea la cuenta si no existe, inicia sesión y lista siempre las mismas tareas.
 
 La colección cubre H1 a H6: crear, consultar, completar, racha, filtros de estado y rango de fechas, paginación, consulta por id, edición, borrado y consulta de avisos, con sus casos de error. La generación de avisos no entra porque depende de que sean las 22:00 en tu zona: se prueba con la guía manual (QS-H6). Las cabeceras dinámicas (`X-Client-Time` y las fechas) las calcula sola la colección.
 
-> **Mientras se implementa la 002:** desde su migración, `user_id` debe ser el UUID de una cuenta, así que esta colección (que envía `X-User-Id` inventados) falla hasta que H4 la pase a sesión con cookies (tarea T119).
+> **Con sesión (002):** el flujo crea una cuenta nueva en cada ejecución e inicia sesión; cada petición envía la cookie y el token CSRF de esa sesión, y "2. Errores" incluye los de sesión y CSRF (`MISSING_TOKEN`, `INVALID_TOKEN`, `INVALID_CSRF_TOKEN`) y una segunda cuenta para comprobar que no ve tus tareas. Las cookies se guardan en variables y se envían en la cabecera `Cookie`, con las cookies automáticas de Postman desactivadas en cada petición (igual en la colección de la 002), porque Newman y Postman no reenvían cookies `Secure` por http a un host distinto de `localhost`.
 
 **Cuentas de usuario (002):** importa `sdd/002-user-accounts/user-accounts.postman-collection.json` y ejecuta **"1. Flujo"**, después **"2. Errores"** y **"3. CORS"**. Cubre lo implementado hasta ahora (H1 a H3): token CSRF previo a la sesión, registro, login, `GET /me`, renovación con su margen de gracia, logout, sus errores y las peticiones previas de CORS. La primera petición genera una cuenta nueva en cada ejecución. El login guarda las cookies en la variable `sessionCookie` y las peticiones siguientes las envían en la cabecera `Cookie`, porque Newman y Postman no reenvían cookies `Secure` por http a un host distinto de `localhost`. Desde la terminal:
 
@@ -358,27 +382,31 @@ Petición HTTP
 2. Router de Express           ¿Existe la ruta?                                 si no → ROUTE_NOT_FOUND
    │
    ▼
-3. request-context.middleware  ¿X-User-Id?  ¿X-Client-Time válido?  ¿X-Timezone coherente?
-   │                           → calcula tu "día actual" (today)
+3. session.middleware          ¿X-CSRF-Token (PATCH)?  ¿Cookie de sesión válida y vigente?
+   │  (módulo users)           → INVALID_CSRF_TOKEN / MISSING_TOKEN / INVALID_TOKEN / TOKEN_EXPIRED
+   │                           → deja el usuario y la sesión (SessionContext)
    ▼
-4. json-body.middleware        ¿El cuerpo es un JSON válido de menos de 100 kB?  si no → VALIDATION_ERROR
+4. request-context.middleware  ¿X-Client-Time válido?  ¿X-Timezone coherente?
+   │                           → calcula tu "día actual" (today) y recuerda tu zona
+   ▼
+5. json-body.middleware        ¿El cuerpo es un JSON válido de menos de 100 kB?  si no → VALIDATION_ERROR
    │
    ▼
-5. task.controller             Valida params y cuerpo con Zod (task.schema.ts)  si no → VALIDATION_ERROR
+6. task.controller             Valida params y cuerpo con Zod (task.schema.ts)  si no → VALIDATION_ERROR
    │
    ▼
-6. update-task.use-case        Busca la tarea del usuario                        si no → TASK_NOT_FOUND
+7. update-task.use-case        Busca la tarea del usuario                        si no → TASK_NOT_FOUND
    │                           task.complete(today) aplica las reglas de día     → DAY_CLOSED / DAY_NOT_STARTED
    ▼
-7. prisma-task.repository      Guarda en PostgreSQL
+8. prisma-task.repository      Guarda en PostgreSQL
    │
    ▼
-8. sendSuccess(...)            Responde con el sobre { success, status, message, data }
+9. sendSuccess(...)            Responde con el sobre { success, status, message, data }
 
 Si algo falla en cualquier paso → error-handler.middleware construye el sobre de error.
 ```
 
-Los middlewares 3 y 4 se encadenan **en cada ruta**, no de forma global (decisión D-8 del plan). Si fueran globales, `PUT /tasks` sin usuario respondería `MISSING_USER` en lugar de `ROUTE_NOT_FOUND`, y se rompería el orden de los errores.
+Los middlewares 3, 4 y 5 se encadenan **en cada ruta**, no de forma global (decisión D-8 de los planes de la 001 y la 002). Si fueran globales, `PUT /tasks` sin sesión respondería `MISSING_TOKEN` en lugar de `ROUTE_NOT_FOUND`, y se rompería el orden de los errores. El middleware de sesión lo crea el módulo `users` y el contenedor se lo inyecta a las rutas de `tasks`, `streaks` y `alerts`, que no importan nada de `users` (principio V).
 
 ### ¿Dónde se "enchufa" todo?
 
@@ -671,7 +699,7 @@ Abre `graphify-out/graph.html` en el navegador para verlo de forma interactiva.
 
 | Síntoma | Causa y solución |
 | :--- | :--- |
-| **"No veo mis tareas"** (`items: []`) | Cada usuario solo ve las suyas. Usa el **mismo `X-User-Id`** con el que las creaste. Recuerda también que `?date=` usa tu día **local**. |
+| **"No veo mis tareas"** (`items: []`) | Cada usuario solo ve las suyas. Inicia sesión con la **misma cuenta** con la que las creaste (`signin <nombre>`). Recuerda también que `?date=` usa tu día **local**. |
 | `400 INVALID_CLIENT_TIME` | `X-Client-Time` debe llevar el desfase `±HH:MM` (no `Z`) y estar a menos de 5 minutos de la hora real. Usa la función `now()` de la sección [Cómo usar la API](#cómo-usar-la-api). |
 | `400 INVALID_TIMEZONE` | La zona no existe o no coincide con el desfase de tu hora. En Postman, revisa la variable `timeZone`. |
 | `409 DAY_CLOSED` | Intentas crear o tocar una tarea de un día pasado. Está prohibido a propósito. |
@@ -695,7 +723,7 @@ Abre `graphify-out/graph.html` en el navegador para verlo de forma interactiva.
 
 ### Funcionalidad 002 — Cuentas de usuario (en curso)
 
-[`spec.md`](sdd/002-user-accounts/spec.md) *Aprobada*, [`plan.md`](sdd/002-user-accounts/plan.md) *Aprobado* y [`tasks.md`](sdd/002-user-accounts/tasks.md): fase base y H1 a H3 hechas (81 de 121 tareas: `argon2`, configuración, migración, dominio, adaptadores criptográficos, repositorios, CORS, registro, login, logout, `GET /me`, renovación de la sesión y limpieza cada minuto de los datos de sesión caducados); faltan H4–H7 y robustez. Guía manual en [`quickstart.md`](sdd/002-user-accounts/quickstart.md). **La migración vacía las tareas, avisos y zonas de desarrollo** (RF-33): hasta terminar H4, `X-User-Id` debe ser el UUID de una cuenta de la tabla `users`. Lo que cambia respecto a la 001:
+[`spec.md`](sdd/002-user-accounts/spec.md) *Aprobada*, [`plan.md`](sdd/002-user-accounts/plan.md) *Aprobado* y [`tasks.md`](sdd/002-user-accounts/tasks.md): fase base y H1 a H4 hechas, y la colección de Postman de la 001 con sesión (95 de 121 tareas: `argon2`, configuración, migración, dominio, adaptadores criptográficos, repositorios, CORS, registro, login, logout, `GET /me`, renovación de la sesión, limpieza cada minuto de los datos de sesión caducados y las rutas de la 001 con sesión y CSRF, sin `X-User-Id`); faltan H5–H7 y robustez. Guía manual en [`quickstart.md`](sdd/002-user-accounts/quickstart.md). **La migración vacía las tareas, avisos y zonas de desarrollo** (RF-33). Lo que cambia respecto a la 001:
 
 - **Cuentas propias:** registro con email y contraseña (12–128 caracteres), login, perfil (`GET`/`PATCH /me`), cambio de contraseña y borrado de la cuenta.
 - **Sesión en cookies `HttpOnly`:** es la única forma de identificarse; `X-User-Id` y `MISSING_USER` se eliminan de la API; los datos guardados con identificadores antiguos se borran al migrar. Token de acceso de 15 minutos y *refresh token* de 7 días que rota en cada renovación, con un margen de gracia de 30 segundos y un tope de 30 días por sesión.
@@ -731,7 +759,7 @@ docker compose -f docker-compose.prod.yml up --build -d         # 2. API en el p
 docker compose -f docker-compose.prod.yml down                  # parar (con -v borra su base de datos)
 ```
 
-Necesita `.env.prod` con las mismas variables que `.env.dev` y `PORT=3000`. La guía completa está en `quickstart.md` (QS-R). **Ojo:** este MVP identifica al usuario solo con la cabecera `X-User-Id`, sin autenticación, así que no debe exponerse a usuarios reales hasta el MVP de usuarios.
+Necesita `.env.prod` con las mismas variables que `.env.dev` y `PORT=3000`. La guía completa está en `quickstart.md` (QS-R). Desde la H4 de la 002 la API identifica al usuario solo por su sesión (cookies `HttpOnly`, `Secure` y `SameSite=Strict`, y `X-CSRF-Token`); en producción necesita además `SESSION_ENCRYPTION_KEY` y `CORS_ORIGIN` en `.env.prod`. Quedan por hacer la gestión de la cuenta (perfil, contraseña y borrado, H5–H7) y la fase de robustez de la 002.
 
 ---
 

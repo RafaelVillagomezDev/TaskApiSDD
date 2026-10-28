@@ -3,7 +3,7 @@ import type { RequestContext } from '../../../../shared/application/request-cont
 import { LocalDate } from '../../../../shared/domain/local-date.value-object.js';
 import { GetTaskUseCase } from '../get-task.use-case.js';
 
-const context: RequestContext = { userId: 'user-1', today: LocalDate.parse('2026-10-24'), timeZone: 'Europe/Madrid' };
+const context: RequestContext = { userId: 'user-1', sessionId: 'session-1', today: LocalDate.parse('2026-10-24'), timeZone: 'Europe/Madrid' };
 const day = (value: string) => LocalDate.parse(value);
 
 describe('GetTaskUseCase', () => {

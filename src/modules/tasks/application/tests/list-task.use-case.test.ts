@@ -6,6 +6,7 @@ import { ListTasksUseCase } from '../list-task.use-case.js';
 
 const context: RequestContext = {
   userId: 'user-1',
+  sessionId: 'session-1',
   today: LocalDate.parse('2026-10-24'),
   timeZone: 'Europe/Madrid',
 };

@@ -6,9 +6,9 @@ export interface SessionContext {
   sessionId: string;
 }
 
-// Contexto de una petición aceptada que reciben los casos de uso que dependen del día
-export interface RequestContext {
-  userId: string;
+// Contexto de una petición aceptada que reciben los casos de uso que dependen del día: el usuario y la sesión
+// salen siempre de la sesión (RF-17 y RF-32 de la 002)
+export interface RequestContext extends SessionContext {
   // Día actual del usuario según X-Client-Time (RF-23 de la 001)
   today: LocalDate;
   timeZone: string;

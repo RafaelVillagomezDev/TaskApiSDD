@@ -142,3 +142,50 @@ Con una sesión abierta: si QS-H2.4 bloqueó la cuenta, registra otra con un `EM
   ```
   → `401 INVALID_REFRESH_TOKEN`: con la cabecera y sin sesión gana el error de sesión (RF-14, decisión 19). Sin `X-CSRF-Token` respondería `403 INVALID_CSRF_TOKEN`.
 - **Limpieza (D-12):** `docker compose -f docker-compose.dev.yml logs api | grep AUTH_CLEANUP` muestra la pasada inicial (`AUTH_CLEANUP_COMPLETED`). Las demás pasadas, cada minuto, solo dejan rastro si fallan (`AUTH_CLEANUP_FAILED`).
+
+## QS-H4 — Usar mis tareas, racha y avisos con mi sesión (HU-04)
+
+Las rutas de la 001 (`/tasks`, `/streak`, `/alerts`) ya no leen `X-User-Id`: el usuario sale de la sesión. Siguen pidiendo `X-Client-Time` y `X-Timezone`. Para trabajar con dos cuentas a la vez, cada una con su fichero de cookies, define estas ayudas:
+
+```bash
+export TZ_NAME=$(readlink /etc/localtime | sed 's#.*/zoneinfo/##')   # p. ej. Europe/Madrid
+now() { date +%Y-%m-%dT%H:%M:%S%z | sed -E 's/([+-][0-9]{2})([0-9]{2})$/\1:\2/'; }
+# login_as <fichero de cookies> <email>: crea la cuenta si no existe, inicia sesión e imprime su token CSRF
+login_as() {
+  local p; p=$(csrf)
+  curl -s -o /dev/null -X POST $API/auth/register -H "Content-Type: application/json" -H "X-CSRF-Token: $p" -d "{\"email\":\"$2\",\"password\":\"correct horse battery\"}"
+  curl -s -c "$1" -X POST $API/auth/login -H "Content-Type: application/json" -H "X-CSRF-Token: $p" -d "{\"email\":\"$2\",\"password\":\"correct horse battery\"}" | sed -E 's/.*"csrfToken":"([^"]+)".*/\1/'
+}
+ANA=$(mktemp); BEA=$(mktemp)
+CSRF_ANA=$(login_as $ANA "ana-$RANDOM@example.com"); CSRF_BEA=$(login_as $BEA "bea-$RANDOM@example.com")
+```
+
+- **QS-H4.1** Con la sesión de Ana, crear y listar tareas:
+  ```bash
+  TASK=$(curl -s -b $ANA -X POST $API/tasks -H "Content-Type: application/json" -H "X-CSRF-Token: $CSRF_ANA" -H "X-Client-Time: $(now)" -H "X-Timezone: $TZ_NAME" -d "{\"title\":\"Comprar pan\",\"date\":\"$(date +%F)\"}"); echo "$TASK"
+  ID=$(echo "$TASK" | sed -E 's/.*"id":"([^"]+)".*/\1/')
+  curl -s -b $ANA $API/tasks -H "X-Client-Time: $(now)" -H "X-Timezone: $TZ_NAME"; echo
+  ```
+  → `201` con la tarea y `200` con la lista que la incluye. `GET /streak` y `GET /alerts` con las mismas cookies y cabeceras también responden `200`.
+- **QS-H4.2** `POST /tasks` sin `X-CSRF-Token`:
+  ```bash
+  curl -s -b $ANA -X POST $API/tasks -H "Content-Type: application/json" -H "X-Client-Time: $(now)" -H "X-Timezone: $TZ_NAME" -d "{\"title\":\"Sin CSRF\",\"date\":\"$(date +%F)\"}"; echo
+  ```
+  → `403 INVALID_CSRF_TOKEN` (RF-23). Los `GET` no lo piden.
+- **QS-H4.3** `GET /tasks` sin cookie y con el `X-User-Id` de Ana:
+  ```bash
+  ANA_ID=$(curl -s -b $ANA $API/me | sed -E 's/.*"id":"([^"]+)".*/\1/')
+  curl -s $API/tasks -H "X-User-Id: $ANA_ID" -H "X-Client-Time: $(now)" -H "X-Timezone: $TZ_NAME"; echo
+  ```
+  → `401 MISSING_TOKEN`: la cabecera ya no permite actuar como Ana (RF-18, RF-32).
+- **QS-H4.4** Con la sesión de Bea, las tareas de Ana no aparecen:
+  ```bash
+  curl -s -b $BEA $API/tasks -H "X-Client-Time: $(now)" -H "X-Timezone: $TZ_NAME"; echo
+  curl -s -b $BEA $API/tasks/$ID -H "X-Client-Time: $(now)" -H "X-Timezone: $TZ_NAME"; echo
+  ```
+  → `200` con `items: []` y `404 TASK_NOT_FOUND` (RF-21, CE-02).
+- **QS-H4.5** `GET /tasks` con sesión y sin `X-Client-Time`:
+  ```bash
+  curl -s -b $ANA $API/tasks -H "X-Timezone: $TZ_NAME"; echo
+  ```
+  → `400 INVALID_CLIENT_TIME`: la hora y la zona siguen siendo obligatorias en estas rutas (RF-30).

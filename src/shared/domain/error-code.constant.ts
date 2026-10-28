@@ -8,8 +8,6 @@ export const ERROR_CODES = {
     precedence: 2,
     message: 'Falta la cabecera X-CSRF-Token o su token no es válido para esta petición.',
   },
-  // Se elimina con X-User-Id en la historia H4 de la 002 (T088, RF-32)
-  MISSING_USER: { status: 401, precedence: 3, message: 'Falta la cabecera X-User-Id o está vacía.' },
   MISSING_TOKEN: { status: 401, precedence: 3, message: 'No hay sesión: inicia sesión para continuar.' },
   INVALID_TOKEN: { status: 401, precedence: 3, message: 'La sesión no es válida: inicia sesión de nuevo.' },
   TOKEN_EXPIRED: { status: 401, precedence: 3, message: 'El token de acceso ha caducado: renueva la sesión.' },

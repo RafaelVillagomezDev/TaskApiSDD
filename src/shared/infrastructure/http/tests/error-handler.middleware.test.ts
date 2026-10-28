@@ -16,12 +16,13 @@ interface ErrorBody {
 // Router de prueba: imita el montaje real (middlewares encadenados en cada ruta, D-8)
 function buildTestRouter(): Router {
   const router = Router();
-  const requireUser = (req: { header(name: string): string | undefined }) => {
-    if (!req.header('x-user-id')) throw new AppError('MISSING_USER');
+  // Imita el middleware de sesión: sin cookie no hay sesión (RF-18 de la 002)
+  const requireSession = (req: { header(name: string): string | undefined }) => {
+    if (!req.header('cookie')) throw new AppError('MISSING_TOKEN');
   };
 
   router.get('/tasks', (req, res) => {
-    requireUser(req);
+    requireSession(req);
     sendSuccess(res, 200, 'Operación realizada con éxito', []);
   });
   router.post('/echo', jsonBodyMiddleware, (req, res) => {
@@ -79,7 +80,7 @@ describe('sobre de error y middlewares transversales (principio VII, RF-46)', ()
     expect(body).toEqual({
       success: false,
       status: 401,
-      error: { code: 'MISSING_USER', message: expect.any(String) },
+      error: { code: 'MISSING_TOKEN', message: expect.any(String) },
     });
   });
 
@@ -118,6 +119,29 @@ describe('sobre de error y middlewares transversales (principio VII, RF-46)', ()
     expect(body.error.message).toMatch(/[a-záéíóúñ]/);
   });
 
+  it('MISSING_USER ya no existe: X-User-Id desaparece con la sesión (RF-32 de la 002)', () => {
+    expect(Object.keys(ERROR_CODES)).not.toContain('MISSING_USER');
+  });
+
+  it('la precedencia sigue el orden de RF-34 de la 002', () => {
+    const precedenceOf = (code: ErrorCode) => ERROR_CODES[code].precedence;
+    const order: ErrorCode[][] = [
+      ['ROUTE_NOT_FOUND'],
+      ['INVALID_CSRF_TOKEN'],
+      ['MISSING_TOKEN', 'INVALID_TOKEN', 'TOKEN_EXPIRED', 'INVALID_REFRESH_TOKEN', 'SESSION_EXPIRED'],
+      ['INVALID_CLIENT_TIME'],
+      ['INVALID_TIMEZONE'],
+      ['VALIDATION_ERROR'],
+      ['TOO_MANY_ATTEMPTS', 'INVALID_CREDENTIALS', 'WRONG_PASSWORD', 'EMAIL_ALREADY_REGISTERED', 'TASK_NOT_FOUND'],
+      ['DAY_CLOSED', 'DAY_NOT_STARTED'],
+    ];
+    order.forEach((codes, index) => {
+      for (const code of codes) expect(precedenceOf(code)).toBe(index + 1);
+    });
+    expect(precedenceOf('INTERNAL_ERROR')).toBeNull();
+    expect(order.flat().length + 1).toBe(Object.keys(ERROR_CODES).length);
+  });
+
   it('un error inesperado → INTERNAL_ERROR sin detalles internos', async () => {
     const response = await server.request('/boom');
     const text = await response.text();
@@ -140,7 +164,7 @@ describe('sobre de error y middlewares transversales (principio VII, RF-46)', ()
     expect(await response.json()).toMatchObject({ success: false, status: 404, error: { code: 'ROUTE_NOT_FOUND' } });
   });
 
-  it('PUT /tasks sin X-User-Id → ROUTE_NOT_FOUND, no MISSING_USER (RF-46, D-8)', async () => {
+  it('PUT /tasks sin sesión → ROUTE_NOT_FOUND, no MISSING_TOKEN (RF-34 de la 002, D-8)', async () => {
     const response = await server.request('/tasks', { method: 'PUT' });
     expect(((await response.json()) as ErrorBody).error.code).toBe('ROUTE_NOT_FOUND');
   });

@@ -17,6 +17,7 @@ class FakeProductiveDateSource implements ProductiveDateSource {
 
 const contextOn = (today: string): RequestContext => ({
   userId: 'user-1',
+  sessionId: 'session-1',
   today: LocalDate.parse(today),
   timeZone: 'Europe/Madrid',
 });

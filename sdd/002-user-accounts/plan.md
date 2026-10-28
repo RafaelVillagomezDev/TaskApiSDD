@@ -101,7 +101,7 @@ Un módulo vertical nuevo, `users`, gestiona cuentas, sesiones, tokens CSRF y bl
 
 | Archivo | Cambio |
 | :--- | :--- |
-| `tasks/infrastructure/task.routes.ts`, `streaks/infrastructure/streak.routes.ts`, `alerts/infrastructure/alert.routes.ts` | Reciben `session` (y, en las rutas que modifican, su variante con CSRF) además de `requestContext`, en el orden `session → requestContext → jsonBody → controlador` (D-8), y registran sus peticiones previas de CORS. |
+| `tasks/infrastructure/task.routes.ts`, `streaks/infrastructure/streak.routes.ts`, `alerts/infrastructure/alert.routes.ts` | Reciben `session` además de `requestContext`, en el orden `session → requestContext → jsonBody → controlador` (D-8), y registran sus peticiones previas de CORS. El mismo middleware de sesión exige `X-CSRF-Token` en `POST`, `PATCH` y `DELETE` según el método (detectado en T089). |
 | Repositorios, casos de uso y controladores de `tasks`, `streaks` y `alerts` | Sin cambios: siguen recibiendo `userId` en `RequestContext`, que ahora es un UUID de `users`. |
 
 ### `tests/` y documentación
@@ -110,12 +110,12 @@ Un módulo vertical nuevo, `users`, gestiona cuentas, sesiones, tokens CSRF y bl
 | :--- | :--- | :--- |
 | `tests/support/in-memory-user.repository.ts`, `in-memory-session.repository.ts`, `in-memory-login-attempt.repository.ts`, `in-memory-csrf-token.repository.ts` | Crea | Fakes de los puertos nuevos. |
 | `tests/support/fake-password-hasher.adapter.ts` | Crea | `PasswordHasher` rápido para tests unitarios y HTTP (el real se prueba aparte). |
-| `tests/support/test.container.ts` | Modifica | Cablea `users` con fakes y exporta `signIn(server, email?)`, que hace `GET /auth/csrf`, registro y login, y devuelve las cabeceras `Cookie` y `X-CSRF-Token`; `clientHeaders` deja de enviar `X-User-Id`. |
+| `tests/support/test.container.ts` | Modifica | Cablea `users` con fakes y exporta `signIn(server, email?)`, que hace `GET /auth/csrf`, registro y login, y devuelve las cabeceras `Cookie` y `X-CSRF-Token`, y `userIdOf(container, email?)`, que da el id de una cuenta para sembrar datos; `clientHeaders` deja de enviar `X-User-Id`. |
 | `tests/integration/test-database.helper.ts` | Modifica | Añade las tablas nuevas a la lista (salvo `users`) y un `createTestUser(prisma)` que crea una cuenta con email único, para los tests que necesitan un `user_id` válido por las claves foráneas. |
 | `tests/integration/global.setup.ts` | Modifica | Tras migrar, vacía `users` (con sus datos en cascada) y los tokens una sola vez por ejecución: vaciar `users` en cada fichero borraría los datos de los demás, que se ejecutan en paralelo (R-12). |
 | `tasks/infrastructure/prisma-task.repository.ts`, `alerts/infrastructure/prisma-alert.repository.ts`, `alerts/infrastructure/prisma-user-time-zone.repository.ts` | Modifica | Sus consultas SQL a mano convierten el `user_id` con `::uuid`: con la columna `UUID`, PostgreSQL no compara ni inserta texto (detectado en T009-T010). |
 | Tests HTTP, de integración y de rendimiento de la 001 | Modifica | Usan sesión y CSRF en lugar de `X-User-Id`; la batería de precedencia por pares incorpora los niveles CSRF y sesión. |
-| `sdd/001-taskApiSDD-mvp/mvp-p1.postman-collection.json` | Modifica | Flujo con `GET /auth/csrf`, registro y login; las cookies las gestiona Postman y un script guarda `csrfToken` en una variable. |
+| `sdd/001-taskApiSDD-mvp/mvp-p1.postman-collection.json` | Modifica | Flujo con `GET /auth/csrf`, registro y login; un script guarda las cookies y `csrfToken` en variables que cada petición envía en `Cookie` y `X-CSRF-Token`, con las cookies automáticas desactivadas (Newman no reenvía cookies `Secure` por http a `host.docker.internal`; detectado en T119). |
 | `sdd/002-user-accounts/quickstart.md` | Crea | Guía manual QS-0 a QS-H7 con `curl -c/-b` para las cookies. |
 | `sdd/001-taskApiSDD-mvp/quickstart.md`, `README.md` | Modifica | La función `api` usa cookies y `X-CSRF-Token`; desaparecen `X-User-Id` y `MISSING_USER`. |
 

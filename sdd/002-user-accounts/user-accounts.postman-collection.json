@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "TaskApiSDD — Cuentas de usuario (002)",
-    "description": "Funcionalidad 002 (sdd/002-user-accounts). Implementado por ahora: H1 (token CSRF previo a la sesión y registro) H2 (login, GET /me y logout) y H3 (renovación con el refresh token y su margen de gracia). Ejecuta '1. Flujo' en orden (Run folder) antes de '2. Errores': la primera petición genera un email nuevo en cada ejecución. Las cookies de sesión se guardan en la variable sessionCookie y se envían en la cabecera Cookie, porque Newman y Postman no reenvían cookies Secure por http a un host que no sea localhost.",
+    "description": "Funcionalidad 002 (sdd/002-user-accounts). Implementado por ahora: H1 (token CSRF previo a la sesión y registro) H2 (login, GET /me y logout) y H3 (renovación con el refresh token y su margen de gracia). Ejecuta '1. Flujo' en orden (Run folder) antes de '2. Errores': la primera petición genera un email nuevo en cada ejecución. Las cookies de sesión se guardan en la variable sessionCookie y se envían en la cabecera Cookie, con las cookies automáticas desactivadas en cada petición, porque Newman y Postman no reenvían cookies Secure por http a un host que no sea localhost.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -99,6 +99,9 @@
                 "csrf"
               ]
             }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
           }
         },
         {
@@ -155,6 +158,9 @@
                 }
               }
             }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
           }
         },
         {
@@ -224,6 +230,9 @@
                 }
               }
             }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
           }
         },
         {
@@ -261,6 +270,9 @@
                 "me"
               ]
             }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
           }
         },
         {
@@ -310,6 +322,9 @@
                 "refresh"
               ]
             }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
           }
         },
         {
@@ -351,6 +366,9 @@
                 "refresh"
               ]
             }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
           }
         },
         {
@@ -385,6 +403,9 @@
                 "me"
               ]
             }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
           }
         },
         {
@@ -430,6 +451,9 @@
                 "logout"
               ]
             }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
           }
         },
         {
@@ -467,6 +491,9 @@
                 "me"
               ]
             }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
           }
         }
       ]
@@ -523,6 +550,9 @@
                 }
               }
             }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
           }
         },
         {
@@ -575,6 +605,9 @@
                 }
               }
             }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
           }
         },
         {
@@ -627,6 +660,9 @@
                 }
               }
             }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
           }
         },
         {
@@ -674,6 +710,9 @@
                 }
               }
             }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
           }
         },
         {
@@ -725,6 +764,9 @@
                 }
               }
             }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
           }
         },
         {
@@ -772,6 +814,9 @@
                 }
               }
             }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
           }
         },
         {
@@ -824,6 +869,9 @@
                 }
               }
             }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
           }
         },
         {
@@ -878,6 +926,9 @@
                 }
               }
             }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
           }
         },
         {
@@ -925,6 +976,9 @@
                 }
               }
             }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
           }
         },
         {
@@ -957,6 +1011,9 @@
                 "me"
               ]
             }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
           }
         },
         {
@@ -994,6 +1051,9 @@
                 "me"
               ]
             }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
           }
         },
         {
@@ -1032,6 +1092,9 @@
                 "logout"
               ]
             }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
           }
         },
         {
@@ -1070,6 +1133,9 @@
                 "logout"
               ]
             }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
           }
         },
         {
@@ -1108,6 +1174,9 @@
                 "refresh"
               ]
             }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
           }
         },
         {
@@ -1146,6 +1215,9 @@
                 "refresh"
               ]
             }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
           }
         },
         {
@@ -1188,6 +1260,9 @@
                 "refresh"
               ]
             }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
           }
         },
         {
@@ -1221,6 +1296,9 @@
                 "register"
               ]
             }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
           }
         }
       ]
@@ -1270,6 +1348,9 @@
                 "csrf"
               ]
             }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
           }
         },
         {
@@ -1314,6 +1395,9 @@
                 "register"
               ]
             }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
           }
         },
         {
@@ -1358,6 +1442,9 @@
                 "login"
               ]
             }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
           }
         },
         {
@@ -1402,6 +1489,9 @@
                 "logout"
               ]
             }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
           }
         },
         {
@@ -1446,6 +1536,9 @@
                 "refresh"
               ]
             }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
           }
         },
         {
@@ -1489,6 +1582,9 @@
                 "me"
               ]
             }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
           }
         },
         {
@@ -1530,6 +1626,9 @@
                 "register"
               ]
             }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
           }
         }
       ]

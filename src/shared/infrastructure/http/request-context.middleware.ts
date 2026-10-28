@@ -5,12 +5,8 @@ import { AppError } from '../../domain/app.error.js';
 import type { Clock } from '../../domain/clock.port.js';
 import { LocalDate } from '../../domain/local-date.value-object.js';
 import type { TimeZoneService } from '../../domain/time-zone.port.js';
-import {
-  CLIENT_TIME_PATTERN,
-  clientTimeHeaderSchema,
-  timeZoneHeaderSchema,
-  userIdHeaderSchema,
-} from './request-header.schema.js';
+import { CLIENT_TIME_PATTERN, clientTimeHeaderSchema, timeZoneHeaderSchema } from './request-header.schema.js';
+import { getSessionContext } from './session-context.helper.js';
 
 // Desviación máxima entre X-Client-Time y el reloj del servidor (RF-31)
 const MAX_CLIENT_TIME_SKEW_MS = 5 * 60 * 1000;
@@ -19,7 +15,8 @@ const CONTEXT_KEY = 'requestContext';
 export interface RequestContextDependencies {
   clock: Clock;
   timeZones: TimeZoneService;
-  // Se llama en cuanto las tres cabeceras son válidas, aunque la petición falle después (RF-34, D-1)
+  // Se llama en cuanto la sesión y las dos cabeceras son válidas, aunque la petición falle después
+  // (RF-34 de la 001 matizado por RF-31 de la 002, D-1)
   onAcceptedTimeZone: (userId: string, timeZone: string) => Promise<void>;
 }
 
@@ -50,19 +47,16 @@ function parseClientTime(value: string): ClientTime | null {
   return { instant: new Date(localMs - offset * 60_000), localDate, offsetMinutes: offset };
 }
 
-// Valida las cabeceras en el orden 2 → 4 de la precedencia de RF-46 y deja el RequestContext en
-// res.locals. Se encadena en cada ruta, nunca de forma global (D-8)
+// Valida la hora y la zona (niveles 4 y 5 de la precedencia de RF-34 de la 002) y deja el RequestContext
+// en res.locals. Va siempre después del middleware de sesión, que identifica al usuario (RF-17 de la 002);
+// la cabecera de usuario de la 001 ya no se lee (RF-32 de la 002). Se encadena en cada ruta, nunca de
+// forma global (D-8)
 export function createRequestContextMiddleware(deps: RequestContextDependencies): RequestHandler {
   return async (req, res, next) => {
     try {
-      // 2. Usuario
-      const userId = userIdHeaderSchema.safeParse(req.header('x-user-id'));
-      if (!userId.success) {
-        next(new AppError('MISSING_USER'));
-        return;
-      }
+      const session = getSessionContext(res);
 
-      // 3. Hora del dispositivo
+      // 4. Hora del dispositivo
       const rawClientTime = req.header('x-client-time');
       const formatOk = clientTimeHeaderSchema.safeParse(rawClientTime).success;
       const clientTime = formatOk && rawClientTime ? parseClientTime(rawClientTime) : null;
@@ -72,7 +66,7 @@ export function createRequestContextMiddleware(deps: RequestContextDependencies)
         console.warn(
           JSON.stringify({
             event: 'INVALID_CLIENT_TIME',
-            userId: userId.data,
+            userId: session.userId,
             clientTime: rawClientTime ?? null,
             deviationSeconds: deviationMs === null ? null : Math.round(deviationMs / 1000),
           }),
@@ -81,7 +75,7 @@ export function createRequestContextMiddleware(deps: RequestContextDependencies)
         return;
       }
 
-      // 4. Zona horaria válida y coherente con el desfase de la hora
+      // 5. Zona horaria válida y coherente con el desfase de la hora
       const timeZone = timeZoneHeaderSchema.safeParse(req.header('x-timezone'));
       if (
         !timeZone.success ||
@@ -92,10 +86,10 @@ export function createRequestContextMiddleware(deps: RequestContextDependencies)
         return;
       }
 
-      await deps.onAcceptedTimeZone(userId.data, timeZone.data);
+      await deps.onAcceptedTimeZone(session.userId, timeZone.data);
 
       const context: RequestContext = {
-        userId: userId.data,
+        ...session,
         // El día actual es la fecha local del dispositivo (RF-23)
         today: clientTime.localDate,
         timeZone: timeZone.data,

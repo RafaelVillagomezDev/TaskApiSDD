@@ -3,7 +3,7 @@
 Guía para probar a mano cada historia. Los *checkpoints* de `tasks.md` citan estos pasos (QS-0.1, QS-H1.1…).
 Todo el servidor corre en Docker (AGENTS.md); en tu máquina solo se usan `curl` y `date`.
 
-> **Alternativa con Postman (QS-H1 a QS-H6):** importa `sdd/001-taskApiSDD-mvp/mvp-p1.postman-collection.json`, ajusta la variable de colección `timeZone` a la zona de tu ordenador y ejecuta la carpeta "1. Flujo MVP" (*Run folder*) y después "2. Errores". La carpeta "3. Mis tareas" lista las tareas del usuario de la variable `myUserId`: ponle el mismo valor que uses en `X-User-Id` al crear tus tareas. Para ejecutarla desde la terminal sin instalar nada:
+> **Alternativa con Postman (QS-H1 a QS-H6):** importa `sdd/001-taskApiSDD-mvp/mvp-p1.postman-collection.json`, ajusta la variable de colección `timeZone` a la zona de tu ordenador y ejecuta la carpeta "1. Flujo MVP" (*Run folder*) y después "2. Errores". El flujo crea una cuenta nueva e inicia sesión, y cada petición envía la cookie y el token CSRF de esa sesión (funcionalidad 002). La carpeta "3. Mis tareas" entra con la cuenta de las variables `myEmail` y `myPassword` (la crea si no existe) y lista sus tareas. Para ejecutarla desde la terminal sin instalar nada:
 > ```bash
 > docker run --rm -e TZ=Europe/Madrid -v "$PWD/sdd/001-taskApiSDD-mvp":/etc/newman postman/newman:6-alpine \
 >   run mvp-p1.postman-collection.json --env-var baseUrl=http://host.docker.internal:3000
@@ -31,20 +31,33 @@ Todo el servidor corre en Docker (AGENTS.md); en tu máquina solo se usan `curl`
   → `Already in sync` o la lista de migraciones aplicadas.
 
 ### Ayuda para las peticiones
-Pega esto en tu terminal (zsh o bash, macOS o Linux). Define la función `api`, que envía las tres cabeceras obligatorias con la hora y la zona actuales de tu máquina:
+Pega esto en tu terminal (zsh o bash, macOS o Linux). Desde la funcionalidad 002 el usuario sale de la sesión (cookies y `X-CSRF-Token`), no de una cabecera. `signin` crea la cuenta si no existe, inicia sesión con ella y deja en `USER_ID` su id (el UUID que usan los `INSERT` de `psql` de esta guía). `api` envía las cookies de la sesión, el token CSRF y las cabeceras de hora y zona actuales de tu máquina:
 
 ```bash
 export API=http://localhost:3000
 export TZ_NAME=$(readlink /etc/localtime | sed 's#.*/zoneinfo/##')   # p. ej. Europe/Madrid
 now() { date +%Y-%m-%dT%H:%M:%S%z | sed -E 's/([+-][0-9]{2})([0-9]{2})$/\1:\2/'; }   # ISO 8601 con ±HH:MM
+# signin <nombre>: cuenta <nombre>@example.com con sus cookies en $JAR y su token CSRF en $CSRF
+signin() {
+  local name=${1:-demo} presession
+  export EMAIL="$name@example.com" JAR="${TMPDIR:-/tmp}/taskapi-$name.jar"
+  presession=$(curl -s $API/auth/csrf | sed -E 's/.*"csrfToken":"([^"]+)".*/\1/')
+  curl -s -o /dev/null -X POST $API/auth/register -H "Content-Type: application/json" -H "X-CSRF-Token: $presession" \
+       -d "{\"email\":\"$EMAIL\",\"password\":\"correct horse battery\"}"
+  export CSRF=$(curl -s -c "$JAR" -X POST $API/auth/login -H "Content-Type: application/json" -H "X-CSRF-Token: $presession" \
+       -d "{\"email\":\"$EMAIL\",\"password\":\"correct horse battery\"}" | sed -E 's/.*"csrfToken":"([^"]+)".*/\1/')
+  export USER_ID=$(curl -s -b "$JAR" $API/me | sed -E 's/.*"id":"([^"]+)".*/\1/')
+}
 api() {
-  curl -s -H "X-User-Id: ${USER_ID:-demo}" -H "X-Client-Time: $(now)" -H "X-Timezone: $TZ_NAME" \
+  curl -s -b "$JAR" -c "$JAR" -H "X-CSRF-Token: ${CSRF:-}" -H "X-Client-Time: $(now)" -H "X-Timezone: $TZ_NAME" \
        -H "Content-Type: application/json" "$@"
   echo
 }
+signin demo
 ```
 
-- Otro usuario: `USER_ID=otra api ...`.
+- Otro usuario: `signin otra` (y `signin demo` para volver). Para una sola petición, sin cambiar de sesión: `( signin otra; api ... )`.
+- El token de acceso dura 15 minutos: si una petición responde `401 TOKEN_EXPIRED`, renueva la sesión con `curl -s -b "$JAR" -c "$JAR" -X POST -H "X-CSRF-Token: $CSRF" $API/auth/refresh` o vuelve a ejecutar `signin`.
 - Petición sin alguna cabecera: usa `curl` directamente.
 
 ### Comprobaciones
@@ -95,11 +108,11 @@ YESTERDAY=$(date -v-1d +%F 2>/dev/null || date -d yesterday +%F)   # macOS || Li
   api -X POST $API/tasks -d "{\"title\":\"Tarde\",\"date\":\"$YESTERDAY\"}"
   ```
   → `409 DAY_CLOSED`.
-- **QS-H1.5** Sin `X-User-Id`:
+- **QS-H1.5** Sin sesión (sin cookies), aunque se envíe `X-User-Id`:
   ```bash
-  curl -s "$API/tasks?date=$TODAY"; echo
+  curl -s "$API/tasks?date=$TODAY" -H "X-User-Id: $USER_ID" -H "X-Client-Time: $(now)" -H "X-Timezone: $TZ_NAME"; echo
   ```
-  → `401 MISSING_USER`.
+  → `401 MISSING_TOKEN`: la cabecera ya no identifica a nadie (RF-18 y RF-32 de la 002).
 - **QS-H1.6** Método inexistente:
   ```bash
   curl -s -X PUT $API/tasks; echo
@@ -150,7 +163,7 @@ id() { sed -E 's/.*"id":"([^"]+)".*/\1/'; }
 
 ## QS-H3 — Ver mi racha actual y mi mejor racha (HU-03)
 
-Usa `api`, `id` y `TODAY` de las secciones anteriores, con un usuario nuevo: `export USER_ID=racha-$RANDOM`.
+Usa `api`, `id` y `TODAY` de las secciones anteriores, con un usuario nuevo: `signin racha-$RANDOM`.
 
 - **QS-H3.1** Racha de un usuario nuevo:
   ```bash
@@ -186,7 +199,7 @@ Usa `api`, `id` y `TODAY` de las secciones anteriores, con un usuario nuevo: `ex
 Usa `api`, `id` y `TODAY` de las secciones anteriores, con un usuario nuevo para que la lista solo tenga estas tareas. La API no deja crear tareas en días pasados, así que el rango se prueba con días futuros:
 
 ```bash
-export USER_ID=h4-$RANDOM
+signin h4-$RANDOM
 D1=$(date -v+1d +%F 2>/dev/null || date -d '1 day' +%F)
 D2=$(date -v+2d +%F 2>/dev/null || date -d '2 days' +%F)
 D3=$(date -v+3d +%F 2>/dev/null || date -d '3 days' +%F)
@@ -227,7 +240,7 @@ api -X PATCH $API/tasks/$A -d '{"completed":true}' > /dev/null   # A queda compl
 - **QS-H4.6** Consultar una tarea por id, propia y ajena:
   ```bash
   api $API/tasks/$A
-  USER_ID=otra api $API/tasks/$A
+  ( signin otra; api $API/tasks/$A )
   ```
   → `200` con la tarea `A hoy` y `completed: true`; la segunda → `404 TASK_NOT_FOUND`.
 
@@ -236,7 +249,7 @@ api -X PATCH $API/tasks/$A -d '{"completed":true}' > /dev/null   # A queda compl
 Usa `api`, `id`, `TODAY` y `YESTERDAY` de las secciones anteriores, con un usuario nuevo:
 
 ```bash
-export USER_ID=h5-$RANDOM
+signin h5-$RANDOM
 E=$(api -X POST $API/tasks -d "{\"title\":\"Borrador\",\"description\":\"Nota\",\"date\":\"$TODAY\"}" | id)
 ```
 
@@ -278,7 +291,7 @@ for z in Pacific/Pago_Pago Pacific/Honolulu America/Anchorage America/Los_Angele
   [ "$(TZ=$z date +%H)" -ge 22 ] && { ZONE=$z; break; }
 done; echo "$ZONE"
 export TZ=$ZONE TZ_NAME=$ZONE            # `now` y las cabeceras de `api` pasan a usar esa zona
-export USER_ID=h6-$RANDOM
+signin h6-$RANDOM
 ZTODAY=$(date +%F)                       # "hoy" en esa zona
 ```
 
@@ -305,11 +318,12 @@ ZTODAY=$(date +%F)                       # "hoy" en esa zona
   api $API/alerts
   ```
   → los mismos avisos, sin duplicados (RF-28, RF-47).
-- **QS-H6.5** Un usuario que nunca ha hecho una petición no recibe avisos. Su tarea se inserta directamente en la base de datos y se comprueba allí, porque consultar `GET /alerts` con ese usuario ya recordaría su zona:
+- **QS-H6.5** Un usuario que nunca ha hecho una petición no recibe avisos. Su cuenta y su tarea se insertan directamente en la base de datos y se comprueba allí, porque consultar `GET /alerts` con ese usuario ya recordaría su zona:
   ```bash
-  docker compose -f docker-compose.dev.yml exec -T db sh -c "psql -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" -qc \"insert into tasks (user_id, title, date, updated_at) values ('nunca-$USER_ID', 'Sin zona', '$ZTODAY', now())\""
+  NUNCA=$(docker compose -f docker-compose.dev.yml exec -T db sh -c "psql -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" -Atc \"insert into users (email, password_hash, updated_at) values ('nunca-$RANDOM@example.com', 'sin-uso', now()) returning id\"" | head -1)
+  docker compose -f docker-compose.dev.yml exec -T db sh -c "psql -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" -qc \"insert into tasks (user_id, title, date, updated_at) values ('$NUNCA', 'Sin zona', '$ZTODAY', now())\""
   sleep 65
-  docker compose -f docker-compose.dev.yml exec -T db sh -c "psql -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" -Atc \"select count(*) from alerts where user_id = 'nunca-$USER_ID'\""
+  docker compose -f docker-compose.dev.yml exec -T db sh -c "psql -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" -Atc \"select count(*) from alerts where user_id = '$NUNCA'\""
   ```
   → `0` (RF-36).
 

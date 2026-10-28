@@ -72,7 +72,14 @@ export function createContainer(): Container {
   const timeZones = new IntlTimeZoneAdapter();
   const prisma = getPrismaClient();
 
-  // Módulo alerts: la zona se recuerda en cuanto las cabeceras son válidas (RF-34, D-1)
+  // Sesión del módulo users (spec 002): la usan las rutas protegidas de todos los módulos, que la reciben
+  // inyectada sin importar users (principio V). Exige X-CSRF-Token en POST, PATCH y DELETE (RF-17, RF-23)
+  const tokens = new CryptoTokenService();
+  const sessions = new PrismaSessionRepository(prisma);
+  const verifyCsrf = new VerifySessionCsrfUseCase(tokens);
+  const session = createSessionMiddleware(new AuthenticateSessionUseCase(sessions, tokens, verifyCsrf, clock));
+
+  // Módulo alerts: la zona se recuerda con la sesión y las cabeceras válidas (RF-31 de la 002, D-1)
   const userTimeZones = new PrismaUserTimeZoneRepository(prisma);
   const recordUserTimeZone = new RecordUserTimeZoneUseCase(userTimeZones);
 
@@ -91,12 +98,13 @@ export function createContainer(): Container {
     new GetTaskUseCase(taskRepository),
     new DeleteTaskUseCase(taskRepository),
   );
-  const taskRouter = createTaskRouter({ controller: taskController, requestContext });
+  const taskRouter = createTaskRouter({ controller: taskController, session, requestContext });
 
   // Módulo streaks: lee los días productivos a través de la fachada de tasks
   const productiveDates = new ProductiveDateAdapter(new GetProductiveDateUseCase(taskRepository));
   const streakRouter = createStreakRouter({
     controller: new StreakController(new GetStreakUseCase(productiveDates)),
+    session,
     requestContext,
   });
 
@@ -108,19 +116,16 @@ export function createContainer(): Container {
   );
   const alertRouter = createAlertRouter({
     controller: new AlertController(new ListAlertsUseCase(alertRepository)),
+    session,
     requestContext,
   });
 
   // Módulo users (spec 002): registro y login con token CSRF previo a la sesión, renovación, logout y perfil.
   // Un solo hasher para que el hash ficticio del login se calcule una vez (D-3)
-  const tokens = new CryptoTokenService();
   const csrfTokens = new PrismaCsrfTokenRepository(prisma);
   const users = new PrismaUserRepository(prisma);
-  const sessions = new PrismaSessionRepository(prisma);
   const loginAttempts = new PrismaLoginAttemptRepository(prisma);
   const passwordHasher = new Argon2PasswordHasher();
-  const verifyCsrf = new VerifySessionCsrfUseCase(tokens);
-  const session = createSessionMiddleware(new AuthenticateSessionUseCase(sessions, tokens, verifyCsrf, clock));
   const authRouter = createAuthRouter({
     controller: new AuthController(
       new IssueCsrfTokenUseCase(tokens, csrfTokens, clock),

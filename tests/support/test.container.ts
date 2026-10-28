@@ -80,6 +80,12 @@ export function createTestContainer(): TestContainer {
   const userTimeZones = new InMemoryUserTimeZoneRepository();
   const recordUserTimeZone = new RecordUserTimeZoneUseCase(userTimeZones);
 
+  // Sesión antes que las rutas protegidas, como en dependency.container.ts
+  const tokens = new CryptoTokenService();
+  const sessions = new InMemorySessionRepository();
+  const verifyCsrf = new VerifySessionCsrfUseCase(tokens);
+  const session = createSessionMiddleware(new AuthenticateSessionUseCase(sessions, tokens, verifyCsrf, clock));
+
   const requestContext = createRequestContextMiddleware({
     clock,
     timeZones,
@@ -93,11 +99,12 @@ export function createTestContainer(): TestContainer {
     new GetTaskUseCase(tasks),
     new DeleteTaskUseCase(tasks),
   );
-  const taskRouter = createTaskRouter({ controller: taskController, requestContext });
+  const taskRouter = createTaskRouter({ controller: taskController, session, requestContext });
 
   const productiveDates = new ProductiveDateAdapter(new GetProductiveDateUseCase(tasks));
   const streakRouter = createStreakRouter({
     controller: new StreakController(new GetStreakUseCase(productiveDates)),
+    session,
     requestContext,
   });
 
@@ -110,17 +117,14 @@ export function createTestContainer(): TestContainer {
   );
   const alertRouter = createAlertRouter({
     controller: new AlertController(new ListAlertsUseCase(alerts)),
+    session,
     requestContext,
   });
 
-  const tokens = new CryptoTokenService();
   const users = new InMemoryUserRepository();
   const csrfTokens = new InMemoryCsrfTokenRepository();
-  const sessions = new InMemorySessionRepository();
   const loginAttempts = new InMemoryLoginAttemptRepository();
   const passwordHasher = new FakePasswordHasher();
-  const verifyCsrf = new VerifySessionCsrfUseCase(tokens);
-  const session = createSessionMiddleware(new AuthenticateSessionUseCase(sessions, tokens, verifyCsrf, clock));
   const authRouter = createAuthRouter({
     controller: new AuthController(
       new IssueCsrfTokenUseCase(tokens, csrfTokens, clock),
@@ -151,16 +155,15 @@ export function createTestContainer(): TestContainer {
 }
 
 export interface ClientHeaderOptions {
-  userId?: string;
   clientTime?: string;
   timeZone?: string;
 }
 
-// Cabeceras obligatorias coherentes con el reloj por defecto del contenedor de test
+// Cabeceras de hora y zona coherentes con el reloj por defecto del contenedor de test. El usuario sale de
+// la sesión: se combinan con las de signIn (RF-17 y RF-32 de la 002)
 export function clientHeaders(options: ClientHeaderOptions = {}): Record<string, string> {
   return {
     'Content-Type': 'application/json',
-    'X-User-Id': options.userId ?? 'user-1',
     'X-Client-Time': options.clientTime ?? '2026-10-24T12:00:00+02:00',
     'X-Timezone': options.timeZone ?? 'Europe/Madrid',
   };
@@ -218,4 +221,13 @@ export async function signIn(server: TestServer, email = 'ana@example.com'): Pro
   }
   const body = (await response.json()) as { data: { csrfToken: string } };
   return { Cookie: cookiesFrom(response), 'X-CSRF-Token': body.data.csrfToken };
+}
+
+// Id de la cuenta de un email registrado, para sembrar sus datos directamente en los repositorios en memoria
+export async function userIdOf(container: TestContainer, email = 'ana@example.com'): Promise<string> {
+  const user = await container.users.findByEmail(email);
+  if (!user) {
+    throw new Error(`userIdOf: no hay ninguna cuenta con el email ${email}`);
+  }
+  return user.id;
 }

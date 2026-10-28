@@ -8,7 +8,7 @@ import { PrismaTaskRepository } from '../../src/modules/tasks/infrastructure/pri
 import { GetPendingTaskUseCase } from '../../src/modules/tasks/task.facade.js';
 import { LocalDate } from '../../src/shared/domain/local-date.value-object.js';
 import { IntlTimeZoneAdapter } from '../../src/shared/infrastructure/time/intl-time-zone.adapter.js';
-import { createTestUser, truncateTables } from '../integration/test-database.helper.js';
+import { truncateTables } from '../integration/test-database.helper.js';
 import { FakeClock } from '../support/fake-clock.adapter.js';
 import { startTestServer, type TestServer } from '../support/test.container.js';
 
@@ -33,15 +33,41 @@ const ZONE = 'Etc/UTC';
 
 // Hora actual con desfase ±HH:MM, como la envía un dispositivo en UTC (RF-31)
 const clientTime = () => `${new Date().toISOString().slice(0, 19)}+00:00`;
-// Cuenta del usuario de las pruebas HTTP; se crea en beforeAll (claves foráneas de user_id)
+// Cuenta y sesión del usuario de las pruebas HTTP: se registra e inicia sesión en beforeAll, y cada petición
+// lleva su cookie y su token CSRF (RF-17 y RF-23 de la 002). La sesión dura más que las pruebas (15 min)
 let userId = '';
+let sessionCookie = '';
+let csrfToken = '';
+const PASSWORD = 'correct horse battery';
 
 const headers = () => ({
   'Content-Type': 'application/json',
-  'X-User-Id': userId,
+  Cookie: sessionCookie,
+  'X-CSRF-Token': csrfToken,
   'X-Client-Time': clientTime(),
   'X-Timezone': ZONE,
 });
+
+// GET /auth/csrf, registro y login con la API real (Argon2id incluido)
+const signIn = async (server: TestServer) => {
+  const presession = (await (await server.request('/auth/csrf')).json()) as { data: { csrfToken: string } };
+  const init = (body: unknown): RequestInit => ({
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': presession.data.csrfToken },
+    body: JSON.stringify(body),
+  });
+  const email = `perf-${Date.now()}@test.local`;
+  await server.request('/auth/register', init({ email, password: PASSWORD }));
+  const login = await server.request('/auth/login', init({ email, password: PASSWORD }));
+  if (login.status !== 200) throw new Error(`login de rendimiento: respuesta ${login.status}`);
+  const { data } = (await login.json()) as { data: { user: { id: string }; csrfToken: string } };
+  userId = data.user.id;
+  csrfToken = data.csrfToken;
+  sessionCookie = login.headers
+    .getSetCookie()
+    .map((cookie) => cookie.split(';')[0])
+    .join('; ');
+};
 
 const p95 = (durations: number[]) => {
   const sorted = [...durations].sort((a, b) => a - b);
@@ -81,8 +107,8 @@ describe('rendimiento (RNF-01, CE-05, R-1)', () => {
   beforeAll(async () => {
     container = createContainer();
     await truncateTables(container.prisma);
-    userId = await createTestUser(container.prisma, 'perf');
     server = await startTestServer(createApp(container));
+    await signIn(server);
     today = LocalDate.fromUtcDate(new Date());
 
     // 10 000 tareas en los últimos 3 años, unas 9 por día, la mitad completadas
