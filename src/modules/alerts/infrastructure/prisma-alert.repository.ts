@@ -17,7 +17,7 @@ export class PrismaAlertRepository implements AlertRepository {
     return this.prisma.$transaction(async (tx) => {
       const claimed = await tx.$executeRaw`
         INSERT INTO "alert_period_checks" ("user_id", "type", "period_start")
-        VALUES (${period.userId}, ${period.type}::"alert_type", ${period.periodStart.toString()}::date)
+        VALUES (${period.userId}::uuid, ${period.type}::"alert_type", ${period.periodStart.toString()}::date)
         ON CONFLICT DO NOTHING`;
       if (claimed === 0) return null;
 

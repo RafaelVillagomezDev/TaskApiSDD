@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { startTestServer, type TestServer } from '../../../../../tests/support/test.container.js';
 import { createApp } from '../../../../app.factory.js';
 import { AppError } from '../../../domain/app.error.js';
+import { ERROR_CODES, type ErrorCode } from '../../../domain/error-code.constant.js';
 import { jsonBodyMiddleware } from '../json-body.middleware.js';
 import { parseOrThrow } from '../request-validation.helper.js';
 import { sendSuccess } from '../response-envelope.helper.js';
@@ -26,6 +27,9 @@ function buildTestRouter(): Router {
   router.post('/echo', jsonBodyMiddleware, (req, res) => {
     const body = parseOrThrow(z.object({ title: z.string().min(1) }), req.body);
     sendSuccess(res, 201, 'Creado', body);
+  });
+  router.get('/fail/:code', (req) => {
+    throw new AppError(req.params.code as ErrorCode);
   });
   router.get('/boom', () => {
     throw new Error('detalle interno que no debe salir');
@@ -91,6 +95,27 @@ describe('sobre de error y middlewares transversales (principio VII, RF-46)', ()
     });
     expect(response.status).toBe(400);
     expect(await response.json()).toMatchObject({ success: false, error: { code: 'VALIDATION_ERROR' } });
+  });
+
+  // Códigos de las cuentas de usuario (spec 002, RF-34): HTTP de la tabla de la spec y mensaje en español
+  it.each([
+    ['INVALID_CSRF_TOKEN', 403],
+    ['MISSING_TOKEN', 401],
+    ['INVALID_TOKEN', 401],
+    ['TOKEN_EXPIRED', 401],
+    ['INVALID_REFRESH_TOKEN', 401],
+    ['SESSION_EXPIRED', 401],
+    ['TOO_MANY_ATTEMPTS', 429],
+    ['INVALID_CREDENTIALS', 401],
+    ['WRONG_PASSWORD', 403],
+    ['EMAIL_ALREADY_REGISTERED', 409],
+  ])('%s → %i con el sobre y su mensaje en español (RF-34, RNF-02)', async (code, status) => {
+    const response = await server.request(`/fail/${code}`);
+    const body = (await response.json()) as { status: number; error: { code: string; message: string; details?: unknown } };
+    expect(response.status).toBe(status);
+    expect(body).toEqual({ success: false, status, error: { code, message: expect.any(String) } });
+    expect(body.error.message).toBe(ERROR_CODES[code as ErrorCode].message);
+    expect(body.error.message).toMatch(/[a-záéíóúñ]/);
   });
 
   it('un error inesperado → INTERNAL_ERROR sin detalles internos', async () => {

@@ -4,7 +4,7 @@ API REST para **organizar tareas diarias** y medir la **constancia** con una **r
 
 Está construida con **Spec-Driven Development (SDD)**: primero se escribe *qué* debe hacer el sistema (la spec), después *cómo* (el plan), después las *tareas*, y solo al final el código.
 
-> **Estado:** el MVP P1 funciona de principio a fin: crear tareas, consultarlas, completarlas y ver la racha. Las historias P2 y P3 también están hechas: listar todas las tareas con filtros de estado y rango de fechas, consultar una tarea por su id (H4), editar el título y la descripción o borrar tareas (H5), y avisos diarios, semanales y mensuales de tareas pendientes (H6). La fase de robustez también está hecha (precedencia de errores por pares y rendimiento). La imagen de producción está construida y probada en local (`Dockerfile.prod`, `docker-compose.prod.yml`): todas las tareas de la funcionalidad 001 están hechas. **En curso:** funcionalidad 002, cuentas de usuario (registro, login, sesión en cookies con refresh token y protección CSRF), con la spec y el plan aprobados y 121 tareas en `tasks.md`; siguiente paso: implementarlas. Ver [Estado del proyecto](#estado-del-proyecto).
+> **Estado:** el MVP P1 funciona de principio a fin: crear tareas, consultarlas, completarlas y ver la racha. Las historias P2 y P3 también están hechas: listar todas las tareas con filtros de estado y rango de fechas, consultar una tarea por su id (H4), editar el título y la descripción o borrar tareas (H5), y avisos diarios, semanales y mensuales de tareas pendientes (H6). La fase de robustez también está hecha (precedencia de errores por pares y rendimiento). La imagen de producción está construida y probada en local (`Dockerfile.prod`, `docker-compose.prod.yml`): todas las tareas de la funcionalidad 001 están hechas. **En curso:** funcionalidad 002, cuentas de usuario (registro, login, sesión en cookies con refresh token y protección CSRF), con la spec y el plan aprobados y la fase base de `tasks.md` hecha (43 de 121 tareas); siguiente paso: H1, el registro. Ver [Estado del proyecto](#estado-del-proyecto).
 
 ---
 
@@ -670,7 +670,7 @@ Abre `graphify-out/graph.html` en el navegador para verlo de forma interactiva.
 
 ### Funcionalidad 002 — Cuentas de usuario (en curso)
 
-[`spec.md`](sdd/002-user-accounts/spec.md) *Aprobada*, [`plan.md`](sdd/002-user-accounts/plan.md) *Aprobado* y [`tasks.md`](sdd/002-user-accounts/tasks.md) con 121 tareas pendientes (fase base, H1–H7 y robustez). Lo que cambia respecto a la 001:
+[`spec.md`](sdd/002-user-accounts/spec.md) *Aprobada*, [`plan.md`](sdd/002-user-accounts/plan.md) *Aprobado* y [`tasks.md`](sdd/002-user-accounts/tasks.md): fase base hecha (43 de 121 tareas: `argon2`, configuración, migración, dominio, adaptadores criptográficos, repositorios y CORS); faltan H1–H7 y robustez. **La migración vacía las tareas, avisos y zonas de desarrollo** (RF-33): hasta terminar H4, `X-User-Id` debe ser el UUID de una cuenta de la tabla `users`. Lo que cambia respecto a la 001:
 
 - **Cuentas propias:** registro con email y contraseña (12–128 caracteres), login, perfil (`GET`/`PATCH /me`), cambio de contraseña y borrado de la cuenta.
 - **Sesión en cookies `HttpOnly`:** es la única forma de identificarse; `X-User-Id` y `MISSING_USER` se eliminan de la API; los datos guardados con identificadores antiguos se borran al migrar. Token de acceso de 15 minutos y *refresh token* de 7 días que rota en cada renovación, con un margen de gracia de 30 segundos y un tope de 30 días por sesión.

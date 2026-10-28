@@ -22,8 +22,9 @@ enum AlertType {
 // Tarea de un usuario para un día concreto
 model Task {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  // Valor de la cabecera X-User-Id
-  userId      String   @map("user_id")
+  // Cuenta propietaria (sdd/002); se borra con ella
+  userId      String   @map("user_id") @db.Uuid
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   // Ya recortado (RF-38)
   title       String   @db.VarChar(200)
   // Ya recortada; vacía se guarda como NULL (RF-38)
@@ -32,7 +33,7 @@ model Task {
   date        DateTime @db.Date
   completed   Boolean  @default(false)
   // Orden de creación exacto, aunque dos tareas se creen en el mismo milisegundo (RF-41, D-24)
-  sequence    BigInt   @default(autoincrement()) @unique
+  sequence    BigInt   @unique @default(autoincrement())
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -46,7 +47,8 @@ model Task {
 // Aviso registrado: copia inmutable de las tareas pendientes en el momento del aviso (RF-30)
 model Alert {
   id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId      String    @map("user_id")
+  userId      String    @map("user_id") @db.Uuid
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   type        AlertType
   // Día, lunes o día 1 según el tipo
   periodStart DateTime  @map("period_start") @db.Date
@@ -66,7 +68,8 @@ model Alert {
 
 // Periodo ya evaluado por el planificador, haya generado aviso o no (RF-27, RF-28, D-7)
 model AlertPeriodCheck {
-  userId      String    @map("user_id")
+  userId      String    @map("user_id") @db.Uuid
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   type        AlertType
   periodStart DateTime  @map("period_start") @db.Date
   checkedAt   DateTime  @default(now()) @map("checked_at") @db.Timestamptz(3)
@@ -77,9 +80,91 @@ model AlertPeriodCheck {
 
 // Última zona horaria IANA válida recibida de cada usuario (RF-34)
 model UserTimeZone {
-  userId    String   @id @map("user_id")
+  userId    String   @id @map("user_id") @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   timeZone  String   @map("time_zone") @db.VarChar(64)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@map("user_time_zones")
+}
+
+// Cuenta de usuario (sdd/002). Borrarla borra en cascada todos sus datos (RF-29, D-9)
+model User {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  // Recortado y en minúsculas: el índice único garantiza la unicidad sin mayúsculas (RF-03)
+  email        String   @unique @db.VarChar(254)
+  // Cadena PHC de Argon2id: $argon2id$v=19$m=19456,p=1,t=2$<sal>$<hash> (D-2)
+  passwordHash String   @map("password_hash") @db.VarChar(255)
+  // Recortado; vacío → NULL (RF-05)
+  name         String?  @db.VarChar(100)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  tasks             Task[]
+  alerts            Alert[]
+  alertPeriodChecks AlertPeriodCheck[]
+  timeZone          UserTimeZone?
+  sessions          Session[]
+
+  @@map("users")
+}
+
+// Sesión abierta en un login. Solo se guardan huellas SHA-256 de sus tokens (RNF-06, D-1)
+model Session {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String    @map("user_id") @db.Uuid
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Sube 1 en cada rotación (RF-11)
+  generation       Int       @default(0)
+  // Huella del token de acceso vigente; solo vale el de la generación actual (D-14)
+  accessTokenHash  String    @unique @map("access_token_hash") @db.Char(64)
+  // Huella del token CSRF de la sesión, fijo durante toda la sesión (RF-24)
+  csrfTokenHash    String    @map("csrf_token_hash") @db.Char(64)
+  accessExpiresAt  DateTime  @map("access_expires_at") @db.Timestamptz(3)
+  refreshExpiresAt DateTime  @map("refresh_expires_at") @db.Timestamptz(3)
+  // Login + 30 días: tope absoluto (RF-11, RF-12)
+  expiresAt        DateTime  @map("expires_at") @db.Timestamptz(3)
+  // Última rotación, para el margen de gracia de 30 s (RF-13)
+  rotatedAt        DateTime? @map("rotated_at") @db.Timestamptz(3)
+  // Copia AES-256-GCM de los tokens de la última rotación; se borra a los 30 s (D-1, D-12)
+  graceTokens      String?   @map("grace_tokens")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  refreshTokens RefreshToken[]
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([refreshExpiresAt])
+  @@map("sessions")
+}
+
+// Cada refresh token emitido, vigente (rotatedAt NULL) o ya rotado, para detectar reutilizaciones (RF-13)
+model RefreshToken {
+  tokenHash  String    @id @map("token_hash") @db.Char(64)
+  sessionId  String    @map("session_id") @db.Uuid
+  session    Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  generation Int
+  rotatedAt  DateTime? @map("rotated_at") @db.Timestamptz(3)
+
+  @@index([sessionId])
+  @@map("refresh_tokens")
+}
+
+// Tokens CSRF previos a la sesión, reutilizables durante 30 minutos (RF-22)
+model CsrfToken {
+  tokenHash String   @id @map("token_hash") @db.Char(64)
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+
+  @@index([expiresAt])
+  @@map("csrf_tokens")
+}
+
+// Fallos de login por email normalizado, exista o no la cuenta (RF-09, D-10)
+model LoginAttempt {
+  email       String     @id @db.VarChar(254)
+  // Instantes de los últimos fallos, como mucho 5 (ventana deslizante)
+  failedAt    DateTime[] @map("failed_at") @db.Timestamptz(3)
+  lockedUntil DateTime?  @map("locked_until") @db.Timestamptz(3)
+
+  @@map("login_attempts")
 }

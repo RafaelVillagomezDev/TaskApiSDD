@@ -66,7 +66,7 @@ Un módulo vertical nuevo, `users`, gestiona cuentas, sesiones, tokens CSRF y bl
 | `domain/session.entity.ts` | `Session { id, userId, generation, accessExpiresAt, refreshExpiresAt, expiresAt, rotatedAt }` y sus reglas puras: `isAccessExpired(now)`, `isRefreshUsable(now)`, `rotate(now)` (nuevas caducidades con el tope de 30 días), `isWithinGrace(rotatedAt, now)`. Exporta `ACCESS_TOKEN_TTL_MS`, `REFRESH_TOKEN_TTL_MS`, `SESSION_MAX_AGE_MS`, `REFRESH_GRACE_MS`. |
 | `domain/login-throttle.value-object.ts` | Ventana deslizante de RF-09: `isLocked(now)`, `registerFailure(now)` y `MAX_FAILURES = 5`, `WINDOW_MS = LOCK_MS = 15 min`. Lógica pura. |
 | `domain/user.repository.ts` | Puerto `UserRepository`: `create`, `findById`, `findByEmail`, `updateName`, `updatePasswordHash`, `delete`. |
-| `domain/session.repository.ts` | Puerto `SessionRepository`: `create`, `findByAccessTokenHash`, `findByRefreshTokenHash` (vigente o rotado, con su `rotatedAt`), `rotate` (atómico, D-4), `delete`, `deleteAllExcept(userId, sessionId)`, `deleteExpired(now)`. |
+| `domain/session.repository.ts` | Puerto `SessionRepository`: `create`, `findByAccessTokenHash`, `findByRefreshTokenHash` (vigente o rotado, con su huella, generación y `rotatedAt`), `withRefreshTokenLocked(hash, work)` que ejecuta la renovación en una transacción con una `RefreshUnitOfWork` (`rotate`, `close`) (D-4), `delete`, `deleteAllExcept(userId, sessionId)`, `deleteExpired(now)` y `clearGraceTokens(cutoff)`. |
 | `domain/login-attempt.repository.ts` | Puerto `LoginAttemptRepository`: `find(email)`, `save(email, throttle)`, `clear(email)`, `deleteStale(now)`. |
 | `domain/csrf-token.repository.ts` | Puerto `CsrfTokenRepository` (tokens previos a la sesión): `save(hash, expiresAt)`, `isValid(hash, now)`, `deleteExpired(now)`. |
 | `domain/password-hasher.port.ts` | Puerto `PasswordHasher`: `hash(password)`, `verify(password, stored)`, `verifyDummy(password)` (D-3). |
@@ -110,7 +110,9 @@ Un módulo vertical nuevo, `users`, gestiona cuentas, sesiones, tokens CSRF y bl
 | `tests/support/in-memory-user.repository.ts`, `in-memory-session.repository.ts`, `in-memory-login-attempt.repository.ts`, `in-memory-csrf-token.repository.ts` | Crea | Fakes de los puertos nuevos. |
 | `tests/support/fake-password-hasher.adapter.ts` | Crea | `PasswordHasher` rápido para tests unitarios y HTTP (el real se prueba aparte). |
 | `tests/support/test.container.ts` | Modifica | Cablea `users` con fakes y exporta `signIn(server, email?)`, que hace `GET /auth/csrf`, registro y login, y devuelve las cabeceras `Cookie` y `X-CSRF-Token`; `clientHeaders` deja de enviar `X-User-Id`. |
-| `tests/integration/test-database.helper.ts` | Modifica | Añade las tablas nuevas a la lista y un `createTestUser(prisma)` para los tests de integración que necesitan un `user_id` válido por las claves foráneas. |
+| `tests/integration/test-database.helper.ts` | Modifica | Añade las tablas nuevas a la lista (salvo `users`) y un `createTestUser(prisma)` que crea una cuenta con email único, para los tests que necesitan un `user_id` válido por las claves foráneas. |
+| `tests/integration/global.setup.ts` | Modifica | Tras migrar, vacía `users` (con sus datos en cascada) y los tokens una sola vez por ejecución: vaciar `users` en cada fichero borraría los datos de los demás, que se ejecutan en paralelo (R-12). |
+| `tasks/infrastructure/prisma-task.repository.ts`, `alerts/infrastructure/prisma-alert.repository.ts`, `alerts/infrastructure/prisma-user-time-zone.repository.ts` | Modifica | Sus consultas SQL a mano convierten el `user_id` con `::uuid`: con la columna `UUID`, PostgreSQL no compara ni inserta texto (detectado en T009-T010). |
 | Tests HTTP, de integración y de rendimiento de la 001 | Modifica | Usan sesión y CSRF en lugar de `X-User-Id`; la batería de precedencia por pares incorpora los niveles CSRF y sesión. |
 | `sdd/001-taskApiSDD-mvp/mvp-p1.postman-collection.json` | Modifica | Flujo con `GET /auth/csrf`, registro y login; las cookies las gestiona Postman y un script guarda `csrfToken` en una variable. |
 | `sdd/002-user-accounts/quickstart.md` | Crea | Guía manual QS-0 a QS-H7 con `curl -c/-b` para las cookies. |
@@ -126,7 +128,7 @@ Cinco tablas nuevas y cuatro modificadas. Instantes en `TIMESTAMPTZ(3)` UTC, com
 | :--- | :--- | :--- | :--- |
 | `id` | `UUID` | PK, `DEFAULT gen_random_uuid()` | Es el `userId` de toda la API. |
 | `email` | `VARCHAR(254)` | NOT NULL, `UNIQUE` | Ya recortado y en minúsculas (RF-03), así que la unicidad sin mayúsculas la da el índice normal. |
-| `password_hash` | `VARCHAR(255)` | NOT NULL | Formato exacto (cadena PHC de Argon2): `$argon2id$v=19$m=19456,t=2,p=1$<sal base64, 16 bytes>$<hash base64, 32 bytes>` (D-2). |
+| `password_hash` | `VARCHAR(255)` | NOT NULL | Formato exacto (cadena PHC de Argon2): `$argon2id$v=19$m=19456,p=1,t=2$<sal base64, 16 bytes>$<hash base64, 32 bytes>` (D-2). |
 | `name` | `VARCHAR(100)` | NULL | Recortado; vacío → `NULL` (RF-05). |
 | `created_at` | `TIMESTAMPTZ(3)` | NOT NULL, `DEFAULT now()` | `createdAt` del recurso `User`. |
 | `updated_at` | `TIMESTAMPTZ(3)` | NOT NULL | `@updatedAt`. |
@@ -322,7 +324,7 @@ Aprobada por el usuario el 2026-10-28. Versión exacta, publicada hace al menos 
 | ID | Riesgo | Mitigación |
 | :--- | :--- | :--- |
 | R-1 | Argon2id hace que el login, el registro o el cambio de contraseña superen el p95 de 300 ms (RNF-01). | Parámetros mínimos de OWASP (D-2, unas decenas de milisegundos); `argon2` calcula en el *thread pool* de libuv sin bloquear el bucle de eventos. El test de rendimiento añade registro y login. |
-| R-14 | `argon2` es una librería nativa: su binario puede no instalarse (pnpm bloquea los scripts de instalación) o no existir para Alpine en arm64 o x64. | `allowBuilds` en `pnpm-workspace.yaml`, como con Prisma (R-12 de la 001). La primera tarea que la añade comprueba, en `Dockerfile.dev` y en `Dockerfile.prod` (etapa `runtime`), que `argon2.hash` funciona; si no hubiera binario precompilado, la etapa de build tendría que instalar las herramientas de compilación, y eso se decidiría con el usuario antes de seguir. |
+| R-14 | `argon2` es una librería nativa: su binario puede no instalarse (pnpm bloquea los scripts de instalación) o no existir para Alpine en arm64 o x64. | `allowBuilds` en `pnpm-workspace.yaml`, como con Prisma (R-12 de la 001). La primera tarea que la añade comprueba, en `Dockerfile.dev` y en `Dockerfile.prod` (etapa `runtime`), que `argon2.hash` funciona; si no hubiera binario precompilado, la etapa de build tendría que instalar las herramientas de compilación, y eso se decidiría con el usuario antes de seguir. **Descartado en T001-T002:** `argon2` 0.45.1 funciona en las imágenes de desarrollo y de producción sin cambiar los Dockerfiles. |
 | R-2 | Safari no acepta cookies `Secure` en `http://localhost`, a diferencia de Chrome y Firefox (S-06). | Documentado en la guía: en desarrollo, usar Chrome o Firefox. Si hiciera falta, una variable de entorno para desactivar `Secure` solo en desarrollo, con su propia decisión. |
 | R-3 | Dos renovaciones simultáneas cierran la sesión por error. | D-4 (bloqueo de fila) y el margen de 30 s; test de integración con dos renovaciones concurrentes. |
 | R-4 | Se filtra `SESSION_ENCRYPTION_KEY`. | Solo en `.env.*` (principio IV). Por sí sola no sirve (las copias cifradas solo existen 30 s y están en la base de datos). Se cambia sin cerrar sesiones: solo fallan las renovaciones en su margen de esos 30 s, que responden como un refresh reutilizado. |
@@ -334,7 +336,7 @@ Aprobada por el usuario el 2026-10-28. Versión exacta, publicada hace al menos 
 | R-9 | La migración borra los datos de desarrollo. | Es lo que exige RF-33 y se avisa en la guía y en el README. El esquema `test` se regenera solo. |
 | R-10 | Reescribir los tests, Postman y la guía de la 001 para usar sesión rompe algo que ya funcionaba. | `signIn()` en el contenedor de test centraliza el login; se reescriben fichero a fichero con la suite en verde entre cada uno, y la colección de Postman se valida con Newman. |
 | R-11 | SonarQube marca como *hotspots* las cookies, el uso de `crypto` o el CORS. | Se escriben según AGENTS.md §8 (cookies `HttpOnly`/`Secure`/`SameSite`, origen CORS no comodín, `timingSafeEqual`); cualquier hotspot se revisa con el usuario, nunca se marca como seguro por iniciativa propia (principio III). |
-| R-12 | Las claves foráneas obligan a que exista el usuario en los tests de integración de la 001. | `createTestUser(prisma)` en el helper de integración; cada fichero crea sus usuarios en `beforeEach`. |
+| R-12 | Las claves foráneas obligan a que exista el usuario en los tests de integración de la 001. | `createTestUser(prisma)` en el helper de integración; cada fichero crea sus usuarios en `beforeEach` y `global.setup.ts` vacía `users` una vez por ejecución. **Ocurrió en T009-T010:** además, las consultas SQL a mano necesitaron `::uuid`. |
 
 ## 10. Estrategia de tests
 
@@ -356,7 +358,7 @@ Mismos tipos y ubicación que en la 001 (unitarios, HTTP, integración y rendimi
 | users | `change-password.use-case.test.ts` | Cambia la huella; cierra las demás sesiones y mantiene la actual; contraseña actual errónea → `WRONG_PASSWORD` y cuenta para el bloqueo; bloqueada → `TOO_MANY_ATTEMPTS`. | RF-09, RF-27, RF-28 |
 | users | `delete-account.use-case.test.ts` | Borra la cuenta y el registro de bloqueo; contraseña errónea → `WRONG_PASSWORD` y cuenta intacta. | RF-28, RF-29 |
 | users | `purge-expired-auth-data.use-case.test.ts` | Borra solo lo caducado, incluidas las copias cifradas de más de 30 s. | D-12 |
-| users | `argon2-password-hasher.adapter.test.ts` | Cadena `$argon2id$v=19$m=19456,t=2,p=1$…`, verificación correcta e incorrecta, sales distintas para la misma contraseña, contraseña con caracteres no ASCII, `verifyDummy` siempre `false`. | RNF-03, D-2, D-3 |
+| users | `argon2-password-hasher.adapter.test.ts` | Cadena `$argon2id$v=19$m=19456,p=1,t=2$…`, verificación correcta e incorrecta, sales distintas para la misma contraseña, contraseña con caracteres no ASCII, `verifyDummy` siempre `false`. | RNF-03, D-2, D-3 |
 | users | `crypto-token.adapter.test.ts` | Tokens de 43 caracteres base64url distintos en cada llamada, huella SHA-256 de 64 hex, `equals` en tiempo constante. | RNF-06, D-1 |
 | users | `aes-gcm-grace-cipher.adapter.test.ts` | `seal`/`open` de ida y vuelta; IV distinto en cada cifrado; texto o etiqueta alterados y clave distinta → error; el texto cifrado no contiene los tokens. | RNF-06, D-1 |
 | users | `user.schema.test.ts` | Email 254/255, formato, recorte y minúsculas; contraseña 11/12/128/129, espacios y no ASCII sin recortar; nombre 100/101 y vacío; `PATCH /me` con `email` → error. | RF-02 a RF-05, RF-26 |

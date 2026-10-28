@@ -72,7 +72,7 @@ export class PrismaTaskRepository implements TaskRepository {
   async findProductiveDates(userId: string, until: LocalDate): Promise<LocalDate[]> {
     const rows = await this.prisma.$queryRaw<{ date: Date }[]>`
       SELECT DISTINCT "date" FROM "tasks"
-      WHERE "user_id" = ${userId} AND "completed" = true AND "date" <= ${until.toString()}::date
+      WHERE "user_id" = ${userId}::uuid AND "completed" = true AND "date" <= ${until.toString()}::date
       ORDER BY "date"`;
     return rows.map((row) => LocalDate.fromUtcDate(row.date));
   }

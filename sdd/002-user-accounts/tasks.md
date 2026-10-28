@@ -17,103 +17,112 @@ Spec: `sdd/002-user-accounts/spec.md` (Aprobada) · Plan: `sdd/002-user-accounts
 ## Fase 0 — Base
 
 ### Dependencia y configuración
-- [ ] T001 [Base] Añadir `argon2` a `dependencies` con versión exacta publicada hace al menos dos semanas y autorizar su script de instalación en `allowBuilds` (D-2, R-14) — `package.json`, `pnpm-workspace.yaml`
+- [x] T001 [Base] Añadir `argon2` a `dependencies` con versión exacta publicada hace al menos dos semanas y autorizar su script de instalación en `allowBuilds` (D-2, R-14) — `package.json`, `pnpm-workspace.yaml`
   - Verifica: `docker compose -f docker-compose.dev.yml up --build -d -V` y `dce node -e "import('argon2').then((a) => a.hash('x')).then(console.log)"` imprime una cadena que empieza por `$argon2id$`.
-- [ ] T002 [Base] Comprobar `argon2` en la imagen de producción, etapa `runtime`; solo si falla, ajustar el Dockerfile tras consultar al usuario (R-14) — `Dockerfile.prod`
+  - Hecho (2026-10-28): `argon2` 0.45.1, publicada el 2026-07-21 (la 1.0.0 es una alfa).
+- [x] T002 [Base] Comprobar `argon2` en la imagen de producción, etapa `runtime`; solo si falla, ajustar el Dockerfile tras consultar al usuario (R-14) — `Dockerfile.prod`
   - Verifica: `docker build -f Dockerfile.prod --target runtime -t taskapisdd:argon2-check .` y `docker run --rm --entrypoint node taskapisdd:argon2-check -e "import('argon2').then((a) => a.hash('x')).then(console.log)"` imprime `$argon2id$…`.
-- [ ] T003 [P] [Base] Variables `SESSION_ENCRYPTION_KEY=` y `CORS_ORIGIN=` sin valor en la plantilla; en `.env.dev` (no versionado) una clave de `openssl rand -hex 32` y `CORS_ORIGIN=http://localhost:5173`, y en `.env.prod` otra clave y `https://kompitu.yandrydev.cloud` (D-11, RF-35) — `.env.example`
+  - Hecho (2026-10-28): funciona sin tocar `Dockerfile.prod`; hay binario precompilado para Alpine (R-14 descartado).
+- [x] T003 [P] [Base] Variables `SESSION_ENCRYPTION_KEY=` y `CORS_ORIGIN=` sin valor en la plantilla; en `.env.dev` (no versionado) una clave de `openssl rand -hex 32` y `CORS_ORIGIN=http://localhost:5173`, y en `.env.prod` otra clave y `https://kompitu.yandrydev.cloud` (D-11, RF-35) — `.env.example`
   - Verifica: `grep -E "^(SESSION_ENCRYPTION_KEY|CORS_ORIGIN)=$" .env.example` devuelve 2 líneas.
-- [ ] T004 [P] [Base] Test de configuración: clave de 64 hex obligatoria, `CORS_ORIGIN` como URL de origen, error claro si falta o es inválida (D-11) — `src/shared/infrastructure/config/tests/app.config.test.ts`
+- [x] T004 [P] [Base] Test de configuración: clave de 64 hex obligatoria, `CORS_ORIGIN` como URL de origen, error claro si falta o es inválida (D-11) — `src/shared/infrastructure/config/tests/app.config.test.ts`
   - Verifica: `dce pnpm test src/shared/infrastructure/config` **falla**.
-- [ ] T005 [Base] Lectura y validación de la configuración con Zod (D-11, RF-35) — `src/shared/infrastructure/config/app.config.ts`
+- [x] T005 [Base] Lectura y validación de la configuración con Zod (D-11, RF-35) — `src/shared/infrastructure/config/app.config.ts`
   - Verifica: `dce pnpm test src/shared/infrastructure/config` pasa.
 
 ### Base de datos
-- [ ] T006 [Base] Modelos `User`, `Session`, `RefreshToken`, `CsrfToken`, `LoginAttempt` y `userId` UUID con relación en cascada en `Task`, `Alert`, `AlertPeriodCheck` y `UserTimeZone` (plan §4, D-9) — `prisma/schema.prisma`
+- [x] T006 [Base] Modelos `User`, `Session`, `RefreshToken`, `CsrfToken`, `LoginAttempt` y `userId` UUID con relación en cascada en `Task`, `Alert`, `AlertPeriodCheck` y `UserTimeZone` (plan §4, D-9) — `prisma/schema.prisma`
   - Verifica: `dce pnpm exec prisma validate`.
-- [ ] T007 [Base] Migración con `TRUNCATE` de las tablas de la 001 antes de cambiar el tipo de `user_id`, tablas nuevas, índices y claves foráneas (RF-33, plan §4) — `prisma/migrations/<AAAAMMDDHHMMSS>_user_accounts/migration.sql`
+- [x] T007 [Base] Migración con `TRUNCATE` de las tablas de la 001 antes de cambiar el tipo de `user_id`, tablas nuevas, índices y claves foráneas (RF-33, plan §4) — `prisma/migrations/<AAAAMMDDHHMMSS>_user_accounts/migration.sql`
   - Verifica: `dce pnpm prisma migrate deploy` aplica la migración y `dce pnpm prisma generate` termina sin errores.
-- [ ] T008 [Base] Tablas nuevas en `truncateTables` y helper `createTestUser(prisma)` para los tests de integración (R-12) — `tests/integration/test-database.helper.ts`
+- [x] T008 [Base] Tablas nuevas en `truncateTables` y helper `createTestUser(prisma)` para los tests de integración (R-12) — `tests/integration/test-database.helper.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
-- [ ] T009 [Base] Test de integración de tareas con usuarios reales creados con `createTestUser` (R-12) — `src/modules/tasks/infrastructure/tests/prisma-task.repository.int.test.ts`
+  - Hecho (2026-10-28): `users` no se vacía por fichero (las claves foráneas en cascada borrarían los datos de los demás ficheros en paralelo); `tests/integration/global.setup.ts` vacía `users` y los tokens una sola vez por ejecución y cada fichero crea sus cuentas con `createTestUser`.
+- [x] T009 [Base] Test de integración de tareas con usuarios reales creados con `createTestUser` (R-12) — `src/modules/tasks/infrastructure/tests/prisma-task.repository.int.test.ts`
   - Verifica: `dce pnpm test src/modules/tasks/infrastructure/tests/prisma-task` pasa.
-- [ ] T010 [P] [Base] Tests de integración de avisos y zonas con usuarios reales (R-12) — `src/modules/alerts/infrastructure/tests/prisma-alert.repository.int.test.ts`, `prisma-user-time-zone.repository.int.test.ts`
+- [x] T010 [P] [Base] Tests de integración de avisos y zonas con usuarios reales (R-12) — `src/modules/alerts/infrastructure/tests/prisma-alert.repository.int.test.ts`, `prisma-user-time-zone.repository.int.test.ts`
   - Verifica: `dce pnpm test src/modules/alerts/infrastructure/tests/prisma` pasa.
-- [ ] T011 [P] [Base] Test de rendimiento con usuarios reales: el usuario de las pruebas y los 10 000 del planificador se crean en `users` (R-12) — `tests/performance/api.perf.test.ts`
+  - Hecho (2026-10-28): al pasar `user_id` a `UUID`, las tres consultas SQL a mano de la 001 fallaban (`uuid = text`); se añadió `::uuid` en `prisma-alert.repository.ts`, `prisma-user-time-zone.repository.ts` y `prisma-task.repository.ts` (aprobado por el usuario).
+- [x] T011 [P] [Base] Test de rendimiento con usuarios reales: el usuario de las pruebas y los 10 000 del planificador se crean en `users` (R-12) — `tests/performance/api.perf.test.ts`
   - Verifica: `dce pnpm test:perf` pasa.
 
 ### Infraestructura compartida
-- [ ] T012 [P] [Base] Test de los códigos de error nuevos: HTTP y mensaje en español de cada uno (RF-34, RNF-02) — `src/shared/infrastructure/http/tests/error-handler.middleware.test.ts`
+- [x] T012 [P] [Base] Test de los códigos de error nuevos: HTTP y mensaje en español de cada uno (RF-34, RNF-02) — `src/shared/infrastructure/http/tests/error-handler.middleware.test.ts`
   - Verifica: `dce pnpm test src/shared/infrastructure/http/tests/error-handler` **falla**.
-- [ ] T013 [Base] Añadir `INVALID_CSRF_TOKEN`, `MISSING_TOKEN`, `INVALID_TOKEN`, `TOKEN_EXPIRED`, `INVALID_REFRESH_TOKEN`, `SESSION_EXPIRED`, `TOO_MANY_ATTEMPTS`, `INVALID_CREDENTIALS`, `WRONG_PASSWORD` y `EMAIL_ALREADY_REGISTERED` (RF-34) — `src/shared/domain/error-code.constant.ts`
+- [x] T013 [Base] Añadir `INVALID_CSRF_TOKEN`, `MISSING_TOKEN`, `INVALID_TOKEN`, `TOKEN_EXPIRED`, `INVALID_REFRESH_TOKEN`, `SESSION_EXPIRED`, `TOO_MANY_ATTEMPTS`, `INVALID_CREDENTIALS`, `WRONG_PASSWORD` y `EMAIL_ALREADY_REGISTERED` (RF-34) — `src/shared/domain/error-code.constant.ts`
   - Verifica: `dce pnpm test src/shared/infrastructure/http/tests/error-handler` pasa.
-- [ ] T014 [P] [Base] Test del helper de cookies: lectura (varias, ausentes, mal formadas) y atributos al escribir y borrar (D-5, RNF-05) — `src/shared/infrastructure/http/tests/cookie.helper.test.ts`
+  - Hecho (2026-10-28): la precedencia ya sigue la numeración de RF-34; `MISSING_USER` se queda en el nivel de sesión hasta T088.
+- [x] T014 [P] [Base] Test del helper de cookies: lectura (varias, ausentes, mal formadas) y atributos al escribir y borrar (D-5, RNF-05) — `src/shared/infrastructure/http/tests/cookie.helper.test.ts`
   - Verifica: `dce pnpm test src/shared/infrastructure/http/tests/cookie` **falla**.
-- [ ] T015 [Base] `readCookie`, `setSessionCookies` y `clearSessionCookies` con `HttpOnly`, `Secure`, `SameSite=Strict`, `Path` y `Max-Age` (D-5, RF-07, RF-15) — `src/shared/infrastructure/http/cookie.helper.ts`
+- [x] T015 [Base] `readCookie`, `setSessionCookies` y `clearSessionCookies` con `HttpOnly`, `Secure`, `SameSite=Strict`, `Path` y `Max-Age` (D-5, RF-07, RF-15) — `src/shared/infrastructure/http/cookie.helper.ts`
   - Verifica: `dce pnpm test src/shared/infrastructure/http/tests/cookie` pasa.
-- [ ] T016 [P] [Base] `SessionContext` y `RequestContext extends SessionContext`, y helper para guardarlo en `res.locals` (plan §3) — `src/shared/application/request-context.type.ts`, `src/shared/infrastructure/http/session-context.helper.ts`
+- [x] T016 [P] [Base] `SessionContext` y `RequestContext extends SessionContext`, y helper para guardarlo en `res.locals` (plan §3) — `src/shared/application/request-context.type.ts`, `src/shared/infrastructure/http/session-context.helper.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
+  - Hecho (2026-10-28): `RequestContext` todavía no extiende `SessionContext` (el contexto de la 001 no tiene sesión hasta H4); se unifican en T087.
 
 ### CORS
-- [ ] T017 [P] [Base] Test de CORS: cabeceras solo para el origen permitido; petición previa `200` con sobre, métodos y cabeceras; método no registrado, ruta inexistente y otro origen → `ROUTE_NOT_FOUND`; sin `Origin`, sin cambios (RF-35, RF-36) — `src/shared/infrastructure/http/tests/cors.middleware.test.ts`
+- [x] T017 [P] [Base] Test de CORS: cabeceras solo para el origen permitido; petición previa `200` con sobre, métodos y cabeceras; método no registrado, ruta inexistente y otro origen → `ROUTE_NOT_FOUND`; sin `Origin`, sin cambios (RF-35, RF-36) — `src/shared/infrastructure/http/tests/cors.middleware.test.ts`
   - Verifica: `dce pnpm test src/shared/infrastructure/http/tests/cors` **falla**.
-- [ ] T018 [Base] Middleware CORS y `allowPreflight(router, path, methods)` (RF-35, RF-36, D-7) — `src/shared/infrastructure/http/cors.middleware.ts`
+- [x] T018 [Base] Middleware CORS y `allowPreflight(router, path, methods)` (RF-35, RF-36, D-7) — `src/shared/infrastructure/http/cors.middleware.ts`
   - Verifica: `dce pnpm test src/shared/infrastructure/http/tests/cors` pasa.
-- [ ] T019 [Base] El guardián de métodos deja pasar solo la petición previa desde el origen permitido; montar CORS primero en la app (RF-36) — `src/shared/infrastructure/http/allowed-method.middleware.ts`, `src/app.factory.ts`
+- [x] T019 [Base] El guardián de métodos deja pasar solo la petición previa desde el origen permitido; montar CORS primero en la app (RF-36) — `src/shared/infrastructure/http/allowed-method.middleware.ts`, `src/app.factory.ts`
   - Verifica: `dce pnpm test src/shared` pasa (incluido `OPTIONS` sin preflight → `ROUTE_NOT_FOUND` en `error-handler.middleware.test.ts`).
+  - Hecho (2026-10-28): `createApp` recibe `corsOrigin` (opcional); el contenedor real lo conecta con `app.config.ts` en T053.
 
 ### Dominio de `users`
-- [ ] T020 [P] [Base] Test de la entidad usuario: constantes de longitud, `rename` con recorte y vacío → `null` (RF-05) — `users/domain/tests/user.entity.test.ts`
+- [x] T020 [P] [Base] Test de la entidad usuario: constantes de longitud, `rename` con recorte y vacío → `null` (RF-05) — `users/domain/tests/user.entity.test.ts`
   - Verifica: `dce pnpm test src/modules/users/domain/tests/user.entity` **falla**.
-- [ ] T021 [P] [Base] Test de la entidad sesión: 15 min, 7 días, tope de 30 días con el ejemplo de RF-11 y margen de 30 s (RF-07, RF-11 a RF-13) — `users/domain/tests/session.entity.test.ts`
+- [x] T021 [P] [Base] Test de la entidad sesión: 15 min, 7 días, tope de 30 días con el ejemplo de RF-11 y margen de 30 s (RF-07, RF-11 a RF-13) — `users/domain/tests/session.entity.test.ts`
   - Verifica: `dce pnpm test src/modules/users/domain/tests/session.entity` **falla**.
-- [ ] T022 [P] [Base] Test del bloqueo: ejemplo de RF-09 (10:00…10:10 → hasta 10:25), quinto fallo, ventana deslizante y vencimiento (RF-09, RF-10, D-10) — `users/domain/tests/login-throttle.value-object.test.ts`
+- [x] T022 [P] [Base] Test del bloqueo: ejemplo de RF-09 (10:00…10:10 → hasta 10:25), quinto fallo, ventana deslizante y vencimiento (RF-09, RF-10, D-10) — `users/domain/tests/login-throttle.value-object.test.ts`
   - Verifica: `dce pnpm test src/modules/users/domain/tests/login-throttle` **falla**.
-- [ ] T023 [Base] Entidad `User` y constantes (RF-05) — `users/domain/user.entity.ts`
+- [x] T023 [Base] Entidad `User` y constantes (RF-05) — `users/domain/user.entity.ts`
   - Verifica: `dce pnpm test src/modules/users/domain/tests/user.entity` pasa.
-- [ ] T024 [P] [Base] Entidad `Session` con sus reglas de caducidad y margen (RF-07, RF-11 a RF-13) — `users/domain/session.entity.ts`
+- [x] T024 [P] [Base] Entidad `Session` con sus reglas de caducidad y margen (RF-07, RF-11 a RF-13) — `users/domain/session.entity.ts`
   - Verifica: `dce pnpm test src/modules/users/domain/tests/session.entity` pasa.
-- [ ] T025 [P] [Base] `LoginThrottle` (RF-09, RF-10, D-10) — `users/domain/login-throttle.value-object.ts`
+- [x] T025 [P] [Base] `LoginThrottle` (RF-09, RF-10, D-10) — `users/domain/login-throttle.value-object.ts`
   - Verifica: `dce pnpm test src/modules/users/domain/tests/login-throttle` pasa.
-- [ ] T026 [P] [Base] Puertos `UserRepository` y `CsrfTokenRepository` (plan §3) — `users/domain/user.repository.ts`, `users/domain/csrf-token.repository.ts`
+- [x] T026 [P] [Base] Puertos `UserRepository` y `CsrfTokenRepository` (plan §3) — `users/domain/user.repository.ts`, `users/domain/csrf-token.repository.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
-- [ ] T027 [P] [Base] Puertos `SessionRepository` y `LoginAttemptRepository` (plan §3) — `users/domain/session.repository.ts`, `users/domain/login-attempt.repository.ts`
+- [x] T027 [P] [Base] Puertos `SessionRepository` y `LoginAttemptRepository` (plan §3) — `users/domain/session.repository.ts`, `users/domain/login-attempt.repository.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
-- [ ] T028 [P] [Base] Puertos `PasswordHasher`, `TokenService` y `GraceTokenCipher` (D-1, D-2, D-3) — `users/domain/password-hasher.port.ts`, `users/domain/token.port.ts`, `users/domain/grace-token-cipher.port.ts`
+  - Hecho (2026-10-28): la renovación atómica se expone como `withRefreshTokenLocked(hash, work)` con una `RefreshUnitOfWork` (`rotate`, `close`), igual que `claimPeriod` en los avisos; el registro de un refresh token incluye su `tokenHash`.
+- [x] T028 [P] [Base] Puertos `PasswordHasher`, `TokenService` y `GraceTokenCipher` (D-1, D-2, D-3) — `users/domain/password-hasher.port.ts`, `users/domain/token.port.ts`, `users/domain/grace-token-cipher.port.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
-- [ ] T029 [P] [Base] Fakes en memoria de usuarios y tokens CSRF previos — `tests/support/in-memory-user.repository.ts`, `tests/support/in-memory-csrf-token.repository.ts`
+- [x] T029 [P] [Base] Fakes en memoria de usuarios y tokens CSRF previos — `tests/support/in-memory-user.repository.ts`, `tests/support/in-memory-csrf-token.repository.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
-- [ ] T030 [P] [Base] Fakes en memoria de sesiones (con `refresh_tokens` y margen) y de intentos de login — `tests/support/in-memory-session.repository.ts`, `tests/support/in-memory-login-attempt.repository.ts`
+- [x] T030 [P] [Base] Fakes en memoria de sesiones (con `refresh_tokens` y margen) y de intentos de login — `tests/support/in-memory-session.repository.ts`, `tests/support/in-memory-login-attempt.repository.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
-- [ ] T031 [P] [Base] `FakePasswordHasher` rápido para tests unitarios y HTTP (plan §10) — `tests/support/fake-password-hasher.adapter.ts`
+- [x] T031 [P] [Base] `FakePasswordHasher` rápido para tests unitarios y HTTP (plan §10) — `tests/support/fake-password-hasher.adapter.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
 
 ### Adaptadores criptográficos
-- [ ] T032 [P] [Base] Test de Argon2id: cadena `$argon2id$v=19$m=19456,t=2,p=1$…`, verificación correcta e incorrecta, sales distintas, no ASCII, `verifyDummy` siempre `false` (RNF-03, D-2, D-3) — `users/infrastructure/tests/argon2-password-hasher.adapter.test.ts`
+- [x] T032 [P] [Base] Test de Argon2id: cadena `$argon2id$v=19$m=19456,p=1,t=2$…`, verificación correcta e incorrecta, sales distintas, no ASCII, `verifyDummy` siempre `false` (RNF-03, D-2, D-3) — `users/infrastructure/tests/argon2-password-hasher.adapter.test.ts`
   - Verifica: `dce pnpm test src/modules/users/infrastructure/tests/argon2` **falla**.
-- [ ] T033 [P] [Base] Test de tokens: 43 caracteres base64url distintos, huella SHA-256 de 64 hex, `equals` en tiempo constante (RNF-06, D-1) — `users/infrastructure/tests/crypto-token.adapter.test.ts`
+- [x] T033 [P] [Base] Test de tokens: 43 caracteres base64url distintos, huella SHA-256 de 64 hex, `equals` en tiempo constante (RNF-06, D-1) — `users/infrastructure/tests/crypto-token.adapter.test.ts`
   - Verifica: `dce pnpm test src/modules/users/infrastructure/tests/crypto-token` **falla**.
-- [ ] T034 [P] [Base] Test del cifrado del margen: ida y vuelta, IV distinto, texto, etiqueta o clave alterados → error, el texto cifrado no contiene los tokens (RNF-06, D-1) — `users/infrastructure/tests/aes-gcm-grace-cipher.adapter.test.ts`
+- [x] T034 [P] [Base] Test del cifrado del margen: ida y vuelta, IV distinto, texto, etiqueta o clave alterados → error, el texto cifrado no contiene los tokens (RNF-06, D-1) — `users/infrastructure/tests/aes-gcm-grace-cipher.adapter.test.ts`
   - Verifica: `dce pnpm test src/modules/users/infrastructure/tests/aes-gcm` **falla**.
-- [ ] T035 [Base] `PasswordHasher` con Argon2id y hash ficticio calculado al arrancar (D-2, D-3) — `users/infrastructure/argon2-password-hasher.adapter.ts`
+- [x] T035 [Base] `PasswordHasher` con Argon2id y hash ficticio calculado al arrancar (D-2, D-3) — `users/infrastructure/argon2-password-hasher.adapter.ts`
   - Verifica: `dce pnpm test src/modules/users/infrastructure/tests/argon2` pasa.
-- [ ] T036 [P] [Base] `TokenService` con `randomBytes`, SHA-256 y `timingSafeEqual` (D-1) — `users/infrastructure/crypto-token.adapter.ts`
+- [x] T036 [P] [Base] `TokenService` con `randomBytes`, SHA-256 y `timingSafeEqual` (D-1) — `users/infrastructure/crypto-token.adapter.ts`
   - Verifica: `dce pnpm test src/modules/users/infrastructure/tests/crypto-token` pasa.
-- [ ] T037 [P] [Base] `GraceTokenCipher` con AES-256-GCM y formato `v1.<iv>.<cifrado>.<etiqueta>` (D-1) — `users/infrastructure/aes-gcm-grace-cipher.adapter.ts`
+- [x] T037 [P] [Base] `GraceTokenCipher` con AES-256-GCM y formato `v1.<iv>.<cifrado>.<etiqueta>` (D-1) — `users/infrastructure/aes-gcm-grace-cipher.adapter.ts`
   - Verifica: `dce pnpm test src/modules/users/infrastructure/tests/aes-gcm` pasa.
+  - Hecho (2026-10-28): la librería escribe los parámetros como `m=19456,p=1,t=2`; corregido el orden en el test, el plan y `schema.prisma`. El test de alteración del cifrado se hizo determinista (cambiar el último carácter base64url podía tocar solo bits de relleno). Ambos cambios aprobados por el usuario.
 
 ### Repositorios Prisma de `users`
-- [ ] T038 [P] [Base] Test de integración de usuarios: email único, borrado en cascada de tareas, avisos, comprobaciones, zona y sesiones, y ninguna tarea, aviso ni zona sin cuenta tras migrar (RF-03, RF-29, RF-33, D-9) — `users/infrastructure/tests/prisma-user.repository.int.test.ts`
+- [x] T038 [P] [Base] Test de integración de usuarios: email único, borrado en cascada de tareas, avisos, comprobaciones, zona y sesiones, y ninguna tarea, aviso ni zona sin cuenta tras migrar (RF-03, RF-29, RF-33, D-9) — `users/infrastructure/tests/prisma-user.repository.int.test.ts`
   - Verifica: `dce pnpm test src/modules/users/infrastructure/tests/prisma-user` **falla**.
-- [ ] T039 [P] [Base] Test de integración de sesiones: búsqueda por huellas, rotación atómica con dos renovaciones concurrentes, `deleteAllExcept`, limpieza, solo huellas y copia cifrada en la base de datos (RF-11, RF-13, RF-27, RNF-06, D-4) — `users/infrastructure/tests/prisma-session.repository.int.test.ts`
+- [x] T039 [P] [Base] Test de integración de sesiones: búsqueda por huellas, rotación atómica con dos renovaciones concurrentes, `deleteAllExcept`, limpieza, solo huellas y copia cifrada en la base de datos (RF-11, RF-13, RF-27, RNF-06, D-4) — `users/infrastructure/tests/prisma-session.repository.int.test.ts`
   - Verifica: `dce pnpm test src/modules/users/infrastructure/tests/prisma-session` **falla**.
-- [ ] T040 [P] [Base] Tests de integración de intentos de login y tokens CSRF previos: guardar, leer, caducar y limpiar (RF-09, RF-22) — `users/infrastructure/tests/prisma-login-attempt.repository.int.test.ts`, `prisma-csrf-token.repository.int.test.ts`
+- [x] T040 [P] [Base] Tests de integración de intentos de login y tokens CSRF previos: guardar, leer, caducar y limpiar (RF-09, RF-22) — `users/infrastructure/tests/prisma-login-attempt.repository.int.test.ts`, `prisma-csrf-token.repository.int.test.ts`
   - Verifica: `dce pnpm test src/modules/users/infrastructure/tests/prisma-login prisma-csrf` **falla**.
-- [ ] T041 [Base] Repositorio de usuarios y mapper fila ↔ `User` ↔ recurso sin `passwordHash` (RF-03, RF-25, RNF-04) — `users/infrastructure/prisma-user.repository.ts`, `users/infrastructure/user.mapper.ts`
+- [x] T041 [Base] Repositorio de usuarios y mapper fila ↔ `User` ↔ recurso sin `passwordHash` (RF-03, RF-25, RNF-04) — `users/infrastructure/prisma-user.repository.ts`, `users/infrastructure/user.mapper.ts`
   - Verifica: `dce pnpm test src/modules/users/infrastructure/tests/prisma-user` pasa.
-- [ ] T042 [Base] Repositorio de sesiones con rotación en transacción y `SELECT … FOR UPDATE` (RF-11, RF-13, D-4) — `users/infrastructure/prisma-session.repository.ts`
+- [x] T042 [Base] Repositorio de sesiones con rotación en transacción y `SELECT … FOR UPDATE` (RF-11, RF-13, D-4) — `users/infrastructure/prisma-session.repository.ts`
   - Verifica: `dce pnpm test src/modules/users/infrastructure/tests/prisma-session` pasa.
-- [ ] T043 [P] [Base] Repositorios de intentos de login y tokens CSRF previos (RF-09, RF-22) — `users/infrastructure/prisma-login-attempt.repository.ts`, `users/infrastructure/prisma-csrf-token.repository.ts`
+- [x] T043 [P] [Base] Repositorios de intentos de login y tokens CSRF previos (RF-09, RF-22) — `users/infrastructure/prisma-login-attempt.repository.ts`, `users/infrastructure/prisma-csrf-token.repository.ts`
   - Verifica: `dce pnpm test src/modules/users/infrastructure/tests/prisma-login prisma-csrf` pasa.
 
 ### Checkpoint Base

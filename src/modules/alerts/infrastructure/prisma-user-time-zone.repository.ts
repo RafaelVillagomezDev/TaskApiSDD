@@ -9,7 +9,7 @@ export class PrismaUserTimeZoneRepository implements UserTimeZoneRepository {
   async record(userId: string, timeZone: string): Promise<void> {
     await this.prisma.$executeRaw`
       INSERT INTO "user_time_zones" ("user_id", "time_zone", "updated_at")
-      VALUES (${userId}, ${timeZone}, now())
+      VALUES (${userId}::uuid, ${timeZone}, now())
       ON CONFLICT ("user_id") DO UPDATE SET "time_zone" = EXCLUDED."time_zone", "updated_at" = now()
       WHERE "user_time_zones"."time_zone" <> EXCLUDED."time_zone"`;
   }

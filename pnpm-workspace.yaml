@@ -1,8 +1,10 @@
-# Scripts de instalación autorizados (plan, R-12): solo Prisma necesita descargar sus motores
+# Scripts de instalación autorizados (plan de la 001, R-12): Prisma descarga sus motores y argon2
+# coloca su binario nativo precompilado (plan de la 002, R-14)
 allowBuilds:
   prisma: true
   '@prisma/client': true
   '@prisma/engines': true
+  argon2: true
   # Traen binarios precompilados como dependencias opcionales; su script solo compila desde fuente
   '@parcel/watcher': false
   unrs-resolver: false

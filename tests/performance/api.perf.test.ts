@@ -8,7 +8,7 @@ import { PrismaTaskRepository } from '../../src/modules/tasks/infrastructure/pri
 import { GetPendingTaskUseCase } from '../../src/modules/tasks/task.facade.js';
 import { LocalDate } from '../../src/shared/domain/local-date.value-object.js';
 import { IntlTimeZoneAdapter } from '../../src/shared/infrastructure/time/intl-time-zone.adapter.js';
-import { truncateTables } from '../integration/test-database.helper.js';
+import { createTestUser, truncateTables } from '../integration/test-database.helper.js';
 import { FakeClock } from '../support/fake-clock.adapter.js';
 import { startTestServer, type TestServer } from '../support/test.container.js';
 
@@ -29,14 +29,16 @@ const ALERT_USERS = 10_000;
 const ALERT_PASS_LIMIT_MS = 5 * 60_000 - 60_000;
 const INSERT_CHUNK = 1_000;
 
-const USER_ID = 'perf-user';
 const ZONE = 'Etc/UTC';
 
 // Hora actual con desfase ±HH:MM, como la envía un dispositivo en UTC (RF-31)
 const clientTime = () => `${new Date().toISOString().slice(0, 19)}+00:00`;
+// Cuenta del usuario de las pruebas HTTP; se crea en beforeAll (claves foráneas de user_id)
+let userId = '';
+
 const headers = () => ({
   'Content-Type': 'application/json',
-  'X-User-Id': USER_ID,
+  'X-User-Id': userId,
   'X-Client-Time': clientTime(),
   'X-Timezone': ZONE,
 });
@@ -72,19 +74,20 @@ describe('rendimiento (RNF-01, CE-05, R-1)', () => {
   };
 
   const createTask = async (date: LocalDate) => {
-    const task = await container.prisma.task.create({ data: { userId: USER_ID, title: 'Tarea', date: date.toUtcDate() } });
+    const task = await container.prisma.task.create({ data: { userId, title: 'Tarea', date: date.toUtcDate() } });
     return task.id;
   };
 
   beforeAll(async () => {
     container = createContainer();
     await truncateTables(container.prisma);
+    userId = await createTestUser(container.prisma, 'perf');
     server = await startTestServer(createApp(container));
     today = LocalDate.fromUtcDate(new Date());
 
     // 10 000 tareas en los últimos 3 años, unas 9 por día, la mitad completadas
     const rows = Array.from({ length: TASK_COUNT }, (_, index) => ({
-      userId: USER_ID,
+      userId,
       title: `Tarea ${index}`,
       date: today.addDays(-(index % HISTORY_DAYS)).toUtcDate(),
       completed: index % 2 === 0,
@@ -95,7 +98,7 @@ describe('rendimiento (RNF-01, CE-05, R-1)', () => {
     // 200 avisos diarios de días anteriores, para que GET /alerts pagine
     await container.prisma.alert.createMany({
       data: Array.from({ length: 200 }, (_, index) => ({
-        userId: USER_ID,
+        userId,
         type: 'daily' as const,
         periodStart: today.addDays(-index - 1).toUtcDate(),
         periodEnd: today.addDays(-index - 1).toUtcDate(),
@@ -176,7 +179,15 @@ describe('rendimiento (RNF-01, CE-05, R-1)', () => {
     async () => {
       // Peor caso: todos en la misma zona, a las 22:00 y con una tarea pendiente → 10 000 avisos
       const day = LocalDate.parse('2030-01-02');
-      const userIds = Array.from({ length: ALERT_USERS }, (_, index) => `perf-alert-${String(index).padStart(5, '0')}`);
+      const emails = Array.from({ length: ALERT_USERS }, (_, index) => `perf-alert-${index}-${Date.now()}@test.local`);
+      const userIds: string[] = [];
+      for (const chunk of chunks(emails, INSERT_CHUNK)) {
+        const users = await container.prisma.user.createManyAndReturn({
+          data: chunk.map((email) => ({ email, passwordHash: 'sin-uso-en-tests' })),
+          select: { id: true },
+        });
+        userIds.push(...users.map((user) => user.id));
+      }
       for (const chunk of chunks(userIds, INSERT_CHUNK)) {
         await container.prisma.userTimeZone.createMany({
           data: chunk.map((userId) => ({ userId, timeZone: ZONE })),
