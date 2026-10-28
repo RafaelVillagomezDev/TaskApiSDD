@@ -29,9 +29,13 @@ import { GetProfileUseCase } from './modules/users/application/get-profile.use-c
 import { IssueCsrfTokenUseCase } from './modules/users/application/issue-csrf-token.use-case.js';
 import { LoginUseCase } from './modules/users/application/login.use-case.js';
 import { LogoutUseCase } from './modules/users/application/logout.use-case.js';
+import { PurgeExpiredAuthDataUseCase } from './modules/users/application/purge-expired-auth-data.use-case.js';
+import { RefreshSessionUseCase } from './modules/users/application/refresh-session.use-case.js';
 import { RegisterUserUseCase } from './modules/users/application/register-user.use-case.js';
 import { VerifySessionCsrfUseCase } from './modules/users/application/verify-session-csrf.use-case.js';
+import { AesGcmGraceCipher } from './modules/users/infrastructure/aes-gcm-grace-cipher.adapter.js';
 import { Argon2PasswordHasher } from './modules/users/infrastructure/argon2-password-hasher.adapter.js';
+import { AuthCleanupScheduler } from './modules/users/infrastructure/auth-cleanup.scheduler.js';
 import { AuthController } from './modules/users/infrastructure/auth.controller.js';
 import { createAuthRouter } from './modules/users/infrastructure/auth.routes.js';
 import { CryptoTokenService } from './modules/users/infrastructure/crypto-token.adapter.js';
@@ -58,6 +62,7 @@ export interface Container extends AppContainer {
   prisma: PrismaClient;
   requestContext: RequestHandler;
   alertScheduler: AlertScheduler;
+  authCleanupScheduler: AuthCleanupScheduler;
 }
 
 export function createContainer(): Container {
@@ -106,12 +111,13 @@ export function createContainer(): Container {
     requestContext,
   });
 
-  // Módulo users (spec 002): registro y login con token CSRF previo a la sesión, logout y perfil.
+  // Módulo users (spec 002): registro y login con token CSRF previo a la sesión, renovación, logout y perfil.
   // Un solo hasher para que el hash ficticio del login se calcule una vez (D-3)
   const tokens = new CryptoTokenService();
   const csrfTokens = new PrismaCsrfTokenRepository(prisma);
   const users = new PrismaUserRepository(prisma);
   const sessions = new PrismaSessionRepository(prisma);
+  const loginAttempts = new PrismaLoginAttemptRepository(prisma);
   const passwordHasher = new Argon2PasswordHasher();
   const verifyCsrf = new VerifySessionCsrfUseCase(tokens);
   const session = createSessionMiddleware(new AuthenticateSessionUseCase(sessions, tokens, verifyCsrf, clock));
@@ -119,12 +125,23 @@ export function createContainer(): Container {
     controller: new AuthController(
       new IssueCsrfTokenUseCase(tokens, csrfTokens, clock),
       new RegisterUserUseCase(users, passwordHasher),
-      new LoginUseCase(users, sessions, new PrismaLoginAttemptRepository(prisma), passwordHasher, tokens, clock),
+      new LoginUseCase(users, sessions, loginAttempts, passwordHasher, tokens, clock),
       new LogoutUseCase(sessions, tokens, verifyCsrf),
+      new RefreshSessionUseCase(
+        sessions,
+        tokens,
+        new AesGcmGraceCipher(config.sessionEncryptionKey),
+        verifyCsrf,
+        clock,
+      ),
     ),
     presessionCsrf: createPresessionCsrfMiddleware({ tokens, csrfTokens, clock }),
   });
   const meRouter = createMeRouter({ controller: new MeController(new GetProfileUseCase(users)), session });
+  // Limpieza de copias cifradas, tokens previos, sesiones y bloqueos caducados (D-12)
+  const authCleanupScheduler = new AuthCleanupScheduler(
+    new PurgeExpiredAuthDataUseCase(sessions, csrfTokens, loginAttempts, clock),
+  );
 
   return {
     clock,
@@ -132,6 +149,7 @@ export function createContainer(): Container {
     prisma,
     requestContext,
     alertScheduler,
+    authCleanupScheduler,
     corsOrigin: config.corsOrigin,
     routers: [authRouter, meRouter, taskRouter, streakRouter, alertRouter],
   };

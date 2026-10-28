@@ -286,12 +286,97 @@ describe('rutas de /auth', () => {
     });
   });
 
+  describe('POST /auth/refresh', () => {
+    const refresh = (headers: Record<string, string>) => call('/auth/refresh', { method: 'POST', headers });
+    // Cabeceras de la sesión con las cookies nuevas de una respuesta
+    const renewed = (session: Record<string, string>, response: Response) => ({
+      ...session,
+      Cookie: cookiesFrom(response),
+    });
+
+    it('token de acceso caducado → TOKEN_EXPIRED → refresh → 200 y la petición vuelve a funcionar (RF-11, RF-20)', async () => {
+      const session = await signIn(server);
+      container.clock.advance(16 * 60_000);
+      expect((await me(session)).body.error?.code).toBe('TOKEN_EXPIRED');
+      const { response, status, body } = await refresh(session);
+      expect(status).toBe(200);
+      expect(body).toEqual({ success: true, status: 200, message: 'Sesión renovada con éxito', data: null });
+      const [access, refreshCookie] = response.headers.getSetCookie();
+      expect(access).toMatch(/^access_token=[A-Za-z0-9_-]{43};/);
+      expect(access).toContain(`Max-Age=${ACCESS_MAX_AGE}`);
+      expect(refreshCookie).toMatch(/^refresh_token=[A-Za-z0-9_-]{43};/);
+      expect(refreshCookie).toContain(`Max-Age=${REFRESH_MAX_AGE}`);
+      expect(refreshCookie).toContain('Path=/auth;');
+      expect((await me(renewed(session, response))).status).toBe(200);
+    });
+
+    it('el token CSRF de la sesión sigue valiendo tras renovar (RF-24)', async () => {
+      const session = await signIn(server);
+      const { response } = await refresh(session);
+      expect((await logout(renewed(session, response))).status).toBe(200);
+    });
+
+    it('dos renovaciones con el mismo refresh token y 5 s de diferencia → los mismos tokens (RF-13)', async () => {
+      const session = await signIn(server);
+      const first = await refresh(session);
+      container.clock.advance(5_000);
+      const second = await refresh(session);
+      expect(second.status).toBe(200);
+      expect(cookiesFrom(second.response)).toBe(cookiesFrom(first.response));
+      expect((await me(renewed(session, second.response))).status).toBe(200);
+    });
+
+    it('el refresh token rotado a los 31 s → 401 INVALID_REFRESH_TOKEN, borra las cookies y cierra la sesión (RF-13, CE-04)', async () => {
+      const session = await signIn(server);
+      const { response: rotated } = await refresh(session);
+      container.clock.advance(31_000);
+      const { response, status, body } = await refresh(session);
+      expect(status).toBe(401);
+      expect(body.error?.code).toBe('INVALID_REFRESH_TOKEN');
+      expect(response.headers.getSetCookie().every((cookie) => cookie.includes('Expires=Thu, 01 Jan 1970'))).toBe(true);
+      expect(response.headers.getSetCookie()).toHaveLength(2);
+      expect((await me(renewed(session, rotated))).body.error?.code).toBe('INVALID_TOKEN');
+    });
+
+    it('7 días sin renovar → 401 SESSION_EXPIRED y borra las cookies (RF-12)', async () => {
+      const session = await signIn(server);
+      container.clock.advance(7 * 24 * 3_600_000);
+      const { response, status, body } = await refresh(session);
+      expect(status).toBe(401);
+      expect(body.error?.code).toBe('SESSION_EXPIRED');
+      expect(response.headers.getSetCookie()).toHaveLength(2);
+      expect(container.sessions.count()).toBe(0);
+    });
+
+    it('sin cookie de refresh → 401 INVALID_REFRESH_TOKEN aunque lleve X-CSRF-Token (RF-14, decisión 19)', async () => {
+      const session = await signIn(server);
+      const accessOnly = session.Cookie.split('; ').filter((cookie) => cookie.startsWith('access_token=')).join('; ');
+      expect((await refresh({ ...session, Cookie: accessOnly })).body.error?.code).toBe('INVALID_REFRESH_TOKEN');
+      const { status, body } = await refresh({ 'X-CSRF-Token': 'cualquiera' });
+      expect(status).toBe(401);
+      expect(body.error?.code).toBe('INVALID_REFRESH_TOKEN');
+    });
+
+    it('sin X-CSRF-Token o con el de otra sesión → 403 INVALID_CSRF_TOKEN, sin rotar ni borrar cookies (RF-23)', async () => {
+      const ana = await signIn(server);
+      const bea = await signIn(server, 'bea@example.com');
+      const missing = await refresh({ Cookie: ana.Cookie });
+      expect(missing.status).toBe(403);
+      expect(missing.body.error?.code).toBe('INVALID_CSRF_TOKEN');
+      const crossed = await refresh({ ...ana, 'X-CSRF-Token': bea['X-CSRF-Token'] });
+      expect(crossed.body.error?.code).toBe('INVALID_CSRF_TOKEN');
+      expect(crossed.response.headers.getSetCookie()).toEqual([]);
+      expect((await refresh(ana)).status).toBe(200);
+    });
+  });
+
   describe('peticiones previas de CORS (RF-36)', () => {
     it.each([
       ['/auth/csrf', 'GET'],
       ['/auth/register', 'POST'],
       ['/auth/login', 'POST'],
       ['/auth/logout', 'POST'],
+      ['/auth/refresh', 'POST'],
     ])('OPTIONS %s desde el frontend pidiendo %s → 200', async (path, method) => {
       const { response, status } = await call(path, {
         method: 'OPTIONS',

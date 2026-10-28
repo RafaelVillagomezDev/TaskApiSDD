@@ -7,9 +7,13 @@ export class VerifySessionCsrfUseCase {
   constructor(private readonly tokens: TokenService) {}
 
   execute(csrfToken: string, sessionCsrfTokenHash: string): void {
-    // Huellas en tiempo constante, para no revelar por el tiempo cuánto coincide (R-6)
-    if (!this.tokens.equals(this.tokens.fingerprint(csrfToken), sessionCsrfTokenHash)) {
+    if (!this.matches(csrfToken, sessionCsrfTokenHash)) {
       throw new AppError('INVALID_CSRF_TOKEN');
     }
+  }
+
+  // Huellas en tiempo constante, para no revelar por el tiempo cuánto coincide (R-6)
+  matches(csrfToken: string, sessionCsrfTokenHash: string): boolean {
+    return this.tokens.equals(this.tokens.fingerprint(csrfToken), sessionCsrfTokenHash);
   }
 }

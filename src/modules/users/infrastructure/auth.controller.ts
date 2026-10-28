@@ -1,5 +1,7 @@
 import type { RequestHandler } from 'express';
 
+import { AppError } from '../../../shared/domain/app.error.js';
+import type { ErrorCode } from '../../../shared/domain/error-code.constant.js';
 import {
   ACCESS_TOKEN_COOKIE,
   clearSessionCookies,
@@ -12,10 +14,14 @@ import { sendSuccess } from '../../../shared/infrastructure/http/response-envelo
 import type { IssueCsrfTokenUseCase } from '../application/issue-csrf-token.use-case.js';
 import type { LoginUseCase } from '../application/login.use-case.js';
 import type { LogoutUseCase } from '../application/logout.use-case.js';
+import type { RefreshSessionUseCase } from '../application/refresh-session.use-case.js';
 import type { RegisterUserUseCase } from '../application/register-user.use-case.js';
 import { requireCsrfHeader } from './session.middleware.js';
 import { toUserResponse } from './user.mapper.js';
 import { loginBodySchema, registerBodySchema } from './user.schema.js';
+
+// Errores de la renovación con los que la sesión ya no existe: se borran sus cookies (contrato, POST /auth/refresh)
+const CLOSED_SESSION_ERRORS: ReadonlySet<ErrorCode> = new Set(['INVALID_REFRESH_TOKEN', 'SESSION_EXPIRED']);
 
 // Traduce HTTP ↔ casos de uso de /auth
 export class AuthController {
@@ -24,6 +30,7 @@ export class AuthController {
     private readonly registerUser: RegisterUserUseCase,
     private readonly loginUser: LoginUseCase,
     private readonly logoutUser: LogoutUseCase,
+    private readonly refreshSession: RefreshSessionUseCase,
   ) {}
 
   csrf: RequestHandler = async (_req, res) => {
@@ -66,5 +73,21 @@ export class AuthController {
     });
     clearSessionCookies(res);
     sendSuccess(res, 200, 'Sesión cerrada con éxito', null);
+  };
+
+  // Cookies nuevas y data null; el token CSRF de la sesión no cambia (RF-11, RF-24). Si la sesión ya no
+  // existe, se borran las cookies antes de responder el error (RF-12 a RF-14)
+  refresh: RequestHandler = async (req, res) => {
+    const csrfToken = requireCsrfHeader(req);
+    try {
+      const result = await this.refreshSession.execute({ refreshToken: readCookie(req, REFRESH_TOKEN_COOKIE), csrfToken });
+      setSessionCookies(res, result);
+    } catch (error) {
+      if (error instanceof AppError && CLOSED_SESSION_ERRORS.has(error.code)) {
+        clearSessionCookies(res);
+      }
+      throw error;
+    }
+    sendSuccess(res, 200, 'Sesión renovada con éxito', null);
   };
 }

@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "TaskApiSDD — Cuentas de usuario (002)",
-    "description": "Funcionalidad 002 (sdd/002-user-accounts). Implementado por ahora: H1 (token CSRF previo a la sesión y registro) y H2 (login, GET /me y logout). Ejecuta '1. Flujo' en orden (Run folder) antes de '2. Errores': la primera petición genera un email nuevo en cada ejecución. Las cookies de sesión se guardan en la variable sessionCookie y se envían en la cabecera Cookie, porque Newman y Postman no reenvían cookies Secure por http a un host que no sea localhost.",
+    "description": "Funcionalidad 002 (sdd/002-user-accounts). Implementado por ahora: H1 (token CSRF previo a la sesión y registro) H2 (login, GET /me y logout) y H3 (renovación con el refresh token y su margen de gracia). Ejecuta '1. Flujo' en orden (Run folder) antes de '2. Errores': la primera petición genera un email nuevo en cada ejecución. Las cookies de sesión se guardan en la variable sessionCookie y se envían en la cabecera Cookie, porque Newman y Postman no reenvían cookies Secure por http a un host que no sea localhost.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -43,6 +43,10 @@
     },
     {
       "key": "invalidCredentialsBody",
+      "value": ""
+    },
+    {
+      "key": "previousSessionCookie",
       "value": ""
     }
   ],
@@ -260,7 +264,131 @@
           }
         },
         {
-          "name": "05 Cerrar sesión (H2)",
+          "name": "05 Renovar la sesión (H3)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const sessionCookieOf = () => pm.response.headers.all().filter((header) => header.key.toLowerCase() === 'set-cookie').map((header) => header.value.split(';')[0]).join('; ');",
+                  "pm.test('200 con data null y dos cookies nuevas (RF-11)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const { message, data } = pm.response.json();",
+                  "  pm.expect(message).to.equal('Sesión renovada con éxito');",
+                  "  pm.expect(data).to.equal(null);",
+                  "  const renewed = sessionCookieOf();",
+                  "  pm.expect(renewed).to.match(/^access_token=[A-Za-z0-9_-]{43}; refresh_token=[A-Za-z0-9_-]{43}$/);",
+                  "  pm.expect(renewed).to.not.equal(pm.collectionVariables.get('sessionCookie'));",
+                  "  // Las cookies anteriores sirven para comprobar el margen de gracia en la petición siguiente",
+                  "  pm.collectionVariables.set('previousSessionCookie', pm.collectionVariables.get('sessionCookie'));",
+                  "  pm.collectionVariables.set('sessionCookie', renewed);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "{{sessionCookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{sessionCsrfToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "refresh"
+              ]
+            }
+          }
+        },
+        {
+          "name": "06 El refresh token anterior antes de 30 s → los mismos tokens (H3)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const sessionCookieOf = () => pm.response.headers.all().filter((header) => header.key.toLowerCase() === 'set-cookie').map((header) => header.value.split(';')[0]).join('; ');",
+                  "pm.test('200 con los mismos tokens de la renovación anterior (RF-13)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(sessionCookieOf()).to.equal(pm.collectionVariables.get('sessionCookie'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "{{previousSessionCookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{sessionCsrfToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "refresh"
+              ]
+            }
+          }
+        },
+        {
+          "name": "07 Consultar mi cuenta con las cookies renovadas (H3)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con las cookies renovadas (RF-11, RF-24)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "{{sessionCookie}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "me"
+              ]
+            }
+          }
+        },
+        {
+          "name": "08 Cerrar sesión con el mismo token CSRF tras renovar (H2, H3)",
           "event": [
             {
               "listen": "test",
@@ -305,7 +433,7 @@
           }
         },
         {
-          "name": "06 Tras el logout, las cookies ya no sirven (H2)",
+          "name": "09 Tras el logout, las cookies ya no sirven (H2)",
           "event": [
             {
               "listen": "test",
@@ -945,6 +1073,124 @@
           }
         },
         {
+          "name": "Renovar sin X-CSRF-Token → INVALID_CSRF_TOKEN (RF-23)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 INVALID_CSRF_TOKEN', () => {",
+                  "  pm.response.to.have.status(403);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.equal(false);",
+                  "  pm.expect(body.error.code).to.equal('INVALID_CSRF_TOKEN');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "refresh_token=inventado"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "refresh"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Renovar sin cookie de refresh → INVALID_REFRESH_TOKEN (RF-14, decisión 19)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401 INVALID_REFRESH_TOKEN', () => {",
+                  "  pm.response.to.have.status(401);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.equal(false);",
+                  "  pm.expect(body.error.code).to.equal('INVALID_REFRESH_TOKEN');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "refresh"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Renovar con un refresh token inventado → INVALID_REFRESH_TOKEN (RF-14)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401 INVALID_REFRESH_TOKEN', () => {",
+                  "  pm.response.to.have.status(401);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.equal(false);",
+                  "  pm.expect(body.error.code).to.equal('INVALID_REFRESH_TOKEN');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "refresh_token=inventado"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "refresh"
+              ]
+            }
+          }
+        },
+        {
           "name": "Método inexistente → ROUTE_NOT_FOUND",
           "event": [
             {
@@ -1154,6 +1400,50 @@
               "path": [
                 "auth",
                 "logout"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Petición previa de POST /auth/refresh desde el frontend → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con cabeceras CORS (RF-35, RF-36)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.headers.get('Access-Control-Allow-Origin')).to.equal(pm.collectionVariables.get('frontendOrigin'));",
+                  "  pm.expect(pm.response.headers.get('Access-Control-Allow-Credentials')).to.equal('true');",
+                  "  pm.expect(pm.response.headers.get('Access-Control-Allow-Methods')).to.include('POST');",
+                  "  pm.expect(pm.response.headers.get('Access-Control-Allow-Headers')).to.include('X-CSRF-Token');",
+                  "  pm.expect(pm.response.json().data).to.equal(null);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "OPTIONS",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}"
+              },
+              {
+                "key": "Access-Control-Request-Method",
+                "value": "POST"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "refresh"
               ]
             }
           }

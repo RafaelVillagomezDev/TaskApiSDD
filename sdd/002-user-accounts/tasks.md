@@ -222,28 +222,33 @@ Spec: `sdd/002-user-accounts/spec.md` (Aprobada) · Plan: `sdd/002-user-accounts
 ## Fase H3 — Mantener la sesión abierta mientras la uso (HU-03, P1)
 
 ### Tests (deben fallar)
-- [ ] T072 [P] [H3] Test de renovar: rotación con nuevas caducidades; 7 días sin renovar y tope de 30 días → `SESSION_EXPIRED`; rotado a los 10 s → mismos tokens desde la copia cifrada; a los 31 s y de dos generaciones atrás → sesión cerrada e `INVALID_REFRESH_TOKEN`; token inexistente; otras sesiones intactas; CSRF de sesión sin cambios (RF-11 a RF-14, RF-24, CE-04) — `users/application/tests/refresh-session.use-case.test.ts`
+- [x] T072 [P] [H3] Test de renovar: rotación con nuevas caducidades; 7 días sin renovar y tope de 30 días → `SESSION_EXPIRED`; rotado a los 10 s → mismos tokens desde la copia cifrada; a los 31 s y de dos generaciones atrás → sesión cerrada e `INVALID_REFRESH_TOKEN`; token inexistente; otras sesiones intactas; CSRF de sesión sin cambios (RF-11 a RF-14, RF-24, CE-04) — `users/application/tests/refresh-session.use-case.test.ts`
   - Verifica: `dce pnpm test src/modules/users/application/tests/refresh-session` **falla**.
-- [ ] T073 [P] [H3] Test de limpieza: borra solo lo caducado, incluidas las copias cifradas de más de 30 s (D-12, R-13) — `users/application/tests/purge-expired-auth-data.use-case.test.ts`
+- [x] T073 [P] [H3] Test de limpieza: borra solo lo caducado, incluidas las copias cifradas de más de 30 s (D-12, R-13) — `users/application/tests/purge-expired-auth-data.use-case.test.ts`
   - Verifica: `dce pnpm test src/modules/users/application/tests/purge-expired` **falla**.
-- [ ] T074 [P] [H3] Test del planificador de limpieza: pasada al arrancar, cada minuto, sin solapamiento, errores registrados (D-12) — `users/infrastructure/tests/auth-cleanup.scheduler.test.ts`
+- [x] T074 [P] [H3] Test del planificador de limpieza: pasada al arrancar, cada minuto, sin solapamiento, errores registrados (D-12) — `users/infrastructure/tests/auth-cleanup.scheduler.test.ts`
   - Verifica: `dce pnpm test src/modules/users/infrastructure/tests/auth-cleanup` **falla**.
-- [ ] T075 [H3] Test HTTP de `POST /auth/refresh`: acceso caducado → `TOKEN_EXPIRED` → refresh → `200` y la petición funciona; dos renovaciones con 5 s de diferencia; reutilización a los 31 s cierra la sesión; cookies borradas en `INVALID_REFRESH_TOKEN` y `SESSION_EXPIRED`; sin `X-CSRF-Token` → `INVALID_CSRF_TOKEN` (RF-11 a RF-14, RF-20, RF-23) — `users/infrastructure/tests/auth.routes.test.ts`
+- [x] T075 [H3] Test HTTP de `POST /auth/refresh`: acceso caducado → `TOKEN_EXPIRED` → refresh → `200` y la petición funciona; dos renovaciones con 5 s de diferencia; reutilización a los 31 s cierra la sesión; cookies borradas en `INVALID_REFRESH_TOKEN` y `SESSION_EXPIRED`; sin `X-CSRF-Token` → `INVALID_CSRF_TOKEN` (RF-11 a RF-14, RF-20, RF-23) — `users/infrastructure/tests/auth.routes.test.ts`
   - Verifica: `dce pnpm test src/modules/users/infrastructure/tests/auth.routes` **falla**.
 
 ### Implementación
-- [ ] T076 [H3] Caso de uso renovar (RF-11 a RF-14, RF-24) — `users/application/refresh-session.use-case.ts`
+- [x] T076 [H3] Caso de uso renovar (RF-11 a RF-14, RF-24) — `users/application/refresh-session.use-case.ts`
   - Verifica: `dce pnpm test src/modules/users/application/tests/refresh-session` pasa.
-- [ ] T077 [H3] Variante del middleware de sesión para `/auth/refresh`: resuelve por el refresh token y aplica la decisión 19 (RF-14, RF-23, D-6) — `users/infrastructure/session.middleware.ts`
+  - Hecho (2026-10-28): dentro de la transacción de `withRefreshTokenLocked` el caso de uso no lanza errores, porque un error la desharía y con ella el cierre de la sesión (RF-12, RF-13): devuelve el resultado y lanza el error al terminar. Una copia cifrada que no se puede abrir (clave cambiada) cuenta como reutilización (R-4).
+- [x] T077 [H3] Variante del middleware de sesión para `/auth/refresh`: resuelve por el refresh token y aplica la decisión 19 (RF-14, RF-23, D-6) — `users/infrastructure/session.middleware.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
-- [ ] T078 [H3] Controlador y ruta `POST /auth/refresh` con su petición previa (RF-11, RF-36) — `users/infrastructure/auth.controller.ts`, `users/infrastructure/auth.routes.ts`
+  - Hecho (2026-10-28): como el logout (T067), sin variante del middleware: el controlador exige `X-CSRF-Token` con `requireCsrfHeader` y `RefreshSessionUseCase` compara el CSRF con la sesión del refresh token dentro de la transacción (plan §5.3, paso 3).
+- [x] T078 [H3] Controlador y ruta `POST /auth/refresh` con su petición previa (RF-11, RF-36) — `users/infrastructure/auth.controller.ts`, `users/infrastructure/auth.routes.ts`
   - Verifica: `dce pnpm test src/modules/users/infrastructure/tests/auth.routes` pasa.
-- [ ] T079 [P] [H3] Caso de uso limpieza y planificador cada minuto (D-12) — `users/application/purge-expired-auth-data.use-case.ts`, `users/infrastructure/auth-cleanup.scheduler.ts`
+- [x] T079 [P] [H3] Caso de uso limpieza y planificador cada minuto (D-12) — `users/application/purge-expired-auth-data.use-case.ts`, `users/infrastructure/auth-cleanup.scheduler.ts`
   - Verifica: `dce pnpm test src/modules/users/application/tests/purge-expired src/modules/users/infrastructure/tests/auth-cleanup` pasa.
-- [ ] T080 [H3] Cablear el planificador de limpieza y arrancarlo y pararlo con el servidor (incluida la recarga en caliente) (D-12) — `src/dependency.container.ts`, `src/server.main.ts`
+  - Hecho (2026-10-28): el planificador de limpieza habría repetido casi entero `AlertScheduler` (AGENTS.md §8, sin bloques duplicados): lo común (arrancar, parar, no solapar y registrar el fallo) se extrajo a `src/shared/infrastructure/scheduling/interval-runner.ts`, con su test, y lo usan los dos planificadores; los tests de `AlertScheduler` no cambian. Solo se registra la pasada inicial (`AUTH_CLEANUP_COMPLETED`) y los fallos (`AUTH_CLEANUP_FAILED`).
+- [x] T080 [H3] Cablear el planificador de limpieza y arrancarlo y pararlo con el servidor (incluida la recarga en caliente) (D-12) — `src/dependency.container.ts`, `src/server.main.ts`
   - Verifica: `docker compose -f docker-compose.dev.yml restart api` y `docker compose -f docker-compose.dev.yml logs --since 1m api` muestra la pasada inicial de limpieza sin errores.
-- [ ] T081 [H3] Guía manual, sección QS-H3 — `sdd/002-user-accounts/quickstart.md`
+  - Hecho (2026-10-28): tras reiniciar `api`, el log muestra `AUTH_CLEANUP_COMPLETED` sin errores; `server.main.ts` para los dos planificadores al cerrar y en la recarga en caliente.
+- [x] T081 [H3] Guía manual, sección QS-H3 — `sdd/002-user-accounts/quickstart.md`
   - Verifica: ejecutar QS-H3 a mano.
+  - Hecho (2026-10-28): ejecutado a mano contra la API de desarrollo, incluida la espera de 31 s de QS-H3.3.
 
 ### Checkpoint H3
 - `dce pnpm test` pasa entero.
@@ -378,7 +383,7 @@ Spec: `sdd/002-user-accounts/spec.md` (Aprobada) · Plan: `sdd/002-user-accounts
   - Verifica: `dce pnpm test:perf` pasa.
 - [ ] T119 [P] [Rob] Colección de Postman con `GET /auth/csrf`, registro y login (cookies de Postman y `csrfToken` en una variable), flujo H1–H6 de la 001 con sesión y errores de sesión y CSRF (RF-17, RF-22, RF-23) — `sdd/001-taskApiSDD-mvp/mvp-p1.postman-collection.json`
   - Verifica: `docker run --rm -e TZ=Europe/Madrid -v "$PWD/sdd/001-taskApiSDD-mvp":/etc/newman postman/newman:6-alpine run mvp-p1.postman-collection.json --env-var baseUrl=http://host.docker.internal:3000` sin fallos.
-  - Nota (2026-10-28): a petición del usuario, la 002 tiene además su propia colección, `sdd/002-user-accounts/user-accounts.postman-collection.json`, creada tras H1 (token CSRF previo, registro, errores y CORS: 12 peticiones y 12 comprobaciones con Newman, sin fallos) y ampliada tras H2 (login, `GET /me`, logout, sus errores y peticiones previas: 26 peticiones y 28 comprobaciones, sin fallos). Las cookies se guardan en la variable `sessionCookie` y se envían en la cabecera `Cookie`, porque Newman no reenvía cookies `Secure` por http a `host.docker.internal`. Se amplía en cada historia.
+  - Nota (2026-10-28): a petición del usuario, la 002 tiene además su propia colección, `sdd/002-user-accounts/user-accounts.postman-collection.json`, creada tras H1 (token CSRF previo, registro, errores y CORS: 12 peticiones y 12 comprobaciones con Newman, sin fallos) ampliada tras H2 (login, `GET /me`, logout, sus errores y peticiones previas: 26 peticiones y 28 comprobaciones, sin fallos) y tras H3 (renovación, margen de gracia, sus errores y la petición previa: 33 peticiones y 35 comprobaciones, sin fallos; la reutilización a los 31 s queda en los tests y en QS-H3.3). Las cookies se guardan en la variable `sessionCookie` y se envían en la cabecera `Cookie`, porque Newman no reenvía cookies `Secure` por http a `host.docker.internal`. Se amplía en cada historia.
 - [ ] T120 [Rob] AGENTS.md: variables `SESSION_ENCRYPTION_KEY` y `CORS_ORIGIN`, módulo `users` y aviso de Safari en desarrollo (R-2) — `AGENTS.md`
   - Verifica: `grep -c "SESSION_ENCRYPTION_KEY\|CORS_ORIGIN" AGENTS.md` ≥ 2.
 - [ ] T121 [Rob] Guía manual, sección QS-R: producción con cookies y CORS (petición previa desde `https://kompitu.yandrydev.cloud` y desde otro origen) y rendimiento — `sdd/002-user-accounts/quickstart.md`

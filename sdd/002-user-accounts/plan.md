@@ -57,6 +57,7 @@ Un módulo vertical nuevo, `users`, gestiona cuentas, sesiones, tokens CSRF y bl
 | `infrastructure/http/allowed-method.middleware.ts` | Modifica | Deja pasar `OPTIONS` solo si es una petición previa de CORS desde el origen permitido; cualquier otro `OPTIONS` sigue siendo `ROUTE_NOT_FOUND` (RF-36). |
 | `infrastructure/http/request-context.middleware.ts` | Modifica | Deja de leer `X-User-Id`: toma `userId` y `sessionId` del `SessionContext`, valida hora y zona como en la 001 y, si son válidas, recuerda la zona (RF-30, RF-31). Pasa a usarse solo en `/tasks`, `/streak` y `/alerts`. |
 | `infrastructure/http/request-header.schema.ts` | Modifica | Elimina el schema de `X-User-Id` (RF-32). |
+| `infrastructure/scheduling/interval-runner.ts` | Crea | Ejecuta una tarea al arrancar y cada intervalo, sin solapar ejecuciones, y registra sus fallos. Lo usan `AlertScheduler` (de la 001, sin cambio de comportamiento) y `AuthCleanupScheduler`, que si no repetirían el mismo código (AGENTS.md §8; detectado en T079). |
 
 ### `src/modules/users/` (nuevo)
 
@@ -90,11 +91,11 @@ Un módulo vertical nuevo, `users`, gestiona cuentas, sesiones, tokens CSRF y bl
 | `infrastructure/prisma-user.repository.ts`, `prisma-session.repository.ts`, `prisma-login-attempt.repository.ts`, `prisma-csrf-token.repository.ts` | Implementan los puertos con Prisma; la rotación usa una transacción con `SELECT … FOR UPDATE` (D-4). |
 | `infrastructure/user.mapper.ts` | Fila Prisma ↔ `User` ↔ recurso `User` del contrato (sin `passwordHash`). |
 | `infrastructure/user.schema.ts` | Schemas Zod: registro, login, `PATCH /me` (`strict`), `PATCH /me/password` y `DELETE /me` (RF-02 a RF-05, RF-26). |
-| `infrastructure/session.middleware.ts` | `createSessionMiddleware(authenticate)`: en `POST`/`PATCH`/`DELETE` exige `X-CSRF-Token` y `AuthenticateSessionUseCase` comprueba la sesión y su CSRF en el orden de RF-34 y la decisión 19; deja el `SessionContext` (D-6). Exporta `requireCsrfHeader`, que usa el controlador del logout: allí `LogoutUseCase` resuelve la sesión por el token de acceso o el refresh token (5.4, detectado en T067). Variante para `/auth/refresh` que resuelve la sesión por el refresh token. |
+| `infrastructure/session.middleware.ts` | `createSessionMiddleware(authenticate)`: en `POST`/`PATCH`/`DELETE` exige `X-CSRF-Token` y `AuthenticateSessionUseCase` comprueba la sesión y su CSRF en el orden de RF-34 y la decisión 19; deja el `SessionContext` (D-6). Exporta `requireCsrfHeader`, que usan los controladores del logout y de la renovación: allí `LogoutUseCase` y `RefreshSessionUseCase` resuelven la sesión por el token de acceso o el refresh token y comparan el CSRF (5.3 y 5.4, detectado en T067 y T077). |
 | `infrastructure/presession-csrf.middleware.ts` | Exige el token CSRF previo a la sesión en registro y login (RF-22, RF-23). |
 | `infrastructure/auth.controller.ts`, `auth.routes.ts` | `GET /auth/csrf`, `POST /auth/register`, `/login`, `/refresh`, `/logout`, con sus peticiones previas de CORS. |
 | `infrastructure/me.controller.ts`, `me.routes.ts` | `GET`/`PATCH`/`DELETE /me` y `PATCH /me/password`. |
-| `infrastructure/auth-cleanup.scheduler.ts` | Ejecuta `PurgeExpiredAuthDataUseCase` al arrancar y cada minuto, sin solapar pasadas (D-12). |
+| `infrastructure/auth-cleanup.scheduler.ts` | Ejecuta `PurgeExpiredAuthDataUseCase` al arrancar y cada minuto, sin solapar pasadas (D-12), con `IntervalRunner` de `src/shared/`. |
 
 ### Módulos de la 001
 

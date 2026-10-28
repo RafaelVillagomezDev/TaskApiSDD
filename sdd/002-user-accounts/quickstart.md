@@ -111,3 +111,34 @@ CSRF=$(csrf)
   curl -s -X POST $API/auth/login -H "Content-Type: application/json" -H "X-CSRF-Token: $P" -d "{\"email\":\"$EMAIL\",\"password\":\"correct horse battery\"}"; echo
   ```
   → `429 TOO_MANY_ATTEMPTS`: el email queda bloqueado 15 minutos aunque la contraseña sea correcta (RF-09). QS-H2.3 ya contó un fallo, así que el bloqueo llega en el cuarto intento del bucle. Para seguir probando, registra otra cuenta con un `EMAIL` nuevo.
+
+## QS-H3 — Mantener la sesión abierta mientras la uso (HU-03)
+
+Con una sesión abierta: si QS-H2.4 bloqueó la cuenta, registra otra con un `EMAIL` nuevo e inicia sesión como en QS-H2.1. `CSRF` debe ser el token de esa sesión.
+
+- **QS-H3.1** Renovar la sesión:
+  ```bash
+  cp "$JAR" "$JAR.old"
+  apij -i -X POST $API/auth/refresh
+  apij $API/me
+  ```
+  → `200`, `message: "Sesión renovada con éxito"`, `data: null` y dos `Set-Cookie` nuevos (`access_token` con `Max-Age=900` y `refresh_token` con `Max-Age=604800; Path=/auth`). `GET /me` sigue respondiendo `200` con el mismo `CSRF`: el token CSRF de la sesión no cambia (RF-24). `$JAR.old` guarda las cookies de antes de renovar.
+- **QS-H3.2** El refresh token anterior antes de que pasen 30 s:
+  ```bash
+  curl -s -i -b "$JAR.old" -H "X-CSRF-Token: $CSRF" -X POST $API/auth/refresh | grep -i '^set-cookie' | cut -d';' -f1
+  grep -E 'access_token|refresh_token' "$JAR" | awk '{print $6 "=" $7}'
+  ```
+  → `200` con **los mismos** tokens que entregó QS-H3.1 (las dos listas coinciden): es el margen de gracia para dos pestañas que renuevan a la vez (RF-13).
+- **QS-H3.3** El refresh token anterior después de 30 s:
+  ```bash
+  sleep 31
+  curl -s -b "$JAR.old" -H "X-CSRF-Token: $CSRF" -X POST $API/auth/refresh; echo
+  apij $API/me
+  ```
+  → `401 INVALID_REFRESH_TOKEN` con las cookies borradas, y `GET /me` con las cookies vigentes → `401 INVALID_TOKEN`: reutilizar un refresh token rotado cierra la sesión entera (RF-13, CE-04).
+- **QS-H3.4** Renovar sin la cookie de refresh:
+  ```bash
+  curl -s -H "X-CSRF-Token: $CSRF" -X POST $API/auth/refresh; echo
+  ```
+  → `401 INVALID_REFRESH_TOKEN`: con la cabecera y sin sesión gana el error de sesión (RF-14, decisión 19). Sin `X-CSRF-Token` respondería `403 INVALID_CSRF_TOKEN`.
+- **Limpieza (D-12):** `docker compose -f docker-compose.dev.yml logs api | grep AUTH_CLEANUP` muestra la pasada inicial (`AUTH_CLEANUP_COMPLETED`). Las demás pasadas, cada minuto, solo dejan rastro si fallan (`AUTH_CLEANUP_FAILED`).

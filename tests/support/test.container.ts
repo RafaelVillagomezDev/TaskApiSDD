@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 
@@ -27,8 +28,10 @@ import { GetProfileUseCase } from '../../src/modules/users/application/get-profi
 import { IssueCsrfTokenUseCase } from '../../src/modules/users/application/issue-csrf-token.use-case.js';
 import { LoginUseCase } from '../../src/modules/users/application/login.use-case.js';
 import { LogoutUseCase } from '../../src/modules/users/application/logout.use-case.js';
+import { RefreshSessionUseCase } from '../../src/modules/users/application/refresh-session.use-case.js';
 import { RegisterUserUseCase } from '../../src/modules/users/application/register-user.use-case.js';
 import { VerifySessionCsrfUseCase } from '../../src/modules/users/application/verify-session-csrf.use-case.js';
+import { AesGcmGraceCipher } from '../../src/modules/users/infrastructure/aes-gcm-grace-cipher.adapter.js';
 import { AuthController } from '../../src/modules/users/infrastructure/auth.controller.js';
 import { createAuthRouter } from '../../src/modules/users/infrastructure/auth.routes.js';
 import { CryptoTokenService } from '../../src/modules/users/infrastructure/crypto-token.adapter.js';
@@ -124,6 +127,8 @@ export function createTestContainer(): TestContainer {
       new RegisterUserUseCase(users, passwordHasher),
       new LoginUseCase(users, sessions, loginAttempts, passwordHasher, tokens, clock),
       new LogoutUseCase(sessions, tokens, verifyCsrf),
+      // Clave aleatoria por contenedor: los tests no dependen de ningún secreto
+      new RefreshSessionUseCase(sessions, tokens, new AesGcmGraceCipher(randomBytes(32)), verifyCsrf, clock),
     ),
     presessionCsrf: createPresessionCsrfMiddleware({ tokens, csrfTokens, clock }),
   });

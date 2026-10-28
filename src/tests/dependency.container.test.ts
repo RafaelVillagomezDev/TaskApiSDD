@@ -2,6 +2,7 @@ import { startTestServer, type TestServer } from '../../tests/support/test.conta
 import { createApp } from '../app.factory.js';
 import { type Container, createContainer } from '../dependency.container.js';
 import { AlertScheduler } from '../modules/alerts/infrastructure/alert.scheduler.js';
+import { AuthCleanupScheduler } from '../modules/users/infrastructure/auth-cleanup.scheduler.js';
 import { getPrismaClient } from '../shared/infrastructure/prisma/prisma.client.js';
 
 interface ErrorBody {
@@ -24,13 +25,14 @@ describe('createContainer', () => {
     await container.prisma.$disconnect();
   });
 
-  it('crea el reloj del sistema, las zonas horarias y el planificador de avisos sin arrancarlo', () => {
+  it('crea el reloj del sistema, las zonas horarias y los planificadores sin arrancarlos', () => {
     const before = Date.now();
     const now = container.clock.now().getTime();
     expect(now).toBeGreaterThanOrEqual(before);
     expect(now).toBeLessThanOrEqual(Date.now());
     expect(container.timeZones.isValid('Europe/Madrid')).toBe(true);
     expect(container.alertScheduler).toBeInstanceOf(AlertScheduler);
+    expect(container.authCleanupScheduler).toBeInstanceOf(AuthCleanupScheduler);
   });
 
   it('usa la instancia única de PrismaClient', () => {

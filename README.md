@@ -4,7 +4,7 @@ API REST para **organizar tareas diarias** y medir la **constancia** con una **r
 
 Está construida con **Spec-Driven Development (SDD)**: primero se escribe *qué* debe hacer el sistema (la spec), después *cómo* (el plan), después las *tareas*, y solo al final el código.
 
-> **Estado:** el MVP P1 funciona de principio a fin: crear tareas, consultarlas, completarlas y ver la racha. Las historias P2 y P3 también están hechas: listar todas las tareas con filtros de estado y rango de fechas, consultar una tarea por su id (H4), editar el título y la descripción o borrar tareas (H5), y avisos diarios, semanales y mensuales de tareas pendientes (H6). La fase de robustez también está hecha (precedencia de errores por pares y rendimiento). La imagen de producción está construida y probada en local (`Dockerfile.prod`, `docker-compose.prod.yml`): todas las tareas de la funcionalidad 001 están hechas. **En curso:** funcionalidad 002, cuentas de usuario (registro, login, sesión en cookies con refresh token y protección CSRF), con la spec y el plan aprobados y la fase base, H1 y H2 de `tasks.md` hechas (71 de 121 tareas): ya se puede registrar una cuenta (`GET /auth/csrf`, `POST /auth/register`), iniciar sesión con cookies (`POST /auth/login`), consultar la cuenta (`GET /me`) y cerrar sesión (`POST /auth/logout`); siguiente paso: H3, renovar la sesión con el refresh token. Ver [Estado del proyecto](#estado-del-proyecto).
+> **Estado:** el MVP P1 funciona de principio a fin: crear tareas, consultarlas, completarlas y ver la racha. Las historias P2 y P3 también están hechas: listar todas las tareas con filtros de estado y rango de fechas, consultar una tarea por su id (H4), editar el título y la descripción o borrar tareas (H5), y avisos diarios, semanales y mensuales de tareas pendientes (H6). La fase de robustez también está hecha (precedencia de errores por pares y rendimiento). La imagen de producción está construida y probada en local (`Dockerfile.prod`, `docker-compose.prod.yml`): todas las tareas de la funcionalidad 001 están hechas. **En curso:** funcionalidad 002, cuentas de usuario (registro, login, sesión en cookies con refresh token y protección CSRF), con la spec y el plan aprobados y la fase base y H1 a H3 de `tasks.md` hechas (81 de 121 tareas): ya se puede registrar una cuenta (`GET /auth/csrf`, `POST /auth/register`), iniciar sesión con cookies (`POST /auth/login`), renovarla con el refresh token (`POST /auth/refresh`), consultar la cuenta (`GET /me`) y cerrar sesión (`POST /auth/logout`); siguiente paso: H4, usar las tareas, la racha y los avisos con la sesión en lugar de `X-User-Id`. Ver [Estado del proyecto](#estado-del-proyecto).
 
 ---
 
@@ -166,6 +166,7 @@ api() { curl -s -H "X-User-Id: $USER_ID" -H "X-Client-Time: $(now)" -H "X-Timezo
 | `GET` | `/auth/csrf` | **(002)** Token CSRF previo a la sesión, válido 30 minutos, para registrarse e iniciar sesión |
 | `POST` | `/auth/register` | **(002)** Crea una cuenta sin abrir sesión |
 | `POST` | `/auth/login` | **(002)** Abre una sesión: cookies `access_token` (15 min) y `refresh_token` (7 días) y, en el cuerpo, la cuenta y el token CSRF de la sesión. 5 fallos en 15 minutos bloquean el email 15 minutos |
+| `POST` | `/auth/refresh` | **(002)** Renueva la sesión: cookies nuevas, el mismo token CSRF. El refresh token anterior devuelve los mismos tokens durante 30 s; después, reutilizarlo cierra la sesión. Caduca a los 7 días sin renovar y a los 30 días del login |
 | `POST` | `/auth/logout` | **(002)** Cierra la sesión de las cookies (también con el token de acceso caducado) y las borra |
 | `GET` | `/me` | **(002)** Tu cuenta, identificada por la cookie de sesión |
 
@@ -277,7 +278,7 @@ La colección cubre H1 a H6: crear, consultar, completar, racha, filtros de esta
 
 > **Mientras se implementa la 002:** desde su migración, `user_id` debe ser el UUID de una cuenta, así que esta colección (que envía `X-User-Id` inventados) falla hasta que H4 la pase a sesión con cookies (tarea T119).
 
-**Cuentas de usuario (002):** importa `sdd/002-user-accounts/user-accounts.postman-collection.json` y ejecuta **"1. Flujo"**, después **"2. Errores"** y **"3. CORS"**. Cubre lo implementado hasta ahora (H1 y H2): token CSRF previo a la sesión, registro, login, `GET /me`, logout, sus errores y las peticiones previas de CORS. La primera petición genera una cuenta nueva en cada ejecución. El login guarda las cookies en la variable `sessionCookie` y las peticiones siguientes las envían en la cabecera `Cookie`, porque Newman y Postman no reenvían cookies `Secure` por http a un host distinto de `localhost`. Desde la terminal:
+**Cuentas de usuario (002):** importa `sdd/002-user-accounts/user-accounts.postman-collection.json` y ejecuta **"1. Flujo"**, después **"2. Errores"** y **"3. CORS"**. Cubre lo implementado hasta ahora (H1 a H3): token CSRF previo a la sesión, registro, login, `GET /me`, renovación con su margen de gracia, logout, sus errores y las peticiones previas de CORS. La primera petición genera una cuenta nueva en cada ejecución. El login guarda las cookies en la variable `sessionCookie` y las peticiones siguientes las envían en la cabecera `Cookie`, porque Newman y Postman no reenvían cookies `Secure` por http a un host distinto de `localhost`. Desde la terminal:
 
 ```bash
 docker run --rm -v "$PWD/sdd/002-user-accounts":/etc/newman postman/newman:6-alpine \
@@ -383,7 +384,7 @@ Los middlewares 3 y 4 se encadenan **en cada ruta**, no de forma global (decisi�
 
 | Fichero | Papel |
 | :--- | :--- |
-| `src/server.main.ts` | Punto de entrada: arranca el servidor en el puerto 3000 y el **planificador de avisos** (una pasada al arrancar y otra cada 60 s; deja una línea `ALERT_PASS_COMPLETED` en el log) |
+| `src/server.main.ts` | Punto de entrada: arranca el servidor en el puerto 3000, el **planificador de avisos** (una pasada al arrancar y otra cada 60 s; deja una línea `ALERT_PASS_COMPLETED` en el log) y la **limpieza de datos de sesión caducados** (al arrancar y cada minuto; deja `AUTH_CLEANUP_COMPLETED` en la pasada inicial) |
 | `src/app.factory.ts` | Crea la app de Express y monta los middlewares y routers en orden |
 | `src/dependency.container.ts` | **Composition root**: crea las piezas reales (repositorios Prisma, casos de uso, controladores, routers) y las conecta. Es el único sitio que conoce las implementaciones concretas |
 | `tests/support/test.container.ts` | El mismo cableado, pero con **fakes en memoria**, para los tests HTTP |
@@ -445,7 +446,9 @@ TaskApiSDD/
 │   │   ├── application/       #   RequestContext (usuario, día actual, zona)
 │   │   └── infrastructure/
 │   │       ├── http/          #   Middlewares, sobre de respuesta, validación de cabeceras
+│   │       ├── config/        #   Variables de entorno validadas con Zod (clave de sesión y origen CORS, 002)
 │   │       ├── prisma/        #   Cliente único de Prisma
+│   │       ├── scheduling/    #   IntervalRunner: tarea periódica sin solapes, base de los planificadores
 │   │       └── time/          #   Reloj del sistema y zonas horarias con Intl
 │   └── modules/
 │       ├── tasks/             # Tareas: crear, listar, completar…
@@ -457,7 +460,8 @@ TaskApiSDD/
 │       │   │   └── tests/
 │       │   └── task.facade.ts #   Lo único que otros módulos pueden importar de tasks
 │       ├── streaks/           # Racha (misma estructura)
-│       └── alerts/            # Avisos: ventanas de aviso, planificador de 60 s, GET /alerts y zona recordada de cada usuario
+│       ├── alerts/            # Avisos: ventanas de aviso, planificador de 60 s, GET /alerts y zona recordada de cada usuario
+│       └── users/             # Cuentas y sesiones (002): registro, login, renovación, logout, /me, CSRF y limpieza cada minuto
 ├── tests/                     # Soporte común de tests
 │   ├── support/               #   Fakes en memoria, reloj falso, contenedor de test
 │   └── integration/           #   Setup del esquema `test` de PostgreSQL
@@ -687,7 +691,7 @@ Abre `graphify-out/graph.html` en el navegador para verlo de forma interactiva.
 
 ### Funcionalidad 002 — Cuentas de usuario (en curso)
 
-[`spec.md`](sdd/002-user-accounts/spec.md) *Aprobada*, [`plan.md`](sdd/002-user-accounts/plan.md) *Aprobado* y [`tasks.md`](sdd/002-user-accounts/tasks.md): fase base, H1 y H2 hechas (71 de 121 tareas: `argon2`, configuración, migración, dominio, adaptadores criptográficos, repositorios, CORS, registro, login, logout y `GET /me`); faltan H3–H7 y robustez. Guía manual en [`quickstart.md`](sdd/002-user-accounts/quickstart.md). **La migración vacía las tareas, avisos y zonas de desarrollo** (RF-33): hasta terminar H4, `X-User-Id` debe ser el UUID de una cuenta de la tabla `users`. Lo que cambia respecto a la 001:
+[`spec.md`](sdd/002-user-accounts/spec.md) *Aprobada*, [`plan.md`](sdd/002-user-accounts/plan.md) *Aprobado* y [`tasks.md`](sdd/002-user-accounts/tasks.md): fase base y H1 a H3 hechas (81 de 121 tareas: `argon2`, configuración, migración, dominio, adaptadores criptográficos, repositorios, CORS, registro, login, logout, `GET /me`, renovación de la sesión y limpieza cada minuto de los datos de sesión caducados); faltan H4–H7 y robustez. Guía manual en [`quickstart.md`](sdd/002-user-accounts/quickstart.md). **La migración vacía las tareas, avisos y zonas de desarrollo** (RF-33): hasta terminar H4, `X-User-Id` debe ser el UUID de una cuenta de la tabla `users`. Lo que cambia respecto a la 001:
 
 - **Cuentas propias:** registro con email y contraseña (12–128 caracteres), login, perfil (`GET`/`PATCH /me`), cambio de contraseña y borrado de la cuenta.
 - **Sesión en cookies `HttpOnly`:** es la única forma de identificarse; `X-User-Id` y `MISSING_USER` se eliminan de la API; los datos guardados con identificadores antiguos se borran al migrar. Token de acceso de 15 minutos y *refresh token* de 7 días que rota en cada renovación, con un margen de gracia de 30 segundos y un tope de 30 días por sesión.
