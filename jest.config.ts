@@ -42,6 +42,8 @@ const config: Config = {
             ...esmProject,
             displayName: 'performance',
             testMatch: ['<rootDir>/tests/performance/**/*.test.ts'],
+            // Mismo esquema `test` que la integración: nunca se cargan datos masivos en los de desarrollo
+            globalSetup: '<rootDir>/tests/integration/global.setup.ts',
           },
         ]
       : []),

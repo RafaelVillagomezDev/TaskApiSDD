@@ -98,6 +98,7 @@ docker compose -f docker-compose.sonar.yml down                         # Parar 
 > El hook `.githooks/pre-push` hace los dos últimos pasos en cada `git push` y rechaza el push si el quality gate no pasa, si SonarQube o `api` no están levantados, si hay cambios de código sin commitear o si lo que se sube no es la rama actual (el análisis se hace sobre el árbol de trabajo).
 
 ### Producción (`Dockerfile.prod`)
+> **Pendiente (T028, T029):** `Dockerfile.prod` y `docker-compose.prod.yml` aún no existen; el proyecto sigue en desarrollo. Estos son los comandos previstos.
 ```bash
 docker compose -f docker-compose.prod.yml up --build -d           # Construir la imagen de producción y levantarla
 docker compose -f docker-compose.prod.yml down                    # Parar los contenedores
@@ -118,7 +119,7 @@ docker compose -f docker-compose.dev.yml exec api pnpm prisma migrate reset     
 docker compose -f docker-compose.dev.yml exec api pnpm prisma studio                        # Explorar la BDD (puerto 5555 expuesto)
 
 # Producción
-docker compose -f docker-compose.prod.yml exec api pnpm prisma migrate deploy               # Aplicar migraciones pendientes
+docker compose -f docker-compose.prod.yml run --rm migrate                                  # Aplicar migraciones pendientes (servicio de un solo uso con el CLI de prisma)
 ```
 
 ### Tests (Jest)
@@ -126,6 +127,7 @@ docker compose -f docker-compose.prod.yml exec api pnpm prisma migrate deploy   
 docker compose -f docker-compose.dev.yml exec api pnpm test                 # Ejecutar todos los tests
 docker compose -f docker-compose.dev.yml exec api pnpm test:watch           # Tests en modo watch
 docker compose -f docker-compose.dev.yml exec api pnpm test:coverage        # Tests con informe de cobertura
+docker compose -f docker-compose.dev.yml exec api pnpm test:perf            # Rendimiento: p95 por endpoint con 10 000 tareas y pasada del planificador (esquema test)
 ```
 
 ### Grafo de conocimiento (graphify)

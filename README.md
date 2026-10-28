@@ -4,7 +4,7 @@ API REST para **organizar tareas diarias** y medir la **constancia** con una **r
 
 Está construida con **Spec-Driven Development (SDD)**: primero se escribe *qué* debe hacer el sistema (la spec), después *cómo* (el plan), después las *tareas*, y solo al final el código.
 
-> **Estado:** el MVP P1 funciona de principio a fin: crear tareas, consultarlas, completarlas y ver la racha. Las historias P2 y P3 también están hechas: listar todas las tareas con filtros de estado y rango de fechas, consultar una tarea por su id (H4), editar el título y la descripción o borrar tareas (H5), y avisos diarios, semanales y mensuales de tareas pendientes (H6). Faltan la fase de robustez y la imagen de producción. Ver [Estado del proyecto](#estado-del-proyecto).
+> **Estado:** el MVP P1 funciona de principio a fin: crear tareas, consultarlas, completarlas y ver la racha. Las historias P2 y P3 también están hechas: listar todas las tareas con filtros de estado y rango de fechas, consultar una tarea por su id (H4), editar el título y la descripción o borrar tareas (H5), y avisos diarios, semanales y mensuales de tareas pendientes (H6). La fase de robustez también está hecha (precedencia de errores por pares y rendimiento). La imagen de producción queda aplazada: el proyecto sigue en desarrollo. Ver [Estado del proyecto](#estado-del-proyecto).
 
 ---
 
@@ -460,7 +460,7 @@ TaskApiSDD/
 | **Unitario** | `*.test.ts` | Entidades, *value objects*, casos de uso (con fakes en memoria) | No |
 | **HTTP** | `*.routes.test.ts` | El contrato de la API: códigos, sobre, precedencia de errores. Arranca la app real con fakes y hace peticiones con `fetch` | No |
 | **Integración** | `*.int.test.ts` | Los repositorios Prisma contra PostgreSQL real | Sí, en el esquema `test` |
-| **Rendimiento** | `tests/performance/` | Tiempos de respuesta (pendiente) | Sí |
+| **Rendimiento** | `tests/performance/` | p95 de cada endpoint con un usuario de 10 000 tareas en 3 años (< 300 ms, RNF-01) y duración de una pasada del planificador con 10 000 usuarios. Solo con `pnpm test:perf` | Sí, en el esquema `test` |
 
 ### Dónde van
 
@@ -478,6 +478,7 @@ docker compose -f docker-compose.dev.yml exec api pnpm test                     
 docker compose -f docker-compose.dev.yml exec api pnpm test src/modules/streaks    # solo un módulo o carpeta
 docker compose -f docker-compose.dev.yml exec api pnpm test:watch                  # se repiten al guardar
 docker compose -f docker-compose.dev.yml exec api pnpm test:coverage               # con informe de cobertura
+docker compose -f docker-compose.dev.yml exec api pnpm test:perf                   # rendimiento (imprime el p95 de cada endpoint; ~30 s)
 docker compose -f docker-compose.dev.yml exec api pnpm exec tsc --noEmit           # comprobación de tipos
 ```
 
@@ -674,9 +675,11 @@ Funcionalidad `001-taskApiSDD-mvp`. Progreso en [`tasks.md`](sdd/001-taskApiSDD-
 | H4 | Consultar todas las tareas: rango de fechas `from`/`to` y `GET /tasks/{id}` | P2 | ✅ |
 | H5 | Editar el título y la descripción (`PATCH`), y borrar tareas (`DELETE /tasks/{id}`) | P2 | ✅ |
 | H6 | Avisos diarios, semanales y mensuales (`GET /alerts`) | P3 | ✅ |
-| Robustez | Batería de precedencia de errores y tests de rendimiento | — | ⏳ Pendiente |
+| Robustez | Batería de precedencia de errores por pares (T127) y tests de rendimiento (T128) | — | ✅ (salvo la guía de producción, T129) |
 
-**Producción:** `Dockerfile.prod` y `docker-compose.prod.yml` (tareas T028 y T029) están pendientes de dos decisiones: mover `prisma` a `dependencies` para poder ejecutar `migrate deploy` en producción, y añadir `NODE_ENV=production`.
+**Rendimiento medido** (`pnpm test:perf`, 10 000 tareas en 3 años): p95 de 1,6 a 5,1 ms por endpoint frente al límite de 300 ms; una pasada del planificador con 10 000 avisos simultáneos tarda 11 s.
+
+**Producción (aplazada, el proyecto sigue en desarrollo):** `Dockerfile.prod`, `docker-compose.prod.yml` (T028, T029) y la guía QS-R (T129) quedan pendientes. Ya está decidido que las migraciones se aplicarán con un servicio `migrate` de un solo uso (`docker compose -f docker-compose.prod.yml run --rm migrate`), sin mover `prisma` a `dependencies`. Falta decidir si se añade `NODE_ENV=production`.
 
 ---
 

@@ -38,7 +38,7 @@ Todo se crea desde cero salvo `.gitignore`, que ya existe y se amplía.
 | `Dockerfile.dev` | Node 22 LTS + pnpm (corepack), `ENV TZ=UTC`, `ENV CHECKPOINT_DISABLE=1` y `ENV PRISMA_HIDE_UPDATE_MESSAGE=true` (Prisma sin comprobaciones de versión por red); instala dependencias, ejecuta `pnpm prisma generate` (imagen autosuficiente) y arranca `pnpm dev` (vite-node en modo watch). |
 | `Dockerfile.prod` | Multi-stage, `ENV TZ=UTC` en ambas etapas: etapa de build (`pnpm install`, `prisma generate`, `vite build`) y etapa runtime mínima con dependencias de producción, `dist/` y `prisma/`. |
 | `docker-compose.dev.yml` | Servicios `api` (Dockerfile.dev, puertos 3000 y 5555 para Prisma Studio, código montado en `/app` incluido `./node_modules`) y `db` (PostgreSQL 16 con volumen y *healthcheck*), `env_file: .env.dev`. `./node_modules` lo instala el propio contenedor (`docker compose -f docker-compose.dev.yml run --rm api pnpm install`) para que el editor vea los tipos sin instalar nada en el host; contiene binarios de Linux que no se ejecutan desde macOS. Tras cambiar `schema.prisma`: `pnpm prisma generate` dentro del contenedor. |
-| `docker-compose.prod.yml` | Servicios `api` (Dockerfile.prod) y `db`, `env_file: .env.prod`. |
+| `docker-compose.prod.yml` | Servicios `api` (Dockerfile.prod) y `db`, `env_file: .env.prod`, y un servicio `migrate` de un solo uso construido con la etapa de build de `Dockerfile.prod` (que conserva el CLI de `prisma`, dependencia de desarrollo) que ejecuta `prisma migrate deploy` y termina: `docker compose -f docker-compose.prod.yml run --rm migrate`. |
 | `.dockerignore` | Excluye `node_modules`, `dist`, `.env*`, `.git`. |
 | `.gitignore` | Se asegura de ignorar `node_modules`, `dist`, `.env.dev`, `.env.prod`. |
 | `.env.example` | Plantilla versionada con `DATABASE_URL=`, `PORT=`, `POSTGRES_USER=`, `POSTGRES_PASSWORD=`, `POSTGRES_DB=`, todas sin valor (principio IV). |
@@ -140,7 +140,7 @@ Todo se crea desde cero salvo `.gitignore`, que ya existe y se amplía.
 | `tests/support/fake-clock.adapter.ts` | `Clock` controlable desde el test: fijar y avanzar la hora (D-21). |
 | `tests/support/test.container.ts` | `createTestContainer()`: el mismo cableado que `dependency.container.ts` pero con los fakes anteriores; lo usan los tests HTTP (D-21). |
 | `tests/integration/test-database.helper.ts` | `truncateTables(prisma, tablas)`: vacía con `TRUNCATE` tablas del esquema `test`; cada `*.int.test.ts` lo llama en `beforeEach` solo con sus tablas, porque Jest ejecuta los ficheros en paralelo. |
-| `tests/performance/api.perf.test.ts` | Carga 10 000 tareas en 3 años y mide el p95 de cada endpoint (RNF-01, CE-05). Se ejecuta con `pnpm test:perf`. |
+| `tests/performance/api.perf.test.ts` | Carga 10 000 tareas en 3 años y mide el p95 de cada endpoint con el cableado real (RNF-01, CE-05), y la duración de una pasada del planificador con 10 000 usuarios (R-1). Se ejecuta con `pnpm test:perf`, sobre el esquema `test` (mismo `globalSetup` que la integración). |
 
 Los tests unitarios, HTTP y de integración (`*.test.ts`, `*.int.test.ts`) van en una subcarpeta `tests/` dentro de la carpeta del fichero que prueban, con su mismo nombre base (D-25); ver sección 10.
 

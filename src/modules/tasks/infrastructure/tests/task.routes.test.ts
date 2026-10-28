@@ -397,4 +397,81 @@ describe('rutas de tareas', () => {
       expect(body.error?.code).toBe('ROUTE_NOT_FOUND');
     });
   });
+
+  // Batería por pares (R-8): partiendo de un PATCH válido, se combinan dos fallos de niveles distintos
+  // y la respuesta debe ser el de menor orden. El nivel 7 tiene dos variantes excluyentes entre sí
+  describe('precedencia por pares de RF-46 (R-8)', () => {
+    type Fault = 'route' | 'user' | 'clientTime' | 'timeZone' | 'validation' | 'notFound' | 'dayClosed' | 'dayNotStarted';
+
+    interface PatchRequest {
+      method: string;
+      headers: Record<string, string>;
+      body: unknown;
+      owner: 'user-1' | 'user-2';
+      date: string;
+    }
+
+    // Código esperado y nivel de cada fallo, en el orden de RF-46
+    const FAULTS: Record<Fault, { level: number; code: string; apply: (request: PatchRequest) => void }> = {
+      route: { level: 1, code: 'ROUTE_NOT_FOUND', apply: (request) => (request.method = 'PUT') },
+      user: { level: 2, code: 'MISSING_USER', apply: (request) => delete request.headers['X-User-Id'] },
+      clientTime: { level: 3, code: 'INVALID_CLIENT_TIME', apply: (request) => (request.headers['X-Client-Time'] = 'mal') },
+      timeZone: { level: 4, code: 'INVALID_TIMEZONE', apply: (request) => (request.headers['X-Timezone'] = 'Mars/Olympus') },
+      validation: { level: 5, code: 'VALIDATION_ERROR', apply: (request) => (request.body = { completed: 'sí' }) },
+      notFound: { level: 6, code: 'TASK_NOT_FOUND', apply: (request) => (request.owner = 'user-2') },
+      dayClosed: { level: 7, code: 'DAY_CLOSED', apply: (request) => (request.date = '2026-10-23') },
+      dayNotStarted: { level: 7, code: 'DAY_NOT_STARTED', apply: (request) => (request.date = '2026-10-25') },
+    };
+
+    const faults = Object.keys(FAULTS) as Fault[];
+    const pairs = faults
+      .flatMap((first, index) => faults.slice(index + 1).map((second) => [first, second] as const))
+      .filter(([first, second]) => FAULTS[first].level !== FAULTS[second].level);
+
+    // Una tarea por dueño y día: el fallo de nivel 6 cambia el dueño y los de nivel 7, el día
+    let taskIds: Record<string, string>;
+    beforeEach(async () => {
+      taskIds = {};
+      for (const owner of ['user-1', 'user-2']) {
+        for (const date of ['2026-10-23', TODAY, '2026-10-25']) {
+          const task = await container.tasks.create({ userId: owner, title: 'Tarea', description: null, date: LocalDate.parse(date) });
+          taskIds[`${owner}|${date}`] = task.id;
+        }
+      }
+    });
+
+    it('cubre los 27 pares de niveles distintos', () => {
+      expect(pairs).toHaveLength(27);
+    });
+
+    it('sin fallos, el PATCH base es válido → 200', async () => {
+      const { status } = await call(`/tasks/${taskIds[`user-1|${TODAY}`]}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ completed: true }),
+      });
+      expect(status).toBe(200);
+    });
+
+    it.each(pairs)('%s + %s → gana el de menor orden', async (first, second) => {
+      const request: PatchRequest = {
+        method: 'PATCH',
+        headers: clientHeaders(),
+        body: { completed: true },
+        owner: 'user-1',
+        date: TODAY,
+      };
+      FAULTS[first].apply(request);
+      FAULTS[second].apply(request);
+
+      const { status, body } = await call(
+        `/tasks/${taskIds[`${request.owner}|${request.date}`]}`,
+        { method: request.method, body: JSON.stringify(request.body) },
+        request.headers,
+      );
+
+      const expected = FAULTS[first].level < FAULTS[second].level ? FAULTS[first].code : FAULTS[second].code;
+      expect(body.error?.code).toBe(expected);
+      expect(status).toBe(ERROR_CODES[expected as keyof typeof ERROR_CODES].status);
+    });
+  });
 });
