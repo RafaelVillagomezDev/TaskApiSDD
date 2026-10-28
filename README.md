@@ -581,7 +581,7 @@ docker compose -f docker-compose.dev.yml exec api pnpm test:coverage    # tests 
 
 > **Un proyecto por rama:** SonarQube Community no distingue ramas, así que cada rama de git se analiza en su propio proyecto: `taskapisdd-dev`, `taskapisdd-main`, etc. Así cada rama tiene su historial y su comparación de código nuevo, y un push de `main` no se mezcla con los de `dev`. Los ves todos en http://localhost:9000/projects. El de una rama nueva se crea en su primer análisis, con el mismo quality gate.
 
-Estado actual (`taskapisdd-dev`): *quality gate* en verde, con 0 bugs, 0 vulnerabilidades, 0 hotspots, 0 *code smells*, un 92 % de cobertura según SonarQube y un 0 % de duplicación.
+Estado actual (`taskapisdd-dev`): *quality gate* en verde, con 0 bugs, 0 vulnerabilidades, 0 hotspots, 0 *code smells*, un 94,6 % de cobertura según SonarQube y un 0 % de duplicación.
 
 ---
 
