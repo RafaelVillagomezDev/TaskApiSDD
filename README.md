@@ -412,7 +412,9 @@ TaskApiSDD/
 ├── scripts/sonar-setup.sh     # Prepara SonarQube: admin, quality gate y token
 ├── scripts/sonar-scan.sh      # Analiza la rama actual en su propio proyecto de SonarQube
 ├── vite.config.ts             # Build de producción (dist/server.js) y carpetas que no reinician la API en desarrollo
-├── .claude/settings.json      # Claude Code: recuerda al agente actualizar README.md tras editar esos ficheros, y hooks de graphify
+├── .claude/settings.json      # Claude Code: recuerda al agente actualizar README.md tras editar esos ficheros, hooks de graphify
+│                              # y permisos que le impiden leer .env.dev, .env.prod, *.pem, node_modules, dist y coverage
+├── .claudeignore              # Lista de ficheros que Claude no debe leer (la protección efectiva son los permisos de arriba)
 ├── .claude/skills/graphify/   # Skill /graphify para Claude Code
 ├── CLAUDE.md                  # Reglas de graphify para Claude Code (generado por la herramienta)
 ├── graphify-out/              # Grafo de conocimiento del repo (no versionado)

@@ -1,0 +1,48 @@
+# Ficheros que Claude Code no debe leer: dependencias, builds, secretos y ficheros generados
+
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+.pnpm-store/
+
+# Build output
+dist/
+build/
+.next/
+out/
+
+# Environment and secrets (los .env.* del proyecto llevan contraseñas, claves y tokens; CONSTITUTION.md, principio IV)
+.env
+.env.*
+!.env.example
+*.pem
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage
+coverage/
+.nyc_output
+
+# Cache
+.cache/
+.parcel-cache/
+.eslintcache
+
+# Análisis de SonarQube y copias de seguridad de graphify
+.scannerwork/
+*.graphify-bak
+
+# OS files
+.DS_Store
+Thumbs.db

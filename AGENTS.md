@@ -39,7 +39,8 @@ El código fuente se organiza en módulos de negocio independientes bajo `src/mo
 ├── scripts/sonar-setup.sh        # Prepara SonarQube una vez (contraseña de admin, quality gate predeterminado, token global); idempotente
 ├── scripts/sonar-scan.sh         # Analiza la rama actual en su proyecto taskapisdd-<rama> y espera el quality gate (lo usa pre-push)
 ├── vite.config.ts                # Build SSR de producción (dist/server.js) y, para `pnpm dev`, carpetas generadas que no reinician la API
-├── .claude/settings.json         # Configuración de Claude Code del proyecto (hook que recuerda actualizar README.md y hooks de graphify)
+├── .claude/settings.json         # Configuración de Claude Code del proyecto: hook que recuerda actualizar README.md, hooks de graphify y permisos que impiden leer secretos (.env.*, *.pem) y ficheros generados
+├── .claudeignore                 # Ficheros que Claude no debe leer (dependencias, builds, secretos, cobertura); la protección efectiva son los permisos de .claude/settings.json
 ├── .claude/skills/graphify/      # Skill /graphify para Claude Code (generado por `graphify install --project`)
 ├── CLAUDE.md                     # Reglas de graphify para Claude Code (generado por `graphify install --project`)
 ├── graphify-out/                 # Grafo de conocimiento del repo (no versionado; cada uno genera el suyo)
