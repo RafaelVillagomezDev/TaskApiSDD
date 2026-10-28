@@ -7,3 +7,8 @@ dist
 
 # Historial de git
 .git
+
+# Ficheros generados por los tests, el análisis y las herramientas: no forman parte de la imagen
+coverage
+.scannerwork
+graphify-out

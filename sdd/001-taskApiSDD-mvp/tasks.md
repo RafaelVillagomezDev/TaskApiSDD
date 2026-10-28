@@ -81,11 +81,11 @@ Spec: `sdd/001-taskApiSDD-mvp/spec.md` (Aprobada) · Plan: `sdd/001-taskApiSDD-m
   - Verifica: `dce pnpm test src/shared` pasa entero (incluido T020).
 - [x] T027 [Base] Composition root y arranque del servidor; valida vite-node + Prisma (R-9) — `src/dependency.container.ts`, `src/server.main.ts`
   - Verifica: `docker compose -f docker-compose.dev.yml restart api` y `curl -s localhost:$PORT/foo` devuelve el sobre `404 ROUTE_NOT_FOUND`.
-- [ ] T028 [P] [Base] Build SSR de producción e imagen multi-stage con `ENV TZ=UTC` — `vite.config.ts`, `Dockerfile.prod`
+- [x] T028 [P] [Base] Build SSR de producción e imagen multi-stage con `ENV TZ=UTC` — `vite.config.ts`, `Dockerfile.prod`
   - Verifica: `docker build -f Dockerfile.prod -t taskapisdd:latest .`
-- [ ] T029 [P] [Base] Orquestación de producción — `docker-compose.prod.yml`
+- [x] T029 [P] [Base] Orquestación de producción — `docker-compose.prod.yml`
   - Verifica: `docker compose -f docker-compose.prod.yml config` sin errores.
-  - Pendiente (2026-10-28): T028 y T029 se aplazan por decisión del usuario; el proyecto sigue en desarrollo. Decidido: `prisma` sigue en `devDependencies` y las migraciones se aplican con un servicio `migrate` de un solo uso en `docker-compose.prod.yml`, construido con la etapa de build (`docker compose -f docker-compose.prod.yml run --rm migrate`); la imagen de la API queda sin el CLI. Sin decidir: `NODE_ENV=production` en la etapa runtime.
+  - Decisiones (2026-10-28): `prisma` sigue en `devDependencies` y las migraciones se aplican con un servicio `migrate` de un solo uso, construido con la etapa de build (`docker compose -f docker-compose.prod.yml run --rm migrate`); la imagen de la API queda sin el CLI. La etapa runtime lleva `NODE_ENV=production`. Proyecto de Compose propio (`taskapisdd-prod`) para no sustituir los contenedores de desarrollo.
 - [x] T030 [Base] Guía manual, sección QS-0: levantar contenedores, migrar, bloque de cabeceras de ejemplo y comprobación de `ROUTE_NOT_FOUND` — `sdd/001-taskApiSDD-mvp/quickstart.md`
   - Verifica: ejecutar QS-0 a mano.
 
@@ -369,9 +369,9 @@ Spec: `sdd/001-taskApiSDD-mvp/spec.md` (Aprobada) · Plan: `sdd/001-taskApiSDD-m
 - [x] T128 [P] [Rob] Test de rendimiento: 10 000 tareas en 3 años, p95 < 300 ms por endpoint, duración de una pasada del planificador con 10 000 usuarios (RNF-01, CE-05, R-1) — `tests/performance/api.perf.test.ts`
   - Verifica: `dce pnpm test:perf` pasa.
   - Resultado (2026-10-28, Docker Desktop en macOS arm64): p95 de 1,6 a 5,1 ms por endpoint; una pasada del planificador con 10 000 avisos simultáneos, 11 s (límite 4 min).
-- [ ] T129 [Rob] Guía manual, sección QS-R: producción y rendimiento — `sdd/001-taskApiSDD-mvp/quickstart.md`
+- [x] T129 [Rob] Guía manual, sección QS-R: producción y rendimiento — `sdd/001-taskApiSDD-mvp/quickstart.md`
   - Verifica: ejecutar QS-R a mano.
-  - Pendiente: depende de T028 y T029 (imagen y orquestación de producción), aplazadas. El rendimiento ya se comprueba con `dce pnpm test:perf` (T128).
+  - Resultado (2026-10-28): QS-R.1 a QS-R.4 pasan con producción publicada en el puerto 3001 (`API_HOST_PORT=3001`) junto a desarrollo. Las migraciones van antes de levantar la API para que la primera pasada del planificador encuentre las tablas.
 
 - [x] T130 [P] [Rob] Colección de Postman del MVP P1 (H1–H3): flujo, casos de error y carpeta "Mis tareas" con usuario fijo (RF-01 a RF-03, RF-07, RF-08, RF-10, RF-11, RF-12, RF-16, RF-19 a RF-21, RF-31 a RF-33, RF-45, RF-46) — `sdd/001-taskApiSDD-mvp/mvp-p1.postman-collection.json`
   - Verifica: `docker run --rm -e TZ=Europe/Madrid -v "$PWD/sdd/001-taskApiSDD-mvp":/etc/newman postman/newman:6-alpine run mvp-p1.postman-collection.json --env-var baseUrl=http://host.docker.internal:3000` → 22 peticiones y 25 comprobaciones sin fallos.
@@ -380,7 +380,7 @@ Spec: `sdd/001-taskApiSDD-mvp/spec.md` (Aprobada) · Plan: `sdd/001-taskApiSDD-m
 ### Checkpoint Robustez
 - `dce pnpm test` y `dce pnpm test:coverage` pasan; `dce pnpm test:perf` pasa.
 - Principio V: `grep -rnE "from ['\"](express|@prisma/client|zod)" src/modules/*/domain src/modules/*/application src/shared/domain src/shared/application` no devuelve resultados.
-- quickstart.md → **QS-R.1** `docker compose -f docker-compose.prod.yml up --build -d`; **QS-R.2** `docker compose -f docker-compose.prod.yml run --rm migrate`; **QS-R.3** repetir QS-H1.1 y QS-H3.2 contra producción; **QS-R.4** `dce pnpm test:perf` y revisar los p95 que imprime.
+- quickstart.md → **QS-R.1** `docker compose -f docker-compose.prod.yml run --rm migrate`; **QS-R.2** `docker compose -f docker-compose.prod.yml up --build -d`; **QS-R.3** repetir QS-H1.1 y QS-H3.2 contra producción; **QS-R.4** `dce pnpm test:perf` y revisar los p95 que imprime.
 
 ---
 

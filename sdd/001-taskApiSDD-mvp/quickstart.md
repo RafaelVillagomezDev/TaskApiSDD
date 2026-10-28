@@ -312,3 +312,41 @@ ZTODAY=$(date +%F)                       # "hoy" en esa zona
   docker compose -f docker-compose.dev.yml exec -T db sh -c "psql -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" -Atc \"select count(*) from alerts where user_id = 'nunca-$USER_ID'\""
   ```
   → `0` (RF-36).
+
+## QS-R — Producción y rendimiento
+
+La imagen de producción (`Dockerfile.prod`) y su orquestación (`docker-compose.prod.yml`) usan su propio proyecto de Docker Compose (`taskapisdd-prod`), así que no tocan los contenedores de desarrollo. Necesitan `.env.prod` en la raíz con las mismas variables que `.env.dev` y `PORT=3000`; el host de la base de datos en `DATABASE_URL` es `db`.
+
+Si la API de desarrollo ya ocupa el puerto 3000, publica la de producción en otro:
+
+```bash
+export API_HOST_PORT=3001
+export API=http://localhost:$API_HOST_PORT      # las peticiones de `api` van a producción
+```
+
+- **QS-R.1** Aplicar las migraciones con el servicio de un solo uso (levanta la base de datos, migra y termina):
+  ```bash
+  docker compose -f docker-compose.prod.yml run --rm migrate
+  ```
+  → `All migrations have been successfully applied.` Se hace antes de levantar la API: si no, su primera pasada del planificador falla (`ALERT_PASS_FAILED`, tablas inexistentes) y se repite a los 60 s.
+- **QS-R.2** Construir la imagen y levantar la API:
+  ```bash
+  docker compose -f docker-compose.prod.yml up --build -d
+  docker compose -f docker-compose.prod.yml logs api | tail -2
+  ```
+  → `{"event":"SERVER_STARTED","port":3000}` y `{"event":"ALERT_PASS_COMPLETED",...}`. La imagen corre con `NODE_ENV=production`, `TZ=UTC` y el usuario `node`, solo con las dependencias de producción.
+- **QS-R.3** Repetir QS-H1.1 y QS-H3.2 contra producción (con `api`, `id` y `TODAY` de las secciones anteriores):
+  ```bash
+  api -X POST $API/tasks -d "{\"title\":\"  Comprar pan \",\"date\":\"$TODAY\"}"
+  T=$(api -X POST $API/tasks -d "{\"title\":\"Hoy\",\"date\":\"$TODAY\"}" | id)
+  api -X PATCH $API/tasks/$T -d '{"completed":true}' > /dev/null
+  api $API/streak
+  ```
+  → `201` con `title: "Comprar pan"`; la racha → `{ "current": 1, "best": 1 }`.
+- **QS-R.4** Rendimiento (en desarrollo, sobre el esquema `test`):
+  ```bash
+  docker compose -f docker-compose.dev.yml exec api pnpm test:perf
+  ```
+  → `10 passed` e imprime el p95 de cada endpoint, todos por debajo de 300 ms, y la duración de una pasada del planificador con 10 000 avisos.
+
+Para parar producción: `docker compose -f docker-compose.prod.yml down` (conserva la base de datos; con `-v` la borra). Vuelve a `export API=http://localhost:3000` para seguir contra desarrollo.

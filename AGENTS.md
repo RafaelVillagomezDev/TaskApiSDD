@@ -26,9 +26,9 @@ El código fuente se organiza en módulos de negocio independientes bajo `src/mo
 ├── CONSTITUTION.md               # Leyes arquitectónicas, metodológicas y de calidad
 ├── sdd/                          # Documentación Spec-Driven Development: una carpeta numerada por funcionalidad
 ├── Dockerfile.dev                # Imagen de desarrollo (dependencias de dev, hot reload, código montado como volumen)
-├── Dockerfile.prod               # Imagen de producción (multi-stage: build con Vite + runtime mínimo solo con dependencias de prod)
+├── Dockerfile.prod               # Imagen de producción (multi-stage: build con Vite → poda de devDependencies → runtime mínimo con NODE_ENV=production y usuario node)
 ├── docker-compose.dev.yml        # Orquesta api (Dockerfile.dev) + PostgreSQL con .env.dev
-├── docker-compose.prod.yml       # Orquesta api (Dockerfile.prod) + PostgreSQL con .env.prod
+├── docker-compose.prod.yml       # Proyecto taskapisdd-prod: api (Dockerfile.prod) + PostgreSQL con .env.prod y el servicio migrate de un solo uso
 ├── .env.dev                      # Variables de desarrollo (no versionado), cargado por docker-compose.dev.yml
 ├── .env.prod                     # Variables de producción (no versionado), cargado por docker-compose.prod.yml
 ├── prisma/                       # schema.prisma y migraciones
@@ -38,7 +38,7 @@ El código fuente se organiza en módulos de negocio independientes bajo `src/mo
 ├── sonar-project.properties      # Configuración del análisis: fuentes, tests, exclusiones y cobertura (coverage/lcov.info)
 ├── scripts/sonar-setup.sh        # Prepara SonarQube una vez (contraseña de admin, quality gate predeterminado, token global); idempotente
 ├── scripts/sonar-scan.sh         # Analiza la rama actual en su proyecto taskapisdd-<rama> y espera el quality gate (lo usa pre-push)
-├── vite.config.ts                # Solo para `pnpm dev`: carpetas generadas (coverage/, .scannerwork/, graphify-out/) que no reinician la API
+├── vite.config.ts                # Build SSR de producción (dist/server.js) y, para `pnpm dev`, carpetas generadas que no reinician la API
 ├── .claude/settings.json         # Configuración de Claude Code del proyecto (hook que recuerda actualizar README.md y hooks de graphify)
 ├── .claude/skills/graphify/      # Skill /graphify para Claude Code (generado por `graphify install --project`)
 ├── CLAUDE.md                     # Reglas de graphify para Claude Code (generado por `graphify install --project`)
@@ -98,9 +98,10 @@ docker compose -f docker-compose.sonar.yml down                         # Parar 
 > El hook `.githooks/pre-push` hace los dos últimos pasos en cada `git push` y rechaza el push si el quality gate no pasa, si SonarQube o `api` no están levantados, si hay cambios de código sin commitear o si lo que se sube no es la rama actual (el análisis se hace sobre el árbol de trabajo).
 
 ### Producción (`Dockerfile.prod`)
-> **Pendiente (T028, T029):** `Dockerfile.prod` y `docker-compose.prod.yml` aún no existen; el proyecto sigue en desarrollo. Estos son los comandos previstos.
+Proyecto de Compose propio (`taskapisdd-prod`): convive con desarrollo sin sustituir sus contenedores. Las migraciones se aplican **antes** de levantar la API. `.env.prod` lleva `PORT=3000`; `API_HOST_PORT` publica la API en otro puerto del host (por ejemplo `3001` si desarrollo ocupa el 3000).
 ```bash
-docker compose -f docker-compose.prod.yml up --build -d           # Construir la imagen de producción y levantarla
+docker compose -f docker-compose.prod.yml run --rm migrate        # 1. Aplicar migraciones (servicio de un solo uso con el CLI de prisma)
+docker compose -f docker-compose.prod.yml up --build -d           # 2. Construir la imagen de producción y levantarla
 docker compose -f docker-compose.prod.yml down                    # Parar los contenedores
 docker build -f Dockerfile.prod -t taskapisdd:latest .            # Construir solo la imagen de producción
 ```

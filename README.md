@@ -4,7 +4,7 @@ API REST para **organizar tareas diarias** y medir la **constancia** con una **r
 
 Está construida con **Spec-Driven Development (SDD)**: primero se escribe *qué* debe hacer el sistema (la spec), después *cómo* (el plan), después las *tareas*, y solo al final el código.
 
-> **Estado:** el MVP P1 funciona de principio a fin: crear tareas, consultarlas, completarlas y ver la racha. Las historias P2 y P3 también están hechas: listar todas las tareas con filtros de estado y rango de fechas, consultar una tarea por su id (H4), editar el título y la descripción o borrar tareas (H5), y avisos diarios, semanales y mensuales de tareas pendientes (H6). La fase de robustez también está hecha (precedencia de errores por pares y rendimiento). La imagen de producción queda aplazada: el proyecto sigue en desarrollo. Ver [Estado del proyecto](#estado-del-proyecto).
+> **Estado:** el MVP P1 funciona de principio a fin: crear tareas, consultarlas, completarlas y ver la racha. Las historias P2 y P3 también están hechas: listar todas las tareas con filtros de estado y rango de fechas, consultar una tarea por su id (H4), editar el título y la descripción o borrar tareas (H5), y avisos diarios, semanales y mensuales de tareas pendientes (H6). La fase de robustez también está hecha (precedencia de errores por pares y rendimiento). La imagen de producción está construida y probada en local (`Dockerfile.prod`, `docker-compose.prod.yml`): todas las tareas de la funcionalidad 001 están hechas. Ver [Estado del proyecto](#estado-del-proyecto).
 
 ---
 
@@ -402,7 +402,7 @@ TaskApiSDD/
 ├── sonar-project.properties   # Qué analiza SonarQube y dónde está la cobertura
 ├── scripts/sonar-setup.sh     # Prepara SonarQube: admin, quality gate y token
 ├── scripts/sonar-scan.sh      # Analiza la rama actual en su propio proyecto de SonarQube
-├── vite.config.ts             # Solo para `pnpm dev`: carpetas que no reinician la API
+├── vite.config.ts             # Build de producción (dist/server.js) y carpetas que no reinician la API en desarrollo
 ├── .claude/settings.json      # Claude Code: recuerda al agente actualizar README.md tras editar esos ficheros, y hooks de graphify
 ├── .claude/skills/graphify/   # Skill /graphify para Claude Code
 ├── CLAUDE.md                  # Reglas de graphify para Claude Code (generado por la herramienta)
@@ -668,18 +668,26 @@ Funcionalidad `001-taskApiSDD-mvp`. Progreso en [`tasks.md`](sdd/001-taskApiSDD-
 
 | Fase | Historia | Prioridad | Estado |
 | :--- | :--- | :--- | :--- |
-| Base | Docker, Prisma, Jest, infraestructura común | — | ✅ (salvo la imagen de producción) |
+| Base | Docker, Prisma, Jest, infraestructura común e imagen de producción | — | ✅ |
 | H1 | Crear y consultar las tareas de un día | P1 | ✅ |
 | H2 | Completar tareas | P1 | ✅ |
 | H3 | Ver la racha | P1 | ✅ |
 | H4 | Consultar todas las tareas: rango de fechas `from`/`to` y `GET /tasks/{id}` | P2 | ✅ |
 | H5 | Editar el título y la descripción (`PATCH`), y borrar tareas (`DELETE /tasks/{id}`) | P2 | ✅ |
 | H6 | Avisos diarios, semanales y mensuales (`GET /alerts`) | P3 | ✅ |
-| Robustez | Batería de precedencia de errores por pares (T127) y tests de rendimiento (T128) | — | ✅ (salvo la guía de producción, T129) |
+| Robustez | Batería de precedencia de errores por pares (T127), tests de rendimiento (T128) y guía de producción (T129) | — | ✅ |
 
 **Rendimiento medido** (`pnpm test:perf`, 10 000 tareas en 3 años): p95 de 1,6 a 5,1 ms por endpoint frente al límite de 300 ms; una pasada del planificador con 10 000 avisos simultáneos tarda 11 s.
 
-**Producción (aplazada, el proyecto sigue en desarrollo):** `Dockerfile.prod`, `docker-compose.prod.yml` (T028, T029) y la guía QS-R (T129) quedan pendientes. Ya está decidido que las migraciones se aplicarán con un servicio `migrate` de un solo uso (`docker compose -f docker-compose.prod.yml run --rm migrate`), sin mover `prisma` a `dependencies`. Falta decidir si se añade `NODE_ENV=production`.
+**Producción** (T028, T029, T129): imagen multi-stage de 382 MB con `NODE_ENV=production`, `TZ=UTC`, usuario `node` y solo las dependencias de producción, en su propio proyecto de Compose (`taskapisdd-prod`), que convive con desarrollo:
+
+```bash
+docker compose -f docker-compose.prod.yml run --rm migrate      # 1. migraciones (servicio de un solo uso con el CLI de prisma)
+docker compose -f docker-compose.prod.yml up --build -d         # 2. API en el puerto 3000 (API_HOST_PORT=3001 si desarrollo ya lo ocupa)
+docker compose -f docker-compose.prod.yml down                  # parar (con -v borra su base de datos)
+```
+
+Necesita `.env.prod` con las mismas variables que `.env.dev` y `PORT=3000`. La guía completa está en `quickstart.md` (QS-R). **Ojo:** este MVP identifica al usuario solo con la cabecera `X-User-Id`, sin autenticación, así que no debe exponerse a usuarios reales hasta el MVP de usuarios.
 
 ---
 
