@@ -141,8 +141,9 @@ Spec: `sdd/002-user-accounts/spec.md` (Aprobada) · Plan: `sdd/002-user-accounts
   - Verifica: `dce pnpm test src/modules/users/application/tests/issue-csrf-token` **falla**.
 - [x] T046 [P] [H1] Test de registro: crea la cuenta sin sesión, guarda la huella y no la contraseña, email repetido con otras mayúsculas → `EMAIL_ALREADY_REGISTERED` (RF-01, RF-03, RF-06, RNF-03) — `users/application/tests/register-user.use-case.test.ts`
   - Verifica: `dce pnpm test src/modules/users/application/tests/register-user` **falla**.
-- [x] T047 [H1] Test HTTP de `GET /auth/csrf` y `POST /auth/register`: `201` con `User` y sin cookies, `409`, `400` con `details`, sin `X-CSRF-Token` o con token caducado (31 min) o de otro tipo → `INVALID_CSRF_TOKEN`, token reutilizable dentro de los 30 min, ningún cuerpo con la contraseña, petición previa de CORS (RF-01 a RF-06, RF-22, RF-23, RF-36, RNF-04) — `users/infrastructure/tests/auth.routes.test.ts`
+- [x] T047 [H1] Test HTTP de `GET /auth/csrf` y `POST /auth/register`: `201` con `User` y sin cookies, `409`, `400` con `details`, sin `X-CSRF-Token` o con token caducado (31 min) → `INVALID_CSRF_TOKEN`, token reutilizable dentro de los 30 min, ningún cuerpo con la contraseña, petición previa de CORS (RF-01 a RF-06, RF-22, RF-23, RF-36, RNF-04) — `users/infrastructure/tests/auth.routes.test.ts`
   - Verifica: `dce pnpm test src/modules/users/infrastructure/tests/auth.routes` **falla**.
+  - Nota (2026-10-28): el caso del token CSRF de otro tipo pasa a T061, porque antes de H2 no existen tokens CSRF de sesión.
 
 ### Implementación
 - [x] T048 [H1] Schema de registro (RF-02 a RF-05) — `users/infrastructure/user.schema.ts`
@@ -183,7 +184,7 @@ Spec: `sdd/002-user-accounts/spec.md` (Aprobada) · Plan: `sdd/002-user-accounts
   - Verifica: `dce pnpm test src/modules/users/application/tests/logout` **falla**.
 - [ ] T060 [P] [H2] Test de consultar el perfil sin contraseña (RF-25) — `users/application/tests/get-profile.use-case.test.ts`
   - Verifica: `dce pnpm test src/modules/users/application/tests/get-profile` **falla**.
-- [ ] T061 [H2] Test HTTP de login y logout: cookies con sus atributos, `{ user, csrfToken }`, `401`/`429`, logout con acceso caducado y refresh válido, logout dos veces, `X-CSRF-Token` sin sesión → error de sesión y con sesión ajena → `INVALID_CSRF_TOKEN` (decisión 19), ningún cuerpo con tokens de sesión (RF-07 a RF-10, RF-15, RF-23, RF-24, RNF-04, RNF-05) — `users/infrastructure/tests/auth.routes.test.ts`
+- [ ] T061 [H2] Test HTTP de login y logout: cookies con sus atributos, `{ user, csrfToken }`, `401`/`429`, logout con acceso caducado y refresh válido, logout dos veces, `X-CSRF-Token` sin sesión → error de sesión y con sesión ajena → `INVALID_CSRF_TOKEN` (decisión 19), tokens CSRF cruzados (el de sesión en registro o login y el previo en logout con sesión → `INVALID_CSRF_TOKEN`), ningún cuerpo con tokens de sesión (RF-07 a RF-10, RF-15, RF-23, RF-24, RNF-04, RNF-05) — `users/infrastructure/tests/auth.routes.test.ts`
   - Verifica: `dce pnpm test src/modules/users/infrastructure/tests/auth.routes` **falla**.
 - [ ] T062 [H2] Test HTTP de `GET /me`: con sesión → `User`; sin cookie, con token inventado y caducado → `MISSING_TOKEN`, `INVALID_TOKEN`, `TOKEN_EXPIRED`; sin `X-Client-Time` → `200` (RF-17 a RF-20, RF-25, RF-30) — `users/infrastructure/tests/me.routes.test.ts`
   - Verifica: `dce pnpm test src/modules/users/infrastructure/tests/me.routes` **falla**.
@@ -292,7 +293,7 @@ Spec: `sdd/002-user-accounts/spec.md` (Aprobada) · Plan: `sdd/002-user-accounts
   - Verifica: `dce pnpm test src/modules/users/infrastructure/tests/user.schema` **falla**.
 - [ ] T096 [P] [H5] Test de editar el perfil (RF-05, RF-26) — `users/application/tests/update-profile.use-case.test.ts`
   - Verifica: `dce pnpm test src/modules/users/application/tests/update-profile` **falla**.
-- [ ] T097 [H5] Test HTTP de `PATCH /me`: `200` con el nombre recortado, `"   "` → `null`, `email` → `VALIDATION_ERROR`, sin CSRF → `INVALID_CSRF_TOKEN` (RF-05, RF-23, RF-26) — `users/infrastructure/tests/me.routes.test.ts`
+- [ ] T097 [H5] Test HTTP de `PATCH /me`: `200` con el nombre recortado, `"   "` → `null`, `email` → `VALIDATION_ERROR`, sin CSRF → `INVALID_CSRF_TOKEN`, petición previa de CORS de `PATCH /me` → `200` (RF-05, RF-23, RF-26, RF-36) — `users/infrastructure/tests/me.routes.test.ts`
   - Verifica: `dce pnpm test src/modules/users/infrastructure/tests/me.routes` **falla**.
 
 ### Implementación
@@ -300,7 +301,7 @@ Spec: `sdd/002-user-accounts/spec.md` (Aprobada) · Plan: `sdd/002-user-accounts
   - Verifica: `dce pnpm test src/modules/users/infrastructure/tests/user.schema` pasa.
 - [ ] T099 [H5] Caso de uso editar el perfil (RF-26) — `users/application/update-profile.use-case.ts`
   - Verifica: `dce pnpm test src/modules/users/application/tests/update-profile` pasa.
-- [ ] T100 [H5] Controlador y ruta `PATCH /me` (RF-26) — `users/infrastructure/me.controller.ts`, `users/infrastructure/me.routes.ts`
+- [ ] T100 [H5] Controlador y ruta `PATCH /me`, y `PATCH` en la petición previa de `/me` (RF-26, RF-36) — `users/infrastructure/me.controller.ts`, `users/infrastructure/me.routes.ts`
   - Verifica: `dce pnpm test src/modules/users` pasa entero.
 - [ ] T101 [H5] Guía manual, sección QS-H5 — `sdd/002-user-accounts/quickstart.md`
   - Verifica: ejecutar QS-H5 a mano.
@@ -318,7 +319,7 @@ Spec: `sdd/002-user-accounts/spec.md` (Aprobada) · Plan: `sdd/002-user-accounts
   - Verifica: `dce pnpm test src/modules/users/infrastructure/tests/user.schema` **falla**.
 - [ ] T103 [P] [H6] Test de cambiar la contraseña: cambia la huella, cierra las demás sesiones y mantiene la actual; actual errónea → `WRONG_PASSWORD` y cuenta para el bloqueo; bloqueada → `TOO_MANY_ATTEMPTS`; la nueva puede coincidir con la anterior (RF-09, RF-27, RF-28) — `users/application/tests/change-password.use-case.test.ts`
   - Verifica: `dce pnpm test src/modules/users/application/tests/change-password` **falla**.
-- [ ] T104 [H6] Test HTTP de `PATCH /me/password`: `200`; la otra sesión responde `INVALID_TOKEN` y su refresh `INVALID_REFRESH_TOKEN`; login con la anterior falla y con la nueva funciona; 3 logins fallidos + 2 contraseñas actuales erróneas → bloqueo; la sesión abierta sigue funcionando en `/tasks` con la cuenta bloqueada (RF-09, RF-19, RF-27, RF-28) — `users/infrastructure/tests/me.routes.test.ts`
+- [ ] T104 [H6] Test HTTP de `PATCH /me/password`: `200`; la otra sesión responde `INVALID_TOKEN` y su refresh `INVALID_REFRESH_TOKEN`; login con la anterior falla y con la nueva funciona; 3 logins fallidos + 2 contraseñas actuales erróneas → bloqueo; la sesión abierta sigue funcionando en `/tasks` con la cuenta bloqueada; petición previa de CORS de `PATCH /me/password` → `200` (RF-09, RF-19, RF-27, RF-28, RF-36) — `users/infrastructure/tests/me.routes.test.ts`
   - Verifica: `dce pnpm test src/modules/users/infrastructure/tests/me.routes` **falla**.
 
 ### Implementación
@@ -326,7 +327,7 @@ Spec: `sdd/002-user-accounts/spec.md` (Aprobada) · Plan: `sdd/002-user-accounts
   - Verifica: `dce pnpm test src/modules/users/infrastructure/tests/user.schema` pasa.
 - [ ] T106 [H6] Caso de uso cambiar la contraseña (RF-09, RF-27, RF-28) — `users/application/change-password.use-case.ts`
   - Verifica: `dce pnpm test src/modules/users/application/tests/change-password` pasa.
-- [ ] T107 [H6] Controlador y ruta `PATCH /me/password` (RF-27) — `users/infrastructure/me.controller.ts`, `users/infrastructure/me.routes.ts`
+- [ ] T107 [H6] Controlador y ruta `PATCH /me/password` con su petición previa (RF-27, RF-36) — `users/infrastructure/me.controller.ts`, `users/infrastructure/me.routes.ts`
   - Verifica: `dce pnpm test src/modules/users` pasa entero.
 - [ ] T108 [H6] Guía manual, sección QS-H6 — `sdd/002-user-accounts/quickstart.md`
   - Verifica: ejecutar QS-H6 a mano.
@@ -344,7 +345,7 @@ Spec: `sdd/002-user-accounts/spec.md` (Aprobada) · Plan: `sdd/002-user-accounts
   - Verifica: `dce pnpm test src/modules/users/infrastructure/tests/user.schema` **falla**.
 - [ ] T110 [P] [H7] Test de borrar la cuenta: borra la cuenta y el registro de bloqueo; contraseña errónea → `WRONG_PASSWORD`, cuenta intacta y fallo contado (RF-09, RF-28, RF-29) — `users/application/tests/delete-account.use-case.test.ts`
   - Verifica: `dce pnpm test src/modules/users/application/tests/delete-account` **falla**.
-- [ ] T111 [H7] Test HTTP de `DELETE /me`: `200` con cookies borradas; login con ese email → `INVALID_CREDENTIALS`; volver a registrarse con el mismo email → `201` sin datos (RF-28, RF-29) — `users/infrastructure/tests/me.routes.test.ts`
+- [ ] T111 [H7] Test HTTP de `DELETE /me`: `200` con cookies borradas; login con ese email → `INVALID_CREDENTIALS`; volver a registrarse con el mismo email → `201` sin datos; petición previa de CORS de `DELETE /me` → `200` (RF-28, RF-29, RF-36) — `users/infrastructure/tests/me.routes.test.ts`
   - Verifica: `dce pnpm test src/modules/users/infrastructure/tests/me.routes` **falla**.
 
 ### Implementación
@@ -352,7 +353,7 @@ Spec: `sdd/002-user-accounts/spec.md` (Aprobada) · Plan: `sdd/002-user-accounts
   - Verifica: `dce pnpm test src/modules/users/infrastructure/tests/user.schema` pasa.
 - [ ] T113 [H7] Caso de uso borrar la cuenta (RF-09, RF-28, RF-29) — `users/application/delete-account.use-case.ts`
   - Verifica: `dce pnpm test src/modules/users/application/tests/delete-account` pasa.
-- [ ] T114 [H7] Controlador y ruta `DELETE /me` (RF-29) — `users/infrastructure/me.controller.ts`, `users/infrastructure/me.routes.ts`
+- [ ] T114 [H7] Controlador y ruta `DELETE /me`, y `DELETE` en la petición previa de `/me` (RF-29, RF-36) — `users/infrastructure/me.controller.ts`, `users/infrastructure/me.routes.ts`
   - Verifica: `dce pnpm test src/modules/users` pasa entero.
 - [ ] T115 [H7] Guía manual, sección QS-H7 — `sdd/002-user-accounts/quickstart.md`
   - Verifica: ejecutar QS-H7 a mano.
@@ -381,7 +382,7 @@ Spec: `sdd/002-user-accounts/spec.md` (Aprobada) · Plan: `sdd/002-user-accounts
 
 ### Checkpoint Robustez
 - `dce pnpm test`, `dce pnpm test:coverage` y `dce pnpm test:perf` pasan; `./scripts/sonar-scan.sh` → quality gate en verde.
-- Principio V: `grep -rnE "from ['\"](express|@prisma/client|zod|argon2)" src/modules/*/domain src/modules/*/application src/shared/domain src/shared/application` no devuelve resultados.
+- Principio V: `grep -rnE "from ['\"](express|@prisma/client|zod|argon2|node:crypto)" src/modules/*/domain src/modules/*/application src/shared/domain src/shared/application` no devuelve resultados.
 - quickstart.md → **QS-R.1** `docker compose -f docker-compose.prod.yml run --rm migrate`; **QS-R.2** `docker compose -f docker-compose.prod.yml up --build -d`; **QS-R.3** `OPTIONS /auth/login` con `Origin: https://kompitu.yandrydev.cloud` → `200` con las cabeceras CORS, y con `Origin: https://otra-web.com` → `404 ROUTE_NOT_FOUND`; **QS-R.4** QS-H1 y QS-H2 contra producción; **QS-R.5** `dce pnpm test:perf` y revisar los p95.
 
 ---
@@ -425,7 +426,7 @@ Spec: `sdd/002-user-accounts/spec.md` (Aprobada) · Plan: `sdd/002-user-accounts
 | RF-33 | T007, T038 |
 | RF-34 | T012, T013, T086, T088, T116, T117 |
 | RF-35 | T003, T004, T005, T017, T018 |
-| RF-36 | T017, T018, T019, T047, T052, T068, T069, T078, T089, T090 |
+| RF-36 | T017, T018, T019, T047, T052, T068, T069, T078, T089, T090, T097, T100, T104, T107, T111, T114 |
 | RNF-01 | T118 |
 | RNF-02 | T012, T013 |
 | RNF-03 | T032, T035, T046 |

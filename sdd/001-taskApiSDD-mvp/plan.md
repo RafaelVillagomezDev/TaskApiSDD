@@ -1,5 +1,5 @@
 # Plan: TaskApiSDD MVP — tareas diarias, rachas y avisos
-Spec: `sdd/001-taskApiSDD-mvp/spec.md` (Aprobada) · Estado: Borrador · Fecha: 2026-10-24
+Spec: `sdd/001-taskApiSDD-mvp/spec.md` (Aprobada) · Estado: Aprobado · Fecha: 2026-10-24
 
 ## 1. Resumen técnico
 

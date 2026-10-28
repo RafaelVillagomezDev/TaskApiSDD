@@ -11,7 +11,7 @@ const props = (overrides: Partial<UserProps> = {}): UserProps => ({
   id: '6f1c9a52-3e0b-4f6e-9a77-1c2d3e4f5a6b',
   email: 'ana@example.com',
   name: 'Ana',
-  passwordHash: '$argon2id$v=19$m=19456,t=2,p=1$sal$hash',
+  passwordHash: '$argon2id$v=19$m=19456,p=1,t=2$sal$hash',
   createdAt: new Date('2026-10-28T09:15:00Z'),
   ...overrides,
 });
@@ -43,7 +43,7 @@ describe('User', () => {
 
   it('cambia la huella de la contraseña (RF-27)', () => {
     const user = User.restore(props());
-    user.changePasswordHash('$argon2id$v=19$m=19456,t=2,p=1$otra$huella');
-    expect(user.passwordHash).toBe('$argon2id$v=19$m=19456,t=2,p=1$otra$huella');
+    user.changePasswordHash('$argon2id$v=19$m=19456,p=1,t=2$otra$huella');
+    expect(user.passwordHash).toBe('$argon2id$v=19$m=19456,p=1,t=2$otra$huella');
   });
 });
