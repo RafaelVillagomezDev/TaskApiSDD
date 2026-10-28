@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "TaskApiSDD — Cuentas de usuario (002)",
-    "description": "Funcionalidad 002 (sdd/002-user-accounts). Implementado por ahora: H1 (token CSRF previo a la sesión y registro) H2 (login, GET /me y logout) y H3 (renovación con el refresh token y su margen de gracia). Ejecuta '1. Flujo' en orden (Run folder) antes de '2. Errores': la primera petición genera un email nuevo en cada ejecución. Las cookies de sesión se guardan en la variable sessionCookie y se envían en la cabecera Cookie, con las cookies automáticas desactivadas en cada petición, porque Newman y Postman no reenvían cookies Secure por http a un host que no sea localhost.",
+    "description": "Funcionalidad 002 (sdd/002-user-accounts). Implementado por ahora: H1 (token CSRF previo a la sesión y registro) H2 (login, GET /me y logout) H3 (renovación con el refresh token y su margen de gracia) y H5 (cambiar el nombre con PATCH /me). Ejecuta '1. Flujo' en orden (Run folder) antes de '2. Errores': la primera petición genera un email nuevo en cada ejecución. Las cookies de sesión se guardan en la variable sessionCookie y se envían en la cabecera Cookie, con las cookies automáticas desactivadas en cada petición, porque Newman y Postman no reenvían cookies Secure por http a un host que no sea localhost.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -409,7 +409,160 @@
           }
         },
         {
-          "name": "08 Cerrar sesión con el mismo token CSRF tras renovar (H2, H3)",
+          "name": "08 Cambiar mi nombre (H5)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con el nombre recortado (RF-05, RF-26)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const { message, data } = pm.response.json();",
+                  "  pm.expect(message).to.equal('Perfil actualizado con éxito');",
+                  "  pm.expect(data).to.have.all.keys('id', 'email', 'name', 'createdAt');",
+                  "  pm.expect(data.name).to.equal('Ana García');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{sessionCookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{sessionCsrfToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "me"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"  Ana García  \"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "09 Consultar el nombre nuevo (H5)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con el nombre cambiado (HU-05)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().data.name).to.equal('Ana García');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "{{sessionCookie}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "me"
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "10 Intentar cambiar el email → VALIDATION_ERROR (H5, RF-26)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 VALIDATION_ERROR', () => {",
+                  "  pm.response.to.have.status(400);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.equal(false);",
+                  "  pm.expect(body.error.code).to.equal('VALIDATION_ERROR');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{sessionCookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{sessionCsrfToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "me"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Ana\",\n  \"email\": \"otro@example.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "11 Cerrar sesión con el mismo token CSRF tras renovar (H2, H3)",
           "event": [
             {
               "listen": "test",
@@ -457,7 +610,7 @@
           }
         },
         {
-          "name": "09 Tras el logout, las cookies ya no sirven (H2)",
+          "name": "12 Tras el logout, las cookies ya no sirven (H2)",
           "event": [
             {
               "listen": "test",
@@ -1266,6 +1419,112 @@
           }
         },
         {
+          "name": "PATCH /me sin X-CSRF-Token → INVALID_CSRF_TOKEN (RF-23)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 INVALID_CSRF_TOKEN', () => {",
+                  "  pm.response.to.have.status(403);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.equal(false);",
+                  "  pm.expect(body.error.code).to.equal('INVALID_CSRF_TOKEN');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Cookie",
+                "value": "access_token=inventado"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "me"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Ana\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "PATCH /me sin sesión → MISSING_TOKEN (RF-18)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401 MISSING_TOKEN', () => {",
+                  "  pm.response.to.have.status(401);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.equal(false);",
+                  "  pm.expect(body.error.code).to.equal('MISSING_TOKEN');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "me"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Ana\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
           "name": "Método inexistente → ROUTE_NOT_FOUND",
           "event": [
             {
@@ -1571,6 +1830,52 @@
               {
                 "key": "Access-Control-Request-Method",
                 "value": "GET"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "me"
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Petición previa de PATCH /me desde el frontend → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con cabeceras CORS (RF-35, RF-36)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.headers.get('Access-Control-Allow-Origin')).to.equal(pm.collectionVariables.get('frontendOrigin'));",
+                  "  pm.expect(pm.response.headers.get('Access-Control-Allow-Credentials')).to.equal('true');",
+                  "  pm.expect(pm.response.headers.get('Access-Control-Allow-Methods')).to.include('PATCH');",
+                  "  pm.expect(pm.response.headers.get('Access-Control-Allow-Headers')).to.include('X-CSRF-Token');",
+                  "  pm.expect(pm.response.json().data).to.equal(null);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "OPTIONS",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}"
+              },
+              {
+                "key": "Access-Control-Request-Method",
+                "value": "PATCH"
               }
             ],
             "url": {

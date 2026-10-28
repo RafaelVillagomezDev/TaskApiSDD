@@ -29,6 +29,7 @@ import { IssueCsrfTokenUseCase } from '../../src/modules/users/application/issue
 import { LoginUseCase } from '../../src/modules/users/application/login.use-case.js';
 import { LogoutUseCase } from '../../src/modules/users/application/logout.use-case.js';
 import { RefreshSessionUseCase } from '../../src/modules/users/application/refresh-session.use-case.js';
+import { UpdateProfileUseCase } from '../../src/modules/users/application/update-profile.use-case.js';
 import { RegisterUserUseCase } from '../../src/modules/users/application/register-user.use-case.js';
 import { VerifySessionCsrfUseCase } from '../../src/modules/users/application/verify-session-csrf.use-case.js';
 import { AesGcmGraceCipher } from '../../src/modules/users/infrastructure/aes-gcm-grace-cipher.adapter.js';
@@ -136,7 +137,10 @@ export function createTestContainer(): TestContainer {
     ),
     presessionCsrf: createPresessionCsrfMiddleware({ tokens, csrfTokens, clock }),
   });
-  const meRouter = createMeRouter({ controller: new MeController(new GetProfileUseCase(users)), session });
+  const meRouter = createMeRouter({
+    controller: new MeController(new GetProfileUseCase(users), new UpdateProfileUseCase(users)),
+    session,
+  });
 
   return {
     clock,

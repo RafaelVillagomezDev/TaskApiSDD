@@ -1,4 +1,4 @@
-import { loginBodySchema, registerBodySchema } from '../user.schema.js';
+import { loginBodySchema, registerBodySchema, updateProfileBodySchema } from '../user.schema.js';
 
 const LOCAL_PART = 'a'.repeat(64);
 // 254 caracteres en total, con etiquetas de dominio de 63 como máximo
@@ -76,5 +76,35 @@ describe('loginBodySchema', () => {
 
   it('ignora el nombre y cualquier otro campo desconocido', () => {
     expect(loginBodySchema.parse({ ...credentials, name: 'Ana' })).toEqual(credentials);
+  });
+});
+
+describe('updateProfileBodySchema', () => {
+  it.each([
+    ['  Ana  ', 'Ana'],
+    ['   ', null],
+    ['', null],
+    [null, null],
+  ])('nombre %p → %p (RF-05)', (name, expected) => {
+    expect(updateProfileBodySchema.parse({ name })).toEqual({ name: expected });
+  });
+
+  it('acepta un nombre de 100 caracteres y rechaza uno de 101 (RF-05)', () => {
+    expect(updateProfileBodySchema.safeParse({ name: 'n'.repeat(100) }).success).toBe(true);
+    expect(updateProfileBodySchema.safeParse({ name: 'n'.repeat(101) }).success).toBe(false);
+  });
+
+  it('name es obligatorio: un cuerpo vacío o sin él se rechaza', () => {
+    expect(updateProfileBodySchema.safeParse({}).success).toBe(false);
+    expect(updateProfileBodySchema.safeParse({ name: 42 }).success).toBe(false);
+  });
+
+  it.each([
+    ['el email', { name: 'Ana', email: 'otro@example.com' }],
+    ['solo el email', { email: 'otro@example.com' }],
+    ['la contraseña', { name: 'Ana', password: 'correct horse battery' }],
+    ['un campo desconocido', { name: 'Ana', role: 'admin' }],
+  ])('con %s se rechaza: solo se puede cambiar el nombre (RF-26)', (_case, body) => {
+    expect(updateProfileBodySchema.safeParse(body).success).toBe(false);
   });
 });

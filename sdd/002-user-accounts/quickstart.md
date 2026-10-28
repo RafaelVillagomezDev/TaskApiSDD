@@ -189,3 +189,24 @@ CSRF_ANA=$(login_as $ANA "ana-$RANDOM@example.com"); CSRF_BEA=$(login_as $BEA "b
   curl -s -b $ANA $API/tasks -H "X-Timezone: $TZ_NAME"; echo
   ```
   → `400 INVALID_CLIENT_TIME`: la hora y la zona siguen siendo obligatorias en estas rutas (RF-30).
+
+## QS-H5 — Ver y editar mi perfil (HU-05)
+
+Con una sesión abierta (QS-H2.1) y `CSRF` como token de esa sesión:
+
+- **QS-H5.1** Cambiar el nombre con espacios alrededor:
+  ```bash
+  apij -X PATCH $API/me -d '{"name":"  Ana  "}'
+  ```
+  → `200`, `message: "Perfil actualizado con éxito"` y `data` con `name: "Ana"` (RF-05, RF-26).
+- **QS-H5.2** Consultar el perfil:
+  ```bash
+  apij $API/me
+  ```
+  → `200` con `name: "Ana"`: es la prueba independiente de HU-05.
+- **QS-H5.3** Intentar cambiar el email:
+  ```bash
+  apij -X PATCH $API/me -d '{"email":"otro@example.com"}'
+  ```
+  → `400 VALIDATION_ERROR`: `details` indica que falta `name` y que `email` es un campo desconocido. Solo se puede cambiar el nombre (RF-26).
+- Un nombre vacío o solo con espacios (`{"name":"   "}`) o `{"name":null}` lo borra: `200` con `name: null`. Sin `X-CSRF-Token` → `403 INVALID_CSRF_TOKEN`.

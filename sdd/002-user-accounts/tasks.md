@@ -306,22 +306,25 @@ Spec: `sdd/002-user-accounts/spec.md` (Aprobada) · Plan: `sdd/002-user-accounts
 ## Fase H5 — Ver y editar mi perfil (HU-05, P2)
 
 ### Tests (deben fallar)
-- [ ] T095 [P] [H5] Test del schema de `PATCH /me`: `name` 100/101, recorte, `null` y vacío; `email` u otro campo → error (RF-05, RF-26) — `users/infrastructure/tests/user.schema.test.ts`
+- [x] T095 [P] [H5] Test del schema de `PATCH /me`: `name` 100/101, recorte, `null` y vacío; `email` u otro campo → error (RF-05, RF-26) — `users/infrastructure/tests/user.schema.test.ts`
   - Verifica: `dce pnpm test src/modules/users/infrastructure/tests/user.schema` **falla**.
-- [ ] T096 [P] [H5] Test de editar el perfil (RF-05, RF-26) — `users/application/tests/update-profile.use-case.test.ts`
+- [x] T096 [P] [H5] Test de editar el perfil (RF-05, RF-26) — `users/application/tests/update-profile.use-case.test.ts`
   - Verifica: `dce pnpm test src/modules/users/application/tests/update-profile` **falla**.
-- [ ] T097 [H5] Test HTTP de `PATCH /me`: `200` con el nombre recortado, `"   "` → `null`, `email` → `VALIDATION_ERROR`, sin CSRF → `INVALID_CSRF_TOKEN`, petición previa de CORS de `PATCH /me` → `200` (RF-05, RF-23, RF-26, RF-36) — `users/infrastructure/tests/me.routes.test.ts`
+- [x] T097 [H5] Test HTTP de `PATCH /me`: `200` con el nombre recortado, `"   "` → `null`, `email` → `VALIDATION_ERROR`, sin CSRF → `INVALID_CSRF_TOKEN`, petición previa de CORS de `PATCH /me` → `200` (RF-05, RF-23, RF-26, RF-36) — `users/infrastructure/tests/me.routes.test.ts`
   - Verifica: `dce pnpm test src/modules/users/infrastructure/tests/me.routes` **falla**.
 
 ### Implementación
-- [ ] T098 [H5] Schema de `PATCH /me`, `strict` (RF-05, RF-26) — `users/infrastructure/user.schema.ts`
+- [x] T098 [H5] Schema de `PATCH /me`, `strict` (RF-05, RF-26) — `users/infrastructure/user.schema.ts`
   - Verifica: `dce pnpm test src/modules/users/infrastructure/tests/user.schema` pasa.
-- [ ] T099 [H5] Caso de uso editar el perfil (RF-26) — `users/application/update-profile.use-case.ts`
+  - Hecho (2026-10-29): `name` es obligatorio y admite `null`, como dice el contrato; un campo desconocido, incluido `email`, aparece en `details` con `field: "body"`, igual que en el `PATCH /tasks` de la 001 (el helper compartido no cambia).
+- [x] T099 [H5] Caso de uso editar el perfil (RF-26) — `users/application/update-profile.use-case.ts`
   - Verifica: `dce pnpm test src/modules/users/application/tests/update-profile` pasa.
-- [ ] T100 [H5] Controlador y ruta `PATCH /me`, y `PATCH` en la petición previa de `/me` (RF-26, RF-36) — `users/infrastructure/me.controller.ts`, `users/infrastructure/me.routes.ts`
+- [x] T100 [H5] Controlador y ruta `PATCH /me`, y `PATCH` en la petición previa de `/me` (RF-26, RF-36) — `users/infrastructure/me.controller.ts`, `users/infrastructure/me.routes.ts`
   - Verifica: `dce pnpm test src/modules/users` pasa entero.
-- [ ] T101 [H5] Guía manual, sección QS-H5 — `sdd/002-user-accounts/quickstart.md`
+  - Hecho (2026-10-29): `PATCH /me` encadena sesión → JSON → controlador, así que `TOKEN_EXPIRED` gana a un cuerpo con `email` (ejemplo de RF-34); la petición previa de `/me` pasa a `GET, PATCH` (RF-36).
+- [x] T101 [H5] Guía manual, sección QS-H5 — `sdd/002-user-accounts/quickstart.md`
   - Verifica: ejecutar QS-H5 a mano.
+  - Hecho (2026-10-29): ejecutado a mano contra la API de desarrollo.
 
 ### Checkpoint H5
 - `dce pnpm test` pasa entero.
@@ -392,7 +395,7 @@ Spec: `sdd/002-user-accounts/spec.md` (Aprobada) · Plan: `sdd/002-user-accounts
 - [x] T119 [P] [Rob] Colección de Postman con `GET /auth/csrf`, registro y login (cookies de Postman y `csrfToken` en una variable), flujo H1–H6 de la 001 con sesión y errores de sesión y CSRF (RF-17, RF-22, RF-23) — `sdd/001-taskApiSDD-mvp/mvp-p1.postman-collection.json`
   - Verifica: `docker run --rm -e TZ=Europe/Madrid -v "$PWD/sdd/001-taskApiSDD-mvp":/etc/newman postman/newman:6-alpine run mvp-p1.postman-collection.json --env-var baseUrl=http://host.docker.internal:3000` sin fallos.
   - Hecho (2026-10-29): 60 peticiones y 66 comprobaciones con Newman, sin fallos. El flujo pide el token previo, registra una cuenta nueva y entra con ella; las peticiones de la 001 envían su cookie y su token CSRF; "2. Errores" añade una segunda cuenta (en lugar de `X-User-Id: otro-usuario`) y los errores de sesión y CSRF (`MISSING_TOKEN`, también con `X-User-Id`; `INVALID_TOKEN`; `INVALID_CSRF_TOKEN` sin cabecera y con el token previo; decisión 19); "3. Mis tareas" entra con `myEmail` y `myPassword`. Las cookies no las gestiona el almacén de Postman, como decía la tarea, sino variables enviadas en la cabecera `Cookie` con `disableCookies` en cada petición (también en la colección de la 002): Newman no reenvía cookies `Secure` por http a `host.docker.internal`, y así Postman no mezcla las cookies guardadas con las de cada cuenta.
-  - Nota (2026-10-28): a petición del usuario, la 002 tiene además su propia colección, `sdd/002-user-accounts/user-accounts.postman-collection.json`, creada tras H1 (token CSRF previo, registro, errores y CORS: 12 peticiones y 12 comprobaciones con Newman, sin fallos) ampliada tras H2 (login, `GET /me`, logout, sus errores y peticiones previas: 26 peticiones y 28 comprobaciones, sin fallos) y tras H3 (renovación, margen de gracia, sus errores y la petición previa: 33 peticiones y 35 comprobaciones, sin fallos; la reutilización a los 31 s queda en los tests y en QS-H3.3). Las cookies se guardan en la variable `sessionCookie` y se envían en la cabecera `Cookie`, porque Newman no reenvía cookies `Secure` por http a `host.docker.internal`. Se amplía en cada historia.
+  - Nota (2026-10-28): a petición del usuario, la 002 tiene además su propia colección, `sdd/002-user-accounts/user-accounts.postman-collection.json`, creada tras H1 (token CSRF previo, registro, errores y CORS: 12 peticiones y 12 comprobaciones con Newman, sin fallos) ampliada tras H2 (login, `GET /me`, logout, sus errores y peticiones previas: 26 peticiones y 28 comprobaciones, sin fallos) tras H3 (renovación, margen de gracia, sus errores y la petición previa: 33 peticiones y 35 comprobaciones, sin fallos; la reutilización a los 31 s queda en los tests y en QS-H3.3) y tras H5 (cambiar y consultar el nombre, el email rechazado dentro del flujo porque necesita sesión, sus errores y la petición previa: 39 peticiones y 41 comprobaciones, sin fallos). Las cookies se guardan en la variable `sessionCookie` y se envían en la cabecera `Cookie`, porque Newman no reenvía cookies `Secure` por http a `host.docker.internal`. Se amplía en cada historia.
 - [ ] T120 [Rob] AGENTS.md: variables `SESSION_ENCRYPTION_KEY` y `CORS_ORIGIN`, módulo `users` y aviso de Safari en desarrollo (R-2) — `AGENTS.md`
   - Verifica: `grep -c "SESSION_ENCRYPTION_KEY\|CORS_ORIGIN" AGENTS.md` ≥ 2.
 - [ ] T121 [Rob] Guía manual, sección QS-R: producción con cookies y CORS (petición previa desde `https://kompitu.yandrydev.cloud` y desde otro origen) y rendimiento — `sdd/002-user-accounts/quickstart.md`

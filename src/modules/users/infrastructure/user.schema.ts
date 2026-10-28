@@ -40,3 +40,9 @@ export const loginBodySchema = z.object({
   email: emailSchema,
   password: passwordSchema,
 });
+
+// PATCH /me: solo el nombre, obligatorio y que admite null; cualquier otro campo, incluido el email,
+// es VALIDATION_ERROR (RF-05, RF-26)
+export const updateProfileBodySchema = z.strictObject({
+  name: z.string().trim().max(NAME_MAX_LENGTH).nullable().transform(emptyToNull),
+});

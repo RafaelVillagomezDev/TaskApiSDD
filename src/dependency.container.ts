@@ -31,6 +31,7 @@ import { LoginUseCase } from './modules/users/application/login.use-case.js';
 import { LogoutUseCase } from './modules/users/application/logout.use-case.js';
 import { PurgeExpiredAuthDataUseCase } from './modules/users/application/purge-expired-auth-data.use-case.js';
 import { RefreshSessionUseCase } from './modules/users/application/refresh-session.use-case.js';
+import { UpdateProfileUseCase } from './modules/users/application/update-profile.use-case.js';
 import { RegisterUserUseCase } from './modules/users/application/register-user.use-case.js';
 import { VerifySessionCsrfUseCase } from './modules/users/application/verify-session-csrf.use-case.js';
 import { AesGcmGraceCipher } from './modules/users/infrastructure/aes-gcm-grace-cipher.adapter.js';
@@ -142,7 +143,10 @@ export function createContainer(): Container {
     ),
     presessionCsrf: createPresessionCsrfMiddleware({ tokens, csrfTokens, clock }),
   });
-  const meRouter = createMeRouter({ controller: new MeController(new GetProfileUseCase(users)), session });
+  const meRouter = createMeRouter({
+    controller: new MeController(new GetProfileUseCase(users), new UpdateProfileUseCase(users)),
+    session,
+  });
   // Limpieza de copias cifradas, tokens previos, sesiones y bloqueos caducados (D-12)
   const authCleanupScheduler = new AuthCleanupScheduler(
     new PurgeExpiredAuthDataUseCase(sessions, csrfTokens, loginAttempts, clock),
