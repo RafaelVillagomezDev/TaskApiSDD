@@ -24,15 +24,25 @@ import { PrismaTaskRepository } from './modules/tasks/infrastructure/prisma-task
 import { TaskController } from './modules/tasks/infrastructure/task.controller.js';
 import { createTaskRouter } from './modules/tasks/infrastructure/task.routes.js';
 import { GetPendingTaskUseCase, GetProductiveDateUseCase } from './modules/tasks/task.facade.js';
+import { AuthenticateSessionUseCase } from './modules/users/application/authenticate-session.use-case.js';
+import { GetProfileUseCase } from './modules/users/application/get-profile.use-case.js';
 import { IssueCsrfTokenUseCase } from './modules/users/application/issue-csrf-token.use-case.js';
+import { LoginUseCase } from './modules/users/application/login.use-case.js';
+import { LogoutUseCase } from './modules/users/application/logout.use-case.js';
 import { RegisterUserUseCase } from './modules/users/application/register-user.use-case.js';
+import { VerifySessionCsrfUseCase } from './modules/users/application/verify-session-csrf.use-case.js';
 import { Argon2PasswordHasher } from './modules/users/infrastructure/argon2-password-hasher.adapter.js';
 import { AuthController } from './modules/users/infrastructure/auth.controller.js';
 import { createAuthRouter } from './modules/users/infrastructure/auth.routes.js';
 import { CryptoTokenService } from './modules/users/infrastructure/crypto-token.adapter.js';
+import { MeController } from './modules/users/infrastructure/me.controller.js';
+import { createMeRouter } from './modules/users/infrastructure/me.routes.js';
 import { createPresessionCsrfMiddleware } from './modules/users/infrastructure/presession-csrf.middleware.js';
 import { PrismaCsrfTokenRepository } from './modules/users/infrastructure/prisma-csrf-token.repository.js';
+import { PrismaLoginAttemptRepository } from './modules/users/infrastructure/prisma-login-attempt.repository.js';
+import { PrismaSessionRepository } from './modules/users/infrastructure/prisma-session.repository.js';
 import { PrismaUserRepository } from './modules/users/infrastructure/prisma-user.repository.js';
+import { createSessionMiddleware } from './modules/users/infrastructure/session.middleware.js';
 import type { Clock } from './shared/domain/clock.port.js';
 import type { TimeZoneService } from './shared/domain/time-zone.port.js';
 import { createRequestContextMiddleware } from './shared/infrastructure/http/request-context.middleware.js';
@@ -96,17 +106,25 @@ export function createContainer(): Container {
     requestContext,
   });
 
-  // Módulo users (spec 002): registro con token CSRF previo a la sesión
+  // Módulo users (spec 002): registro y login con token CSRF previo a la sesión, logout y perfil.
+  // Un solo hasher para que el hash ficticio del login se calcule una vez (D-3)
   const tokens = new CryptoTokenService();
   const csrfTokens = new PrismaCsrfTokenRepository(prisma);
   const users = new PrismaUserRepository(prisma);
+  const sessions = new PrismaSessionRepository(prisma);
+  const passwordHasher = new Argon2PasswordHasher();
+  const verifyCsrf = new VerifySessionCsrfUseCase(tokens);
+  const session = createSessionMiddleware(new AuthenticateSessionUseCase(sessions, tokens, verifyCsrf, clock));
   const authRouter = createAuthRouter({
     controller: new AuthController(
       new IssueCsrfTokenUseCase(tokens, csrfTokens, clock),
-      new RegisterUserUseCase(users, new Argon2PasswordHasher()),
+      new RegisterUserUseCase(users, passwordHasher),
+      new LoginUseCase(users, sessions, new PrismaLoginAttemptRepository(prisma), passwordHasher, tokens, clock),
+      new LogoutUseCase(sessions, tokens, verifyCsrf),
     ),
     presessionCsrf: createPresessionCsrfMiddleware({ tokens, csrfTokens, clock }),
   });
+  const meRouter = createMeRouter({ controller: new MeController(new GetProfileUseCase(users)), session });
 
   return {
     clock,
@@ -115,6 +133,6 @@ export function createContainer(): Container {
     requestContext,
     alertScheduler,
     corsOrigin: config.corsOrigin,
-    routers: [authRouter, taskRouter, streakRouter, alertRouter],
+    routers: [authRouter, meRouter, taskRouter, streakRouter, alertRouter],
   };
 }

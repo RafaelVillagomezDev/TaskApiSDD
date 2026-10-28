@@ -22,24 +22,36 @@ import { UpdateTaskUseCase } from '../../src/modules/tasks/application/update-ta
 import { TaskController } from '../../src/modules/tasks/infrastructure/task.controller.js';
 import { createTaskRouter } from '../../src/modules/tasks/infrastructure/task.routes.js';
 import { GetPendingTaskUseCase, GetProductiveDateUseCase } from '../../src/modules/tasks/task.facade.js';
+import { AuthenticateSessionUseCase } from '../../src/modules/users/application/authenticate-session.use-case.js';
+import { GetProfileUseCase } from '../../src/modules/users/application/get-profile.use-case.js';
 import { IssueCsrfTokenUseCase } from '../../src/modules/users/application/issue-csrf-token.use-case.js';
+import { LoginUseCase } from '../../src/modules/users/application/login.use-case.js';
+import { LogoutUseCase } from '../../src/modules/users/application/logout.use-case.js';
 import { RegisterUserUseCase } from '../../src/modules/users/application/register-user.use-case.js';
+import { VerifySessionCsrfUseCase } from '../../src/modules/users/application/verify-session-csrf.use-case.js';
 import { AuthController } from '../../src/modules/users/infrastructure/auth.controller.js';
 import { createAuthRouter } from '../../src/modules/users/infrastructure/auth.routes.js';
 import { CryptoTokenService } from '../../src/modules/users/infrastructure/crypto-token.adapter.js';
+import { MeController } from '../../src/modules/users/infrastructure/me.controller.js';
+import { createMeRouter } from '../../src/modules/users/infrastructure/me.routes.js';
 import { createPresessionCsrfMiddleware } from '../../src/modules/users/infrastructure/presession-csrf.middleware.js';
+import { createSessionMiddleware } from '../../src/modules/users/infrastructure/session.middleware.js';
 import { createRequestContextMiddleware } from '../../src/shared/infrastructure/http/request-context.middleware.js';
 import { IntlTimeZoneAdapter } from '../../src/shared/infrastructure/time/intl-time-zone.adapter.js';
 import { FakeClock } from './fake-clock.adapter.js';
 import { FakePasswordHasher } from './fake-password-hasher.adapter.js';
 import { InMemoryAlertRepository } from './in-memory-alert.repository.js';
 import { InMemoryCsrfTokenRepository } from './in-memory-csrf-token.repository.js';
+import { InMemoryLoginAttemptRepository } from './in-memory-login-attempt.repository.js';
+import { InMemorySessionRepository } from './in-memory-session.repository.js';
 import { InMemoryTaskRepository } from './in-memory-task.repository.js';
 import { InMemoryUserTimeZoneRepository } from './in-memory-user-time-zone.repository.js';
 import { InMemoryUserRepository } from './in-memory-user.repository.js';
 
 // Origen del frontend permitido por CORS en los tests, el mismo que en .env.dev (RF-35 de la 002)
 export const FRONTEND_ORIGIN = 'http://localhost:5173';
+// Contraseña de las cuentas que crea signIn
+export const TEST_PASSWORD = 'correct horse battery';
 
 // Mismo cableado que dependency.container.ts pero con fakes en memoria (plan, D-21).
 // Reloj por defecto: 2026-10-24T10:00:00Z (12:00 en Madrid)
@@ -53,6 +65,8 @@ export interface TestContainer extends AppContainer {
   generateAlerts: GenerateDueAlertUseCase;
   users: InMemoryUserRepository;
   csrfTokens: InMemoryCsrfTokenRepository;
+  sessions: InMemorySessionRepository;
+  loginAttempts: InMemoryLoginAttemptRepository;
 }
 
 export function createTestContainer(): TestContainer {
@@ -99,13 +113,21 @@ export function createTestContainer(): TestContainer {
   const tokens = new CryptoTokenService();
   const users = new InMemoryUserRepository();
   const csrfTokens = new InMemoryCsrfTokenRepository();
+  const sessions = new InMemorySessionRepository();
+  const loginAttempts = new InMemoryLoginAttemptRepository();
+  const passwordHasher = new FakePasswordHasher();
+  const verifyCsrf = new VerifySessionCsrfUseCase(tokens);
+  const session = createSessionMiddleware(new AuthenticateSessionUseCase(sessions, tokens, verifyCsrf, clock));
   const authRouter = createAuthRouter({
     controller: new AuthController(
       new IssueCsrfTokenUseCase(tokens, csrfTokens, clock),
-      new RegisterUserUseCase(users, new FakePasswordHasher()),
+      new RegisterUserUseCase(users, passwordHasher),
+      new LoginUseCase(users, sessions, loginAttempts, passwordHasher, tokens, clock),
+      new LogoutUseCase(sessions, tokens, verifyCsrf),
     ),
     presessionCsrf: createPresessionCsrfMiddleware({ tokens, csrfTokens, clock }),
   });
+  const meRouter = createMeRouter({ controller: new MeController(new GetProfileUseCase(users)), session });
 
   return {
     clock,
@@ -116,8 +138,10 @@ export function createTestContainer(): TestContainer {
     generateAlerts,
     users,
     csrfTokens,
+    sessions,
+    loginAttempts,
     corsOrigin: FRONTEND_ORIGIN,
-    routers: [authRouter, taskRouter, streakRouter, alertRouter],
+    routers: [authRouter, meRouter, taskRouter, streakRouter, alertRouter],
   };
 }
 
@@ -157,4 +181,36 @@ export async function startTestServer(app: Express): Promise<TestServer> {
         server.close((error) => (error ? reject(error) : resolve()));
       }),
   };
+}
+
+// Cabeceras de una sesión abierta: las cookies como las reenviaría el navegador y el token CSRF de la sesión
+// Alias y no interfaz: así se puede pasar donde se espera Record<string, string>
+export type SessionHeaders = {
+  Cookie: string;
+  'X-CSRF-Token': string;
+};
+
+// Convierte los Set-Cookie de una respuesta en la cabecera Cookie que enviaría el navegador
+export function cookiesFrom(response: Response): string {
+  return response.headers
+    .getSetCookie()
+    .map((cookie) => cookie.split(';')[0])
+    .join('; ');
+}
+
+// Pide el token previo, registra la cuenta (si ya existe, sigue) e inicia sesión con ella (RF-22, RF-01, RF-07)
+export async function signIn(server: TestServer, email = 'ana@example.com'): Promise<SessionHeaders> {
+  const csrf = (await (await server.request('/auth/csrf')).json()) as { data: { csrfToken: string } };
+  const init = (body: unknown): RequestInit => ({
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf.data.csrfToken },
+    body: JSON.stringify(body),
+  });
+  await server.request('/auth/register', init({ email, password: TEST_PASSWORD, name: 'Ana' }));
+  const response = await server.request('/auth/login', init({ email, password: TEST_PASSWORD }));
+  if (response.status !== 200) {
+    throw new Error(`signIn: el login de ${email} respondió ${response.status}`);
+  }
+  const body = (await response.json()) as { data: { csrfToken: string } };
+  return { Cookie: cookiesFrom(response), 'X-CSRF-Token': body.data.csrfToken };
 }

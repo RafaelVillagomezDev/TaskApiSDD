@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "TaskApiSDD — Cuentas de usuario (002)",
-    "description": "Funcionalidad 002 (sdd/002-user-accounts). Implementado por ahora: H1, token CSRF previo a la sesión y registro. Ejecuta '1. Flujo' en orden (Run folder) antes de '2. Errores': la primera petición genera un email nuevo en cada ejecución. Cuando se implemente el login (H2), Postman guardará las cookies de sesión automáticamente.",
+    "description": "Funcionalidad 002 (sdd/002-user-accounts). Implementado por ahora: H1 (token CSRF previo a la sesión y registro) y H2 (login, GET /me y logout). Ejecuta '1. Flujo' en orden (Run folder) antes de '2. Errores': la primera petición genera un email nuevo en cada ejecución. Las cookies de sesión se guardan en la variable sessionCookie y se envían en la cabecera Cookie, porque Newman y Postman no reenvían cookies Secure por http a un host que no sea localhost.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -31,6 +31,18 @@
     },
     {
       "key": "userId",
+      "value": ""
+    },
+    {
+      "key": "sessionCookie",
+      "value": ""
+    },
+    {
+      "key": "sessionCsrfToken",
+      "value": ""
+    },
+    {
+      "key": "invalidCredentialsBody",
       "value": ""
     }
   ],
@@ -138,6 +150,194 @@
                   "language": "json"
                 }
               }
+            }
+          }
+        },
+        {
+          "name": "03 Iniciar sesión (H2)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con { user, csrfToken } y las dos cookies de sesión (RF-07, RF-24)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const { message, data } = pm.response.json();",
+                  "  pm.expect(message).to.equal('Sesión iniciada con éxito');",
+                  "  pm.expect(data).to.have.all.keys('user', 'csrfToken');",
+                  "  pm.expect(data.user.id).to.equal(pm.collectionVariables.get('userId'));",
+                  "  pm.expect(data.csrfToken).to.match(/^[A-Za-z0-9_-]{43}$/);",
+                  "  pm.collectionVariables.set('sessionCsrfToken', data.csrfToken);",
+                  "});",
+                  "",
+                  "// Las cookies se reenvían a mano en la cabecera Cookie: Newman y Postman no envían cookies Secure por http",
+                  "// a un host que no sea localhost (por ejemplo host.docker.internal)",
+                  "const setCookies = pm.response.headers.all().filter((header) => header.key.toLowerCase() === 'set-cookie').map((header) => header.value);",
+                  "pm.test('cookies HttpOnly, Secure y SameSite=Strict; refresh solo en /auth (RF-07, RNF-05)', () => {",
+                  "  const access = setCookies.find((cookie) => cookie.startsWith('access_token='));",
+                  "  const refresh = setCookies.find((cookie) => cookie.startsWith('refresh_token='));",
+                  "  pm.expect(access).to.include('Max-Age=900').and.include('Path=/;');",
+                  "  pm.expect(refresh).to.include('Max-Age=604800').and.include('Path=/auth;');",
+                  "  for (const cookie of [access, refresh]) {",
+                  "    pm.expect(cookie).to.include('HttpOnly').and.include('Secure').and.include('SameSite=Strict');",
+                  "    pm.expect(pm.response.text()).to.not.include(cookie.split(';')[0].split('=')[1]);",
+                  "  }",
+                  "  pm.collectionVariables.set('sessionCookie', setCookies.map((cookie) => cookie.split(';')[0]).join('; '));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{emailUpper}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "04 Consultar mi cuenta (H2)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con el recurso User, sin cabeceras de hora (RF-25, RF-30)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const { data } = pm.response.json();",
+                  "  pm.expect(data).to.have.all.keys('id', 'email', 'name', 'createdAt');",
+                  "  pm.expect(data.id).to.equal(pm.collectionVariables.get('userId'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "{{sessionCookie}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "me"
+              ]
+            }
+          }
+        },
+        {
+          "name": "05 Cerrar sesión (H2)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con data null y borra las cookies (RF-15)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const { message, data } = pm.response.json();",
+                  "  pm.expect(message).to.equal('Sesión cerrada con éxito');",
+                  "  pm.expect(data).to.equal(null);",
+                  "  const cleared = pm.response.headers.all().filter((header) => header.key.toLowerCase() === 'set-cookie');",
+                  "  pm.expect(cleared).to.have.lengthOf(2);",
+                  "  cleared.forEach((header) => pm.expect(header.value).to.include('Expires=Thu, 01 Jan 1970'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "{{sessionCookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{sessionCsrfToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "logout"
+              ]
+            }
+          }
+        },
+        {
+          "name": "06 Tras el logout, las cookies ya no sirven (H2)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401 INVALID_TOKEN', () => {",
+                  "  pm.response.to.have.status(401);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.equal(false);",
+                  "  pm.expect(body.error.code).to.equal('INVALID_TOKEN');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "{{sessionCookie}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "me"
+              ]
             }
           }
         }
@@ -447,6 +647,304 @@
           }
         },
         {
+          "name": "Login con contraseña errónea → INVALID_CREDENTIALS (RF-08)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401 INVALID_CREDENTIALS', () => {",
+                  "  pm.response.to.have.status(401);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.equal(false);",
+                  "  pm.expect(body.error.code).to.equal('INVALID_CREDENTIALS');",
+                  "});",
+                  "pm.collectionVariables.set('invalidCredentialsBody', pm.response.text());"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"contraseña equivocada\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Login con un email inexistente → la misma respuesta (RF-08)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401 INVALID_CREDENTIALS', () => {",
+                  "  pm.response.to.have.status(401);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.equal(false);",
+                  "  pm.expect(body.error.code).to.equal('INVALID_CREDENTIALS');",
+                  "});",
+                  "pm.test('mismo cuerpo que con la contraseña errónea', () => {",
+                  "  pm.expect(pm.response.text()).to.equal(pm.collectionVariables.get('invalidCredentialsBody'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"nadie-{{$timestamp}}@example.com\",\n  \"password\": \"contraseña equivocada\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Login sin X-CSRF-Token → INVALID_CSRF_TOKEN (RF-23)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 INVALID_CSRF_TOKEN', () => {",
+                  "  pm.response.to.have.status(403);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.equal(false);",
+                  "  pm.expect(body.error.code).to.equal('INVALID_CSRF_TOKEN');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{emailUpper}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET /me sin cookie → MISSING_TOKEN (RF-18)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401 MISSING_TOKEN', () => {",
+                  "  pm.response.to.have.status(401);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.equal(false);",
+                  "  pm.expect(body.error.code).to.equal('MISSING_TOKEN');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "me"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /me con un token inventado → INVALID_TOKEN (RF-19)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401 INVALID_TOKEN', () => {",
+                  "  pm.response.to.have.status(401);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.equal(false);",
+                  "  pm.expect(body.error.code).to.equal('INVALID_TOKEN');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "access_token=inventado"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "me"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Logout sin X-CSRF-Token → INVALID_CSRF_TOKEN (RF-23)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 INVALID_CSRF_TOKEN', () => {",
+                  "  pm.response.to.have.status(403);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.equal(false);",
+                  "  pm.expect(body.error.code).to.equal('INVALID_CSRF_TOKEN');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "access_token=inventado"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "logout"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Logout con X-CSRF-Token y sin cookies → MISSING_TOKEN (decisión 19)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401 MISSING_TOKEN', () => {",
+                  "  pm.response.to.have.status(401);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.equal(false);",
+                  "  pm.expect(body.error.code).to.equal('MISSING_TOKEN');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "logout"
+              ]
+            }
+          }
+        },
+        {
           "name": "Método inexistente → ROUTE_NOT_FOUND",
           "event": [
             {
@@ -568,6 +1066,137 @@
               "path": [
                 "auth",
                 "register"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Petición previa de POST /auth/login desde el frontend → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con cabeceras CORS (RF-35, RF-36)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.headers.get('Access-Control-Allow-Origin')).to.equal(pm.collectionVariables.get('frontendOrigin'));",
+                  "  pm.expect(pm.response.headers.get('Access-Control-Allow-Credentials')).to.equal('true');",
+                  "  pm.expect(pm.response.headers.get('Access-Control-Allow-Methods')).to.include('POST');",
+                  "  pm.expect(pm.response.headers.get('Access-Control-Allow-Headers')).to.include('X-CSRF-Token');",
+                  "  pm.expect(pm.response.json().data).to.equal(null);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "OPTIONS",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}"
+              },
+              {
+                "key": "Access-Control-Request-Method",
+                "value": "POST"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Petición previa de POST /auth/logout desde el frontend → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con cabeceras CORS (RF-35, RF-36)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.headers.get('Access-Control-Allow-Origin')).to.equal(pm.collectionVariables.get('frontendOrigin'));",
+                  "  pm.expect(pm.response.headers.get('Access-Control-Allow-Credentials')).to.equal('true');",
+                  "  pm.expect(pm.response.headers.get('Access-Control-Allow-Methods')).to.include('POST');",
+                  "  pm.expect(pm.response.headers.get('Access-Control-Allow-Headers')).to.include('X-CSRF-Token');",
+                  "  pm.expect(pm.response.json().data).to.equal(null);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "OPTIONS",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}"
+              },
+              {
+                "key": "Access-Control-Request-Method",
+                "value": "POST"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "logout"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Petición previa de GET /me desde el frontend → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con cabeceras CORS (RF-35, RF-36)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.headers.get('Access-Control-Allow-Origin')).to.equal(pm.collectionVariables.get('frontendOrigin'));",
+                  "  pm.expect(pm.response.headers.get('Access-Control-Allow-Credentials')).to.equal('true');",
+                  "  pm.expect(pm.response.headers.get('Access-Control-Allow-Methods')).to.include('GET');",
+                  "  pm.expect(pm.response.headers.get('Access-Control-Allow-Headers')).to.include('X-CSRF-Token');",
+                  "  pm.expect(pm.response.json().data).to.equal(null);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "OPTIONS",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}"
+              },
+              {
+                "key": "Access-Control-Request-Method",
+                "value": "GET"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "me"
               ]
             }
           }

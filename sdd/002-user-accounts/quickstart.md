@@ -70,3 +70,44 @@ CSRF=$(csrf)
   curl -s -X POST $API/auth/register -H "Content-Type: application/json" -d "{\"email\":\"cris-$RANDOM@example.com\",\"password\":\"correct horse battery\"}"; echo
   ```
   → `403 INVALID_CSRF_TOKEN`.
+
+## QS-H2 — Iniciar y cerrar sesión (HU-02)
+
+Usa la cuenta `$EMAIL` registrada en QS-H1.2.
+
+```bash
+CSRF=$(csrf)
+```
+
+- **QS-H2.1** Iniciar sesión:
+  ```bash
+  RESP=$(apij -i -X POST $API/auth/login -d "{\"email\":\"$EMAIL\",\"password\":\"correct horse battery\"}"); echo "$RESP"
+  CSRF=$(echo "$RESP" | tail -1 | sed -E 's/.*"csrfToken":"([^"]+)".*/\1/')
+  ```
+  → `200`, `message: "Sesión iniciada con éxito"`, `data` con `user` y `csrfToken`; dos `Set-Cookie`: `access_token` (`Max-Age=900; Path=/`) y `refresh_token` (`Max-Age=604800; Path=/auth`), las dos con `HttpOnly; Secure; SameSite=Strict`. Ningún token de sesión aparece en el cuerpo (RNF-05). Desde aquí `CSRF` es el token de la sesión (RF-24).
+- **QS-H2.2** Consultar la cuenta con las cookies:
+  ```bash
+  apij $API/me
+  ```
+  → `200` con el usuario, sin `X-Client-Time` ni `X-Timezone` (RF-30).
+- **QS-H2.3** Contraseña errónea y email inexistente:
+  ```bash
+  P=$(csrf)
+  curl -s -X POST $API/auth/login -H "Content-Type: application/json" -H "X-CSRF-Token: $P" -d "{\"email\":\"$EMAIL\",\"password\":\"contraseña equivocada\"}"; echo
+  curl -s -X POST $API/auth/login -H "Content-Type: application/json" -H "X-CSRF-Token: $P" -d "{\"email\":\"nadie-$RANDOM@example.com\",\"password\":\"contraseña equivocada\"}"; echo
+  ```
+  → las dos, `401 INVALID_CREDENTIALS` con el mismo cuerpo: no se sabe si el email existe (RF-08).
+- **QS-H2.5** Cerrar sesión (antes que QS-H2.4, que bloquea la cuenta 15 minutos):
+  ```bash
+  cp "$JAR" "$JAR.old"
+  apij -i -X POST $API/auth/logout
+  apij $API/me
+  curl -s -b "$JAR.old" $API/me; echo
+  ```
+  → el logout responde `200` con `data: null` y dos `Set-Cookie` que borran las cookies. Después, `GET /me` responde `401 MISSING_TOKEN` (`curl` ya borró las cookies) y, con las cookies anteriores guardadas en `$JAR.old`, `401 INVALID_TOKEN`: la sesión está cerrada (RF-15, RF-19).
+- **QS-H2.4** Cinco fallos y después la contraseña correcta:
+  ```bash
+  for i in 1 2 3 4 5; do curl -s -o /dev/null -X POST $API/auth/login -H "Content-Type: application/json" -H "X-CSRF-Token: $P" -d "{\"email\":\"$EMAIL\",\"password\":\"contraseña equivocada\"}"; done
+  curl -s -X POST $API/auth/login -H "Content-Type: application/json" -H "X-CSRF-Token: $P" -d "{\"email\":\"$EMAIL\",\"password\":\"correct horse battery\"}"; echo
+  ```
+  → `429 TOO_MANY_ATTEMPTS`: el email queda bloqueado 15 minutos aunque la contraseña sea correcta (RF-09). QS-H2.3 ya contó un fallo, así que el bloqueo llega en el cuarto intento del bucle. Para seguir probando, registra otra cuenta con un `EMAIL` nuevo.

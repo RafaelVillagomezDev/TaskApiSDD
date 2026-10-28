@@ -172,42 +172,46 @@ Spec: `sdd/002-user-accounts/spec.md` (Aprobada) · Plan: `sdd/002-user-accounts
 `GET /me` (RF-25, de HU-05) se implementa en esta fase porque es la ruta protegida más sencilla y la que usa la prueba independiente de HU-02.
 
 ### Tests (deben fallar)
-- [ ] T055 [P] [H2] Test del schema de login (RF-02, RF-04) — `users/infrastructure/tests/user.schema.test.ts`
+- [x] T055 [P] [H2] Test del schema de login (RF-02, RF-04) — `users/infrastructure/tests/user.schema.test.ts`
   - Verifica: `dce pnpm test src/modules/users/infrastructure/tests/user.schema` **falla**.
-- [ ] T056 [P] [H2] Test de login: sesión con caducidades y token CSRF de sesión; email inexistente y contraseña errónea con el mismo error y `verifyDummy`; quinto fallo `INVALID_CREDENTIALS` y sexto `TOO_MANY_ATTEMPTS` aunque sea correcta; login correcto pone el contador a cero; varias sesiones (RF-07 a RF-10, RF-16, RF-24) — `users/application/tests/login.use-case.test.ts`
+- [x] T056 [P] [H2] Test de login: sesión con caducidades y token CSRF de sesión; email inexistente y contraseña errónea con el mismo error y `verifyDummy`; quinto fallo `INVALID_CREDENTIALS` y sexto `TOO_MANY_ATTEMPTS` aunque sea correcta; login correcto pone el contador a cero; varias sesiones (RF-07 a RF-10, RF-16, RF-24) — `users/application/tests/login.use-case.test.ts`
   - Verifica: `dce pnpm test src/modules/users/application/tests/login` **falla**.
-- [ ] T057 [P] [H2] Test de autenticar la sesión: sin token, desconocido, de generación anterior, de sesión cerrada; caducado → `TOKEN_EXPIRED`; válido → `SessionContext` (RF-17 a RF-20, D-14) — `users/application/tests/authenticate-session.use-case.test.ts`
+- [x] T057 [P] [H2] Test de autenticar la sesión: sin token, desconocido, de generación anterior, de sesión cerrada; caducado → `TOKEN_EXPIRED`; válido → `SessionContext` (RF-17 a RF-20, D-14) — `users/application/tests/authenticate-session.use-case.test.ts`
   - Verifica: `dce pnpm test src/modules/users/application/tests/authenticate-session` **falla**.
-- [ ] T058 [P] [H2] Test del CSRF de sesión: coincide y no coincide (RF-23) — `users/application/tests/verify-session-csrf.use-case.test.ts`
+- [x] T058 [P] [H2] Test del CSRF de sesión: coincide y no coincide (RF-23) — `users/application/tests/verify-session-csrf.use-case.test.ts`
   - Verifica: `dce pnpm test src/modules/users/application/tests/verify-session-csrf` **falla**.
-- [ ] T059 [P] [H2] Test de logout: por token de acceso y, si caducó, por refresh; no toca otras sesiones (RF-15, RF-16) — `users/application/tests/logout.use-case.test.ts`
+- [x] T059 [P] [H2] Test de logout: por token de acceso y, si caducó, por refresh; no toca otras sesiones (RF-15, RF-16) — `users/application/tests/logout.use-case.test.ts`
   - Verifica: `dce pnpm test src/modules/users/application/tests/logout` **falla**.
-- [ ] T060 [P] [H2] Test de consultar el perfil sin contraseña (RF-25) — `users/application/tests/get-profile.use-case.test.ts`
+- [x] T060 [P] [H2] Test de consultar el perfil sin contraseña (RF-25) — `users/application/tests/get-profile.use-case.test.ts`
   - Verifica: `dce pnpm test src/modules/users/application/tests/get-profile` **falla**.
-- [ ] T061 [H2] Test HTTP de login y logout: cookies con sus atributos, `{ user, csrfToken }`, `401`/`429`, logout con acceso caducado y refresh válido, logout dos veces, `X-CSRF-Token` sin sesión → error de sesión y con sesión ajena → `INVALID_CSRF_TOKEN` (decisión 19), tokens CSRF cruzados (el de sesión en registro o login y el previo en logout con sesión → `INVALID_CSRF_TOKEN`), ningún cuerpo con tokens de sesión (RF-07 a RF-10, RF-15, RF-23, RF-24, RNF-04, RNF-05) — `users/infrastructure/tests/auth.routes.test.ts`
+- [x] T061 [H2] Test HTTP de login y logout: cookies con sus atributos, `{ user, csrfToken }`, `401`/`429`, logout con acceso caducado y refresh válido, logout dos veces, `X-CSRF-Token` sin sesión → error de sesión y con sesión ajena → `INVALID_CSRF_TOKEN` (decisión 19), tokens CSRF cruzados (el de sesión en registro o login y el previo en logout con sesión → `INVALID_CSRF_TOKEN`), ningún cuerpo con tokens de sesión (RF-07 a RF-10, RF-15, RF-23, RF-24, RNF-04, RNF-05) — `users/infrastructure/tests/auth.routes.test.ts`
   - Verifica: `dce pnpm test src/modules/users/infrastructure/tests/auth.routes` **falla**.
-- [ ] T062 [H2] Test HTTP de `GET /me`: con sesión → `User`; sin cookie, con token inventado y caducado → `MISSING_TOKEN`, `INVALID_TOKEN`, `TOKEN_EXPIRED`; sin `X-Client-Time` → `200` (RF-17 a RF-20, RF-25, RF-30) — `users/infrastructure/tests/me.routes.test.ts`
+  - Hecho (2026-10-28): `signIn` registra la cuenta con el nombre «Ana» y la contraseña `TEST_PASSWORD`; `cookiesFrom(response)` convierte los `Set-Cookie` en la cabecera `Cookie`.
+- [x] T062 [H2] Test HTTP de `GET /me`: con sesión → `User`; sin cookie, con token inventado y caducado → `MISSING_TOKEN`, `INVALID_TOKEN`, `TOKEN_EXPIRED`; sin `X-Client-Time` → `200` (RF-17 a RF-20, RF-25, RF-30) — `users/infrastructure/tests/me.routes.test.ts`
   - Verifica: `dce pnpm test src/modules/users/infrastructure/tests/me.routes` **falla**.
 
 ### Implementación
-- [ ] T063 [H2] Schema de login (RF-02, RF-04) — `users/infrastructure/user.schema.ts`
+- [x] T063 [H2] Schema de login (RF-02, RF-04) — `users/infrastructure/user.schema.ts`
   - Verifica: `dce pnpm test src/modules/users/infrastructure/tests/user.schema` pasa.
-- [ ] T064 [H2] Caso de uso login (RF-07 a RF-10, RF-16, RF-24) — `users/application/login.use-case.ts`
+- [x] T064 [H2] Caso de uso login (RF-07 a RF-10, RF-16, RF-24) — `users/application/login.use-case.ts`
   - Verifica: `dce pnpm test src/modules/users/application/tests/login` pasa.
-- [ ] T065 [P] [H2] Casos de uso autenticar la sesión y verificar el CSRF de sesión (RF-17 a RF-20, RF-23) — `users/application/authenticate-session.use-case.ts`, `users/application/verify-session-csrf.use-case.ts`
+- [x] T065 [P] [H2] Casos de uso autenticar la sesión y verificar el CSRF de sesión (RF-17 a RF-20, RF-23) — `users/application/authenticate-session.use-case.ts`, `users/application/verify-session-csrf.use-case.ts`
   - Verifica: `dce pnpm test src/modules/users/application/tests/authenticate-session verify-session-csrf` pasa.
-- [ ] T066 [P] [H2] Casos de uso logout y consultar el perfil (RF-15, RF-25) — `users/application/logout.use-case.ts`, `users/application/get-profile.use-case.ts`
+- [x] T066 [P] [H2] Casos de uso logout y consultar el perfil (RF-15, RF-25) — `users/application/logout.use-case.ts`, `users/application/get-profile.use-case.ts`
   - Verifica: `dce pnpm test src/modules/users/application/tests/logout get-profile` pasa.
-- [ ] T067 [H2] Middleware de sesión con CSRF en el orden de RF-34 y la decisión 19, y variante de logout que resuelve por el refresh token (RF-17 a RF-20, RF-23, D-6) — `users/infrastructure/session.middleware.ts`
+- [x] T067 [H2] Middleware de sesión con CSRF en el orden de RF-34 y la decisión 19, y variante de logout que resuelve por el refresh token (RF-17 a RF-20, RF-23, D-6) — `users/infrastructure/session.middleware.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
-- [ ] T068 [H2] Controlador y rutas `POST /auth/login` y `POST /auth/logout` con sus peticiones previas (RF-07, RF-15, RF-36) — `users/infrastructure/auth.controller.ts`, `users/infrastructure/auth.routes.ts`
+  - Hecho (2026-10-28): el middleware cubre las rutas protegidas; el logout no usa una variante del middleware: su controlador exige la cabecera con `requireCsrfHeader` (exportado por `session.middleware.ts`) y `LogoutUseCase` resuelve la sesión por el token de acceso o el refresh token vigente y compara el CSRF. Así lo prueban sus tests unitarios (T059) y el orden de RF-34 se mantiene.
+- [x] T068 [H2] Controlador y rutas `POST /auth/login` y `POST /auth/logout` con sus peticiones previas (RF-07, RF-15, RF-36) — `users/infrastructure/auth.controller.ts`, `users/infrastructure/auth.routes.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
-- [ ] T069 [H2] Controlador y ruta `GET /me` con su petición previa (RF-25, RF-36) — `users/infrastructure/me.controller.ts`, `users/infrastructure/me.routes.ts`
+  - Hecho (2026-10-28): las cookies del login duran exactamente 15 min y 7 días porque su `Max-Age` se calcula desde el instante del login (`session.createdAt`); con el reloj leído en el controlador salía 899.
+- [x] T069 [H2] Controlador y ruta `GET /me` con su petición previa (RF-25, RF-36) — `users/infrastructure/me.controller.ts`, `users/infrastructure/me.routes.ts`
   - Verifica: `dce pnpm exec tsc --noEmit`.
-- [ ] T070 [H2] Cablear el middleware de sesión y el router de `/me`, y helper `signIn(server, email?)` que devuelve `Cookie` y `X-CSRF-Token` — `src/dependency.container.ts`, `tests/support/test.container.ts`
+- [x] T070 [H2] Cablear el middleware de sesión y el router de `/me`, y helper `signIn(server, email?)` que devuelve `Cookie` y `X-CSRF-Token` — `src/dependency.container.ts`, `tests/support/test.container.ts`
   - Verifica: `dce pnpm test src/modules/users` pasa entero.
-- [ ] T071 [H2] Guía manual, sección QS-H2 — `sdd/002-user-accounts/quickstart.md`
+- [x] T071 [H2] Guía manual, sección QS-H2 — `sdd/002-user-accounts/quickstart.md`
   - Verifica: ejecutar QS-H2 a mano.
+  - Hecho (2026-10-28): QS-H2.5 va antes que QS-H2.4, que bloquea la cuenta 15 minutos; ejecutado a mano contra la API de desarrollo.
 
 ### Checkpoint H2
 - `dce pnpm test` pasa entero.
@@ -374,7 +378,7 @@ Spec: `sdd/002-user-accounts/spec.md` (Aprobada) · Plan: `sdd/002-user-accounts
   - Verifica: `dce pnpm test:perf` pasa.
 - [ ] T119 [P] [Rob] Colección de Postman con `GET /auth/csrf`, registro y login (cookies de Postman y `csrfToken` en una variable), flujo H1–H6 de la 001 con sesión y errores de sesión y CSRF (RF-17, RF-22, RF-23) — `sdd/001-taskApiSDD-mvp/mvp-p1.postman-collection.json`
   - Verifica: `docker run --rm -e TZ=Europe/Madrid -v "$PWD/sdd/001-taskApiSDD-mvp":/etc/newman postman/newman:6-alpine run mvp-p1.postman-collection.json --env-var baseUrl=http://host.docker.internal:3000` sin fallos.
-  - Nota (2026-10-28): a petición del usuario, la 002 tiene además su propia colección, `sdd/002-user-accounts/user-accounts.postman-collection.json`, creada tras H1 (token CSRF previo, registro, errores y CORS: 12 peticiones y 12 comprobaciones con Newman, sin fallos). Se amplía en cada historia.
+  - Nota (2026-10-28): a petición del usuario, la 002 tiene además su propia colección, `sdd/002-user-accounts/user-accounts.postman-collection.json`, creada tras H1 (token CSRF previo, registro, errores y CORS: 12 peticiones y 12 comprobaciones con Newman, sin fallos) y ampliada tras H2 (login, `GET /me`, logout, sus errores y peticiones previas: 26 peticiones y 28 comprobaciones, sin fallos). Las cookies se guardan en la variable `sessionCookie` y se envían en la cabecera `Cookie`, porque Newman no reenvía cookies `Secure` por http a `host.docker.internal`. Se amplía en cada historia.
 - [ ] T120 [Rob] AGENTS.md: variables `SESSION_ENCRYPTION_KEY` y `CORS_ORIGIN`, módulo `users` y aviso de Safari en desarrollo (R-2) — `AGENTS.md`
   - Verifica: `grep -c "SESSION_ENCRYPTION_KEY\|CORS_ORIGIN" AGENTS.md` ≥ 2.
 - [ ] T121 [Rob] Guía manual, sección QS-R: producción con cookies y CORS (petición previa desde `https://kompitu.yandrydev.cloud` y desde otro origen) y rendimiento — `sdd/002-user-accounts/quickstart.md`

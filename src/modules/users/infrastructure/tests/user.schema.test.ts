@@ -1,4 +1,4 @@
-import { registerBodySchema } from '../user.schema.js';
+import { loginBodySchema, registerBodySchema } from '../user.schema.js';
 
 const LOCAL_PART = 'a'.repeat(64);
 // 254 caracteres en total, con etiquetas de dominio de 63 como máximo
@@ -52,5 +52,29 @@ describe('registerBodySchema', () => {
   it('acepta un nombre de 100 caracteres y rechaza uno de 101 (RF-05)', () => {
     expect(registerBodySchema.safeParse({ ...valid, name: 'n'.repeat(100) }).success).toBe(true);
     expect(registerBodySchema.safeParse({ ...valid, name: 'n'.repeat(101) }).success).toBe(false);
+  });
+});
+
+describe('loginBodySchema', () => {
+  const credentials = { email: 'ana@example.com', password: 'correct horse battery' };
+
+  it('recorta y pasa a minúsculas el email, como en el registro (RF-02, RF-03)', () => {
+    expect(loginBodySchema.parse({ ...credentials, email: '  Ana@Example.COM ' })).toEqual(credentials);
+  });
+
+  it.each(['no-es-un-email', EMAIL_255, undefined])('rechaza el email %p (RF-02)', (email) => {
+    expect(loginBodySchema.safeParse({ ...credentials, email }).success).toBe(false);
+  });
+
+  it('aplica los límites de la contraseña sin recortarla (RF-04)', () => {
+    const withPassword = (password: unknown) => loginBodySchema.safeParse({ ...credentials, password });
+    expect(withPassword(' contraseña con ñ 🙂 ').data?.password).toBe(' contraseña con ñ 🙂 ');
+    expect(withPassword('a'.repeat(11)).success).toBe(false);
+    expect(withPassword('a'.repeat(129)).success).toBe(false);
+    expect(withPassword(undefined).success).toBe(false);
+  });
+
+  it('ignora el nombre y cualquier otro campo desconocido', () => {
+    expect(loginBodySchema.parse({ ...credentials, name: 'Ana' })).toEqual(credentials);
   });
 });

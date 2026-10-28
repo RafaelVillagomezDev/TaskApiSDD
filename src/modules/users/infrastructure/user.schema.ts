@@ -34,3 +34,9 @@ export const registerBodySchema = z.object({
   password: passwordSchema,
   name: nameSchema,
 });
+
+// Mismos límites que en el registro: un login fuera de ellos no llega a comprobar la contraseña (RF-02, RF-04)
+export const loginBodySchema = z.object({
+  email: emailSchema,
+  password: passwordSchema,
+});
