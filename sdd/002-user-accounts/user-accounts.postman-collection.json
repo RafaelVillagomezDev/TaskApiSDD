@@ -1,0 +1,619 @@
+{
+  "info": {
+    "name": "TaskApiSDD — Cuentas de usuario (002)",
+    "description": "Funcionalidad 002 (sdd/002-user-accounts). Implementado por ahora: H1, token CSRF previo a la sesión y registro. Ejecuta '1. Flujo' en orden (Run folder) antes de '2. Errores': la primera petición genera un email nuevo en cada ejecución. Cuando se implemente el login (H2), Postman guardará las cookies de sesión automáticamente.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "frontendOrigin",
+      "value": "http://localhost:5173"
+    },
+    {
+      "key": "password",
+      "value": "correct horse battery"
+    },
+    {
+      "key": "email",
+      "value": ""
+    },
+    {
+      "key": "emailUpper",
+      "value": ""
+    },
+    {
+      "key": "csrfToken",
+      "value": ""
+    },
+    {
+      "key": "userId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Flujo",
+      "item": [
+        {
+          "name": "01 Pedir token CSRF previo a la sesión (H1)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Cuenta nueva en cada ejecución del flujo: Postman conserva las variables entre ejecuciones",
+                  "const email = `postman-${Date.now()}@example.com`;",
+                  "pm.collectionVariables.set('email', email);",
+                  "pm.collectionVariables.set('emailUpper', `  ${email.toUpperCase()} `);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con csrfToken y sin cookies (RF-22)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const { message, data } = pm.response.json();",
+                  "  pm.expect(message).to.equal('Operación realizada con éxito');",
+                  "  pm.expect(data.csrfToken).to.match(/^[A-Za-z0-9_-]{43}$/);",
+                  "  pm.expect(pm.response.headers.has('Set-Cookie')).to.equal(false);",
+                  "  pm.collectionVariables.set('csrfToken', data.csrfToken);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/csrf",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "csrf"
+              ]
+            }
+          }
+        },
+        {
+          "name": "02 Registrarse (H1)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 con el recurso User, sin sesión ni contraseña (RF-01, RF-06)', () => {",
+                  "  pm.response.to.have.status(201);",
+                  "  const { message, data } = pm.response.json();",
+                  "  pm.expect(message).to.equal('Cuenta creada con éxito');",
+                  "  pm.expect(data).to.have.all.keys('id', 'email', 'name', 'createdAt');",
+                  "  pm.expect(data.email).to.equal(pm.collectionVariables.get('email').toLowerCase());",
+                  "  pm.expect(data.name).to.equal('Ana');",
+                  "  pm.expect(pm.response.headers.has('Set-Cookie')).to.equal(false);",
+                  "  pm.expect(pm.response.text()).to.not.include(pm.collectionVariables.get('password'));",
+                  "  pm.collectionVariables.set('userId', data.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"  {{email}} \",\n  \"password\": \"{{password}}\",\n  \"name\": \"  Ana  \"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Errores",
+      "item": [
+        {
+          "name": "Email ya registrado con otras mayúsculas → EMAIL_ALREADY_REGISTERED (RF-03)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 EMAIL_ALREADY_REGISTERED', () => {",
+                  "  pm.response.to.have.status(409);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.equal(false);",
+                  "  pm.expect(body.error.code).to.equal('EMAIL_ALREADY_REGISTERED');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{emailUpper}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Contraseña de 11 caracteres → VALIDATION_ERROR (RF-04)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 VALIDATION_ERROR', () => {",
+                  "  pm.response.to.have.status(400);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.equal(false);",
+                  "  pm.expect(body.error.code).to.equal('VALIDATION_ERROR');",
+                  "  pm.expect(body.error.details.map((d) => d.field)).to.eql(['password']);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"otra-{{$timestamp}}@example.com\",\n  \"password\": \"abcdefghijk\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Email no válido → VALIDATION_ERROR (RF-02)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 VALIDATION_ERROR', () => {",
+                  "  pm.response.to.have.status(400);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.equal(false);",
+                  "  pm.expect(body.error.code).to.equal('VALIDATION_ERROR');",
+                  "  pm.expect(body.error.details.map((d) => d.field)).to.eql(['email']);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrfToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"no-es-un-email\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Registro sin X-CSRF-Token → INVALID_CSRF_TOKEN (RF-23)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 INVALID_CSRF_TOKEN', () => {",
+                  "  pm.response.to.have.status(403);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.equal(false);",
+                  "  pm.expect(body.error.code).to.equal('INVALID_CSRF_TOKEN');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"sin-csrf-{{$timestamp}}@example.com\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Registro con un token inventado → INVALID_CSRF_TOKEN (RF-23)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 INVALID_CSRF_TOKEN', () => {",
+                  "  pm.response.to.have.status(403);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.equal(false);",
+                  "  pm.expect(body.error.code).to.equal('INVALID_CSRF_TOKEN');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "inventado"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"inventado-{{$timestamp}}@example.com\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Sin CSRF y con el cuerpo no válido → gana INVALID_CSRF_TOKEN (RF-34)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 INVALID_CSRF_TOKEN', () => {",
+                  "  pm.response.to.have.status(403);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.equal(false);",
+                  "  pm.expect(body.error.code).to.equal('INVALID_CSRF_TOKEN');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"no-es-un-email\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Método inexistente → ROUTE_NOT_FOUND",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 ROUTE_NOT_FOUND', () => {",
+                  "  pm.response.to.have.status(404);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.equal(false);",
+                  "  pm.expect(body.error.code).to.equal('ROUTE_NOT_FOUND');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. CORS",
+      "item": [
+        {
+          "name": "Petición previa de GET /auth/csrf desde el frontend → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con cabeceras CORS (RF-35, RF-36)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.headers.get('Access-Control-Allow-Origin')).to.equal(pm.collectionVariables.get('frontendOrigin'));",
+                  "  pm.expect(pm.response.headers.get('Access-Control-Allow-Credentials')).to.equal('true');",
+                  "  pm.expect(pm.response.headers.get('Access-Control-Allow-Methods')).to.include('GET');",
+                  "  pm.expect(pm.response.headers.get('Access-Control-Allow-Headers')).to.include('X-CSRF-Token');",
+                  "  pm.expect(pm.response.json().data).to.equal(null);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "OPTIONS",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}"
+              },
+              {
+                "key": "Access-Control-Request-Method",
+                "value": "GET"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/csrf",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "csrf"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Petición previa de POST /auth/register desde el frontend → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con cabeceras CORS (RF-35, RF-36)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.headers.get('Access-Control-Allow-Origin')).to.equal(pm.collectionVariables.get('frontendOrigin'));",
+                  "  pm.expect(pm.response.headers.get('Access-Control-Allow-Credentials')).to.equal('true');",
+                  "  pm.expect(pm.response.headers.get('Access-Control-Allow-Methods')).to.include('POST');",
+                  "  pm.expect(pm.response.headers.get('Access-Control-Allow-Headers')).to.include('X-CSRF-Token');",
+                  "  pm.expect(pm.response.json().data).to.equal(null);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "OPTIONS",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}"
+              },
+              {
+                "key": "Access-Control-Request-Method",
+                "value": "POST"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Petición previa desde otra web → ROUTE_NOT_FOUND",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 ROUTE_NOT_FOUND sin cabeceras CORS (RF-35, RF-36)', () => {",
+                  "  pm.response.to.have.status(404);",
+                  "  pm.expect(pm.response.headers.has('Access-Control-Allow-Origin')).to.equal(false);",
+                  "  pm.expect(pm.response.json().error.code).to.equal('ROUTE_NOT_FOUND');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "OPTIONS",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "https://otra-web.com"
+              },
+              {
+                "key": "Access-Control-Request-Method",
+                "value": "POST"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

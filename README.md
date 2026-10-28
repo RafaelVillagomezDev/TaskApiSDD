@@ -270,6 +270,15 @@ Importa `sdd/001-taskApiSDD-mvp/mvp-p1.postman-collection.json` en Postman y aju
 
 La colección cubre H1 a H6: crear, consultar, completar, racha, filtros de estado y rango de fechas, paginación, consulta por id, edición, borrado y consulta de avisos, con sus casos de error. La generación de avisos no entra porque depende de que sean las 22:00 en tu zona: se prueba con la guía manual (QS-H6). Las cabeceras dinámicas (`X-Client-Time` y las fechas) las calcula sola la colección.
 
+> **Mientras se implementa la 002:** desde su migración, `user_id` debe ser el UUID de una cuenta, así que esta colección (que envía `X-User-Id` inventados) falla hasta que H4 la pase a sesión con cookies (tarea T119).
+
+**Cuentas de usuario (002):** importa `sdd/002-user-accounts/user-accounts.postman-collection.json` y ejecuta **"1. Flujo"**, después **"2. Errores"** y **"3. CORS"**. Cubre lo implementado hasta ahora (H1): token CSRF previo a la sesión, registro y sus errores, y las peticiones previas de CORS. La primera petición genera una cuenta nueva en cada ejecución; las cookies de sesión las guardará Postman solo cuando llegue el login (H2). Desde la terminal:
+
+```bash
+docker run --rm -v "$PWD/sdd/002-user-accounts":/etc/newman postman/newman:6-alpine \
+  run user-accounts.postman-collection.json --env-var baseUrl=http://host.docker.internal:3000
+```
+
 ---
 
 ## Reglas de negocio que conviene conocer

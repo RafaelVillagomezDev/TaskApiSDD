@@ -373,6 +373,7 @@ Spec: `sdd/002-user-accounts/spec.md` (Aprobada) · Plan: `sdd/002-user-accounts
   - Verifica: `dce pnpm test:perf` pasa.
 - [ ] T119 [P] [Rob] Colección de Postman con `GET /auth/csrf`, registro y login (cookies de Postman y `csrfToken` en una variable), flujo H1–H6 de la 001 con sesión y errores de sesión y CSRF (RF-17, RF-22, RF-23) — `sdd/001-taskApiSDD-mvp/mvp-p1.postman-collection.json`
   - Verifica: `docker run --rm -e TZ=Europe/Madrid -v "$PWD/sdd/001-taskApiSDD-mvp":/etc/newman postman/newman:6-alpine run mvp-p1.postman-collection.json --env-var baseUrl=http://host.docker.internal:3000` sin fallos.
+  - Nota (2026-10-28): a petición del usuario, la 002 tiene además su propia colección, `sdd/002-user-accounts/user-accounts.postman-collection.json`, creada tras H1 (token CSRF previo, registro, errores y CORS: 12 peticiones y 12 comprobaciones con Newman, sin fallos). Se amplía en cada historia.
 - [ ] T120 [Rob] AGENTS.md: variables `SESSION_ENCRYPTION_KEY` y `CORS_ORIGIN`, módulo `users` y aviso de Safari en desarrollo (R-2) — `AGENTS.md`
   - Verifica: `grep -c "SESSION_ENCRYPTION_KEY\|CORS_ORIGIN" AGENTS.md` ≥ 2.
 - [ ] T121 [Rob] Guía manual, sección QS-R: producción con cookies y CORS (petición previa desde `https://kompitu.yandrydev.cloud` y desde otro origen) y rendimiento — `sdd/002-user-accounts/quickstart.md`
