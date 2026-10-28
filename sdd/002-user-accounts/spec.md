@@ -138,7 +138,8 @@ Son rutas protegidas todas salvo `GET /auth/csrf`, `POST /auth/register`, `POST 
 ### Protección frente a CSRF
 - **RF-22** — Cuando se pide en `GET /auth/csrf`, el sistema deberá entregar un token CSRF previo a la sesión, válido durante 30 minutos y reutilizable dentro de ese tiempo, que solo sirve para registrarse e iniciar sesión.
   - *Ejemplo:* token pedido a las 10:00 → un login fallido a las 10:01 y otro correcto a las 10:02 con el mismo token se aceptan; a las 10:31 el mismo token responde `INVALID_CSRF_TOKEN` y hay que pedir otro.
-- **RF-23** — Si una petición `POST`, `PATCH` o `DELETE` no lleva la cabecera `X-CSRF-Token`, o su valor no es un token CSRF válido para esa petición (el previo a la sesión en registro y login; el de la sesión en el resto), entonces el sistema deberá rechazarla con el error `INVALID_CSRF_TOKEN`. Las peticiones `GET` no lo exigen.
+- **RF-23** — Si una petición `POST`, `PATCH` o `DELETE` no lleva la cabecera `X-CSRF-Token`, o su valor no es un token CSRF válido para esa petición (el previo a la sesión en registro y login; el de la sesión en el resto), entonces el sistema deberá rechazarla con el error `INVALID_CSRF_TOKEN`. Las peticiones `GET` no lo exigen. Si la cabecera llega pero no hay ninguna sesión con la que compararla (sin cookies de sesión, o con una sesión cerrada), el token no se puede juzgar y el sistema deberá responder el error de sesión que corresponda (RF-18, RF-19, RF-14).
+  - *Ejemplo:* `POST /tasks` sin `X-CSRF-Token` → `INVALID_CSRF_TOKEN`; con `X-CSRF-Token` y sin cookies → `MISSING_TOKEN`; con la sesión de Ana y el token CSRF de otra sesión → `INVALID_CSRF_TOKEN`.
 - **RF-24** — El sistema deberá entregar el token CSRF de la sesión en la respuesta del login y mantenerlo durante toda la sesión, también tras cada renovación (RF-11).
 
 ### Cuenta
@@ -497,6 +498,7 @@ Todos se devuelven con el sobre de error. `details` solo aparece en `VALIDATION_
 - **2026-10-28** — ¿Dónde viaja la sesión? → En cookies `HttpOnly`, no en `Authorization: Bearer`; protección CSRF obligatoria (sustituye a la primera versión de la decisión 1).
 - **2026-10-28** — ¿Qué rutas exigen CSRF? → Todos los `POST`, `PATCH` y `DELETE`, incluidos login y registro con un token previo a la sesión de `GET /auth/csrf`; los `GET` no (decisión 12).
 - **2026-10-28** — ¿Cuánto vale el token CSRF previo a la sesión? → 30 minutos, reutilizable dentro de ese tiempo, para que un login fallido se pueda repetir sin pedir otro token (decisión 16).
+- **2026-10-28** — ¿Qué responde un `POST` con `X-CSRF-Token` pero sin sesión con la que compararlo? (detectado al planificar) → El error de sesión (`MISSING_TOKEN`, `INVALID_TOKEN` o, en `/auth/refresh`, `INVALID_REFRESH_TOKEN`); `INVALID_CSRF_TOKEN` solo si falta la cabecera o si, habiendo sesión, el token no coincide (decisión 19, RF-23).
 - **2026-10-28** — ¿Dónde se sirve el frontend y qué atributos llevan las cookies? → Frontend en `https://kompitu.yandrydev.cloud` y API en el subdominio `https://apikompitu.yandrydev.cloud`: CORS con credenciales solo para el origen del frontend, preflight `OPTIONS` respondido con `200` y el sobre de éxito; `access_token` y `refresh_token` con `HttpOnly`, `Secure` y `SameSite=Strict`, y `refresh_token` con `Path=/auth` (decisión 18).
 - **2026-10-28** — ¿El token CSRF de la sesión cambia al renovar? → No: se entrega en el login y vale toda la sesión, también tras cada refresh, para que las pestañas que no renovaron sigan funcionando; muere al cerrarse la sesión (decisión 17, RF-24).
 - **2026-10-28** — ¿Duración de la sesión? → Token de acceso de 15 minutos; refresh token de 7 días desde el último refresh, con rotación; tope de 30 días desde el login (decisión 13; sustituye a la sesión fija de 7 días de la decisión 3).
@@ -515,3 +517,4 @@ Todos se devuelven con el sobre de error. `details` solo aparece en `VALIDATION_
 - **2026-10-28** — Dominios definitivos de la decisión 18: frontend en `https://kompitu.yandrydev.cloud` y API en `https://apikompitu.yandrydev.cloud` (antes `yandrydev.cloud` y `api.yandrydev.cloud`).
 - **2026-10-28** — Orígenes de desarrollo: frontend en `http://localhost:5173` (origen permitido por CORS) y API en `http://localhost:3000`, sin cambios en la API (RF-35, *Convenciones*).
 - **2026-10-28** — Spec aprobada por el responsable del proyecto; estado → *Aprobada*.
+- **2026-10-28** — Decisión 19 (detectada al planificar): RF-23 precisa qué responde un `X-CSRF-Token` sin sesión con la que compararlo, con ejemplo; coherente con el caso límite de «logout dos veces».
