@@ -267,8 +267,11 @@ describe('rendimiento (RNF-01, CE-05, R-1)', () => {
       ).toBeLessThan(P95_LIMIT_MS);
     });
 
+    // Con la consulta por clave primaria y el descifrado del token CSRF de la sesión (RNF-01 y D-6 de la 003)
     it('GET /me', async () => {
       expect(await measure('GET /me', async () => ['/me', {}])).toBeLessThan(P95_LIMIT_MS);
+      const me = (await (await server.request('/me', { headers: headers() })).json()) as { data: { csrfToken: string } };
+      expect(me.data.csrfToken).toBe(csrfToken);
     });
 
     it('PATCH /me/password', async () => {

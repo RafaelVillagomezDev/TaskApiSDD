@@ -84,20 +84,26 @@ Spec: `sdd/003-session-csrf-on-me/spec.md` (Aprobada) · Plan: `sdd/003-session-
 
 ## Fase R — Robustez y documentación
 
-- [ ] T019 [P] [Rob] Rendimiento de `GET /me` con la consulta y el descifrado nuevos, p95 < 300 ms (RNF-01, D-6) — `tests/performance/api.perf.test.ts`
+- [x] T019 [P] [Rob] Rendimiento de `GET /me` con la consulta y el descifrado nuevos, p95 < 300 ms (RNF-01, D-6) — `tests/performance/api.perf.test.ts`
   - Verifica: `dce pnpm test:perf` pasa.
-- [ ] T020 [P] [Rob] Colección de Postman de la 002: las peticiones `GET /me` comprueban las claves `user` y `csrfToken`, que `csrfToken` es igual a `sessionCsrfToken` y la cabecera `Cache-Control: no-store`; las que leían `data.id` o `data.name` pasan a `data.user` (S-02, R-6) — `sdd/002-user-accounts/user-accounts.postman-collection.json`
+  - Hecho (2026-10-29): `GET /me` ya estaba medido desde la 002 (T118); ahora también comprueba que la respuesta trae el `csrfToken` de la sesión. p95 de 2,2 ms (antes 1,8 ms).
+- [x] T020 [P] [Rob] Colección de Postman de la 002: las peticiones `GET /me` comprueban las claves `user` y `csrfToken`, que `csrfToken` es igual a `sessionCsrfToken` y la cabecera `Cache-Control: no-store`; las que leían `data.id` o `data.name` pasan a `data.user` (S-02, R-6) — `sdd/002-user-accounts/user-accounts.postman-collection.json`
   - Verifica: `docker run --rm -v "$PWD/sdd/002-user-accounts":/etc/newman postman/newman:6-alpine run user-accounts.postman-collection.json --env-var baseUrl=http://host.docker.internal:3000` sin fallos.
-- [ ] T021 [P] [Rob] Colección de Postman de la 001: si alguna petición lee `GET /me`, se adapta a `data.user` (S-02) — `sdd/001-taskApiSDD-mvp/mvp-p1.postman-collection.json`
+  - Hecho (2026-10-29): se adaptan "04 Consultar mi cuenta", "07 … cookies renovadas" (mismo token tras renovar), "09 Consultar el nombre nuevo" y "Consultar mi cuenta" de "5. Mi cuenta" (token igual a `myCsrfToken`); `GET /me` sin cookie comprueba también `Cache-Control: no-store`. 68 peticiones y 69 comprobaciones con Newman, sin fallos.
+- [x] T021 [P] [Rob] Colección de Postman de la 001: si alguna petición lee `GET /me`, se adapta a `data.user` (S-02) — `sdd/001-taskApiSDD-mvp/mvp-p1.postman-collection.json`
   - Verifica: `docker run --rm -e TZ=Europe/Madrid -v "$PWD/sdd/001-taskApiSDD-mvp":/etc/newman postman/newman:6-alpine run mvp-p1.postman-collection.json --env-var baseUrl=http://host.docker.internal:3000` sin fallos.
-- [ ] T022 [P] [Rob] Guías manuales: los pasos de la 002 con `GET /me` muestran `data: { user, csrfToken }` (incluido el `sed` que extrae el id); guía nueva de la 003 con QS-01 a QS-06 y QS-R (migración en producción, que cierra las sesiones, y `GET /me` con `Cache-Control: no-store`) — `sdd/002-user-accounts/quickstart.md`, `sdd/003-session-csrf-on-me/quickstart.md`
+  - Hecho (2026-10-29): ninguna petición de la colección de la 001 lee `GET /me`, así que no cambia; Newman la pasa (60 peticiones y 63 comprobaciones, sin fallos).
+- [x] T022 [P] [Rob] Guías manuales: los pasos de la 002 con `GET /me` muestran `data: { user, csrfToken }` (incluido el `sed` que extrae el id); guía nueva de la 003 con QS-01 a QS-06 y QS-R (migración en producción, que cierra las sesiones, y `GET /me` con `Cache-Control: no-store`) — `sdd/002-user-accounts/quickstart.md`, `sdd/003-session-csrf-on-me/quickstart.md`
   - Verifica: ejecutar QS-01 a QS-06 a mano.
-- [ ] T023 [Rob] AGENTS.md §3: `SESSION_ENCRYPTION_KEY` cifra también la copia del token CSRF de cada sesión, y cambiarla obliga a cerrar todas las sesiones a la vez (`DELETE FROM sessions`) (D-4, R-2) — `AGENTS.md`
+  - Hecho (2026-10-29): en la guía de la 002 cambian los textos de QS-H2.2 y QS-H5.2; los `sed` que sacan el id de `GET /me` siguen sirviendo porque la respuesta tiene un único `"id"`. La guía de la 003 avisa de reiniciar `api` tras la migración (T018). QS-01 a QS-05 ejecutados tal como están escritos; QS-06 solo se puede ver al migrar una base de datos con sesiones abiertas.
+- [x] T023 [Rob] AGENTS.md §3: `SESSION_ENCRYPTION_KEY` cifra también la copia del token CSRF de cada sesión, y cambiarla obliga a cerrar todas las sesiones a la vez (`DELETE FROM sessions`) (D-4, R-2) — `AGENTS.md`
   - Verifica: `grep -n "SESSION_ENCRYPTION_KEY" AGENTS.md` muestra el procedimiento de cambio de clave.
-- [ ] T024 [Rob] README: estado de la 003, contrato de `GET /me`, `SESSION_ENCRYPTION_KEY` y su procedimiento de cambio, aviso de que el despliegue cierra las sesiones y estructura de `sdd/003-…` con `tasks.md` y `quickstart.md` (Gobierno 7, R-3) — `README.md`
+  - Hecho (2026-10-29): procedimiento para cambiar la clave: parar la API, cambiarla, `DELETE FROM sessions` y volver a levantarla.
+- [x] T024 [Rob] README: estado de la 003, contrato de `GET /me`, `SESSION_ENCRYPTION_KEY` y su procedimiento de cambio, aviso de que el despliegue cierra las sesiones y estructura de `sdd/003-…` con `tasks.md` y `quickstart.md` (Gobierno 7, R-3) — `README.md`
   - Verifica: `git diff --stat README.md` muestra cambios en el mismo commit que AGENTS.md y `sdd/003-…`.
 - [ ] T025 [Rob] Guía QS-R contra producción: `docker compose -f docker-compose.prod.yml run --rm migrate` y `up --build -d`; con la sesión anterior → `INVALID_TOKEN`; tras el login, `GET /me` desde `https://kompitu.yandrydev.cloud` devuelve el `csrfToken` con `Cache-Control: no-store` (RF-04, RNF-03, R-3) — `sdd/003-session-csrf-on-me/quickstart.md`
   - Verifica: ejecutar QS-R a mano.
+  - Pendiente (2026-10-29): la sección QS-R está en la guía de la 003. Levantar `docker-compose.prod.yml` queda para el usuario (el permiso de Claude Code lo bloqueó en la 002, T121); al aplicar la migración se cierran todas las sesiones de producción (RF-04).
 
 ### Checkpoint Robustez
 - `dce pnpm test`, `dce pnpm test:coverage` y `dce pnpm test:perf` pasan; `./scripts/sonar-scan.sh` → quality gate en verde.

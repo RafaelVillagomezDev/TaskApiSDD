@@ -89,7 +89,7 @@ CSRF=$(csrf)
   ```bash
   apij $API/me
   ```
-  → `200` con el usuario, sin `X-Client-Time` ni `X-Timezone` (RF-30).
+  → `200` con `data: { user, csrfToken }`: la cuenta y el mismo token CSRF que devolvió el login (RF-01 y RF-02 de la 003), sin `X-Client-Time` ni `X-Timezone` (RF-30). Lleva `Cache-Control: no-store`.
 - **QS-H2.3** Contraseña errónea y email inexistente:
   ```bash
   P=$(csrf)
@@ -203,7 +203,7 @@ Con una sesión abierta (QS-H2.1) y `CSRF` como token de esa sesión:
   ```bash
   apij $API/me
   ```
-  → `200` con `name: "Ana"`: es la prueba independiente de HU-05.
+  → `200` con `data.user.name: "Ana"`: es la prueba independiente de HU-05 (desde la 003, la cuenta va en `data.user`).
 - **QS-H5.3** Intentar cambiar el email:
   ```bash
   apij -X PATCH $API/me -d '{"email":"otro@example.com"}'

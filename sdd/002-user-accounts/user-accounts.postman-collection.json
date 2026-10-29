@@ -291,11 +291,16 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('200 con el recurso User, sin cabeceras de hora (RF-25, RF-30)', () => {",
+                  "pm.test('200 con data { user, csrfToken }: la cuenta y el token CSRF del login (RF-25 de la 002, RF-01 y RF-02 de la 003)', () => {",
                   "  pm.response.to.have.status(200);",
                   "  const { data } = pm.response.json();",
-                  "  pm.expect(data).to.have.all.keys('id', 'email', 'name', 'createdAt');",
-                  "  pm.expect(data.id).to.equal(pm.collectionVariables.get('userId'));",
+                  "  pm.expect(data).to.have.all.keys('user', 'csrfToken');",
+                  "  pm.expect(data.user).to.have.all.keys('id', 'email', 'name', 'createdAt');",
+                  "  pm.expect(data.user.id).to.equal(pm.collectionVariables.get('userId'));",
+                  "  pm.expect(data.csrfToken).to.equal(pm.collectionVariables.get('sessionCsrfToken'));",
+                  "});",
+                  "pm.test('la respuesta no se guarda en caché (RNF-03 de la 003)', () => {",
+                  "  pm.expect(pm.response.headers.get('Cache-Control')).to.equal('no-store');",
                   "});"
                 ]
               }
@@ -427,8 +432,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('200 con las cookies renovadas (RF-11, RF-24)', () => {",
+                  "pm.test('200 y el mismo token CSRF tras renovar (RF-11 y RF-24 de la 002, RF-02 de la 003)', () => {",
                   "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().data.csrfToken).to.equal(pm.collectionVariables.get('sessionCsrfToken'));",
                   "});"
                 ]
               }
@@ -524,7 +530,7 @@
                 "exec": [
                   "pm.test('200 con el nombre cambiado (HU-05)', () => {",
                   "  pm.response.to.have.status(200);",
-                  "  pm.expect(pm.response.json().data.name).to.equal('Ana García');",
+                  "  pm.expect(pm.response.json().data.user.name).to.equal('Ana García');",
                   "});"
                 ]
               }
@@ -1542,6 +1548,9 @@
                   "  const body = pm.response.json();",
                   "  pm.expect(body.success).to.equal(false);",
                   "  pm.expect(body.error.code).to.equal('MISSING_TOKEN');",
+                  "});",
+                  "pm.test('también el error lleva Cache-Control: no-store (RNF-03 de la 003)', () => {",
+                  "  pm.expect(pm.response.headers.get('Cache-Control')).to.equal('no-store');",
                   "});"
                 ]
               }
@@ -3167,9 +3176,12 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('200 con el recurso User (RF-25)', () => {",
+                  "pm.test('200 con mi cuenta y el token CSRF de mi sesión (RF-25 de la 002, RF-01 de la 003)', () => {",
                   "  pm.response.to.have.status(200);",
-                  "  pm.expect(pm.response.json().data.email).to.equal(pm.collectionVariables.get('myEmail').trim().toLowerCase());",
+                  "  const { data } = pm.response.json();",
+                  "  pm.expect(data.user.email).to.equal(pm.collectionVariables.get('myEmail').trim().toLowerCase());",
+                  "  pm.expect(data.csrfToken).to.equal(pm.collectionVariables.get('myCsrfToken'));",
+                  "  pm.expect(pm.response.headers.get('Cache-Control')).to.equal('no-store');",
                   "});"
                 ]
               }

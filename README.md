@@ -92,7 +92,7 @@ cp .env.example .env.dev
 #    POSTGRES_PASSWORD=una-contraseña-larga
 #    POSTGRES_DB=taskapisdd_dev
 #    DATABASE_URL=postgresql://taskapisdd_dev:una-contraseña-larga@db:5432/taskapisdd_dev?schema=public
-#    SESSION_ENCRYPTION_KEY=<salida de openssl rand -hex 32>   # clave secreta de las sesiones, distinta en cada entorno
+#    SESSION_ENCRYPTION_KEY=<salida de openssl rand -hex 32>   # clave secreta de las sesiones, distinta en cada entorno; cambiarla obliga a cerrar todas las sesiones (AGENTS.md §3)
 #    CORS_ORIGIN=http://localhost:5173                          # origen del frontend; en producción, https://kompitu.yandrydev.cloud
 
 # 4. Construir y levantar la API y la base de datos
@@ -472,7 +472,8 @@ TaskApiSDD/
 ├── sdd/003-session-csrf-on-me/ # Funcionalidad 003: token CSRF de la sesión en GET /me (en curso)
 │   ├── spec.md                #   GET /me devuelve { user, csrfToken }
 │   ├── plan.md                #   Copia AES-256-GCM del token CSRF en sessions, migración que cierra las sesiones y no-store
-│   └── tasks.md               #   25 tareas: base, H1 y robustez, con su estado [x]/[ ]
+│   ├── tasks.md               #   25 tareas: base, H1 y robustez, con su estado [x]/[ ]
+│   └── quickstart.md          #   Pruebas manuales QS-01 a QS-06 y QS-R
 ├── prisma/
 │   ├── schema.prisma          # Modelo de datos
 │   └── migrations/            # Migraciones versionadas (nunca se editan)
@@ -733,7 +734,7 @@ Abre `graphify-out/graph.html` en el navegador para verlo de forma interactiva.
 
 ### Funcionalidad 003 — Token CSRF de la sesión en `GET /me` (en curso)
 
-[`spec.md`](sdd/003-session-csrf-on-me/spec.md) *Aprobada*; [`plan.md`](sdd/003-session-csrf-on-me/plan.md) *Aprobado* (sin dependencias nuevas: columna `sessions.csrf_token_sealed` cifrada con `SESSION_ENCRYPTION_KEY`; a partir de ahí, cambiar esa clave obliga a cerrar todas las sesiones) y [`tasks.md`](sdd/003-session-csrf-on-me/tasks.md) con 25 tareas (base, H1 y robustez): hechas la fase base y la H1 (18 de 25 tareas: cifrado AES-GCM común, columna `csrf_token_sealed`, migración que cierra las sesiones, repositorio y login con la copia cifrada, y `GET /me` con el token y `Cache-Control: no-store`); falta la fase de robustez (rendimiento, colecciones de Postman, guías, AGENTS.md y la prueba en producción). `GET /me` devuelve ya `data: { user, csrfToken }`, la misma forma que el login, para que el frontend recupere el token CSRF de la sesión tras recargar la página sin guardarlo en el navegador. Para poder devolver el mismo token que el login, la API conserva una copia que solo el servidor puede descifrar (una copia de la base de datos sola no basta para usarlo, como exige RNF-06 de la 002); **al instalarla se cierran todas las sesiones abiertas** y cada usuario vuelve a iniciar sesión una vez. La respuesta de `GET /me` no se guarda en ninguna caché. `PATCH /me` no cambia. La pide TaskFrontSDD (requisito previo de su spec 001).
+[`spec.md`](sdd/003-session-csrf-on-me/spec.md) *Aprobada*; [`plan.md`](sdd/003-session-csrf-on-me/plan.md) *Aprobado* (sin dependencias nuevas: columna `sessions.csrf_token_sealed` cifrada con `SESSION_ENCRYPTION_KEY`; a partir de ahí, cambiar esa clave obliga a cerrar todas las sesiones) y [`tasks.md`](sdd/003-session-csrf-on-me/tasks.md) con 25 tareas (base, H1 y robustez): hechas la fase base, la H1 y la robustez salvo la prueba en producción (24 de 25 tareas: cifrado AES-GCM común, columna `csrf_token_sealed`, migración que cierra las sesiones, repositorio y login con la copia cifrada, `GET /me` con el token y `Cache-Control: no-store`, rendimiento de `GET /me` con p95 de 2,2 ms, colecciones de Postman adaptadas, guía manual en [`quickstart.md`](sdd/003-session-csrf-on-me/quickstart.md) y AGENTS.md); falta ejecutar QS-R contra producción (T025). **Cambiar `SESSION_ENCRYPTION_KEY` obliga desde ahora a cerrar todas las sesiones a la vez** (`DELETE FROM sessions`; procedimiento en AGENTS.md §3). `GET /me` devuelve ya `data: { user, csrfToken }`, la misma forma que el login, para que el frontend recupere el token CSRF de la sesión tras recargar la página sin guardarlo en el navegador. Para poder devolver el mismo token que el login, la API conserva una copia que solo el servidor puede descifrar (una copia de la base de datos sola no basta para usarlo, como exige RNF-06 de la 002); **al instalarla se cierran todas las sesiones abiertas** y cada usuario vuelve a iniciar sesión una vez. La respuesta de `GET /me` no se guarda en ninguna caché. `PATCH /me` no cambia. La pide TaskFrontSDD (requisito previo de su spec 001).
 
 ### Funcionalidad 002 — Cuentas de usuario (en curso)
 
