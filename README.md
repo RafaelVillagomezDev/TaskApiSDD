@@ -302,7 +302,7 @@ Con `X-CSRF-Token` pero sin sesión con la que compararlo (sin cookies o con una
 Importa `sdd/001-taskApiSDD-mvp/mvp-p1.postman-collection.json` en Postman y ajusta la variable de colección `timeZone` a la zona de tu ordenador. Después:
 
 - ejecuta la carpeta **"1. Flujo MVP"** (*Run folder*) y luego **"2. Errores"**;
-- en **"3. Mis tareas"**, pon tu email y tu contraseña (12 caracteres como mínimo) en las variables `myEmail` y `myPassword`: la carpeta crea la cuenta si no existe, inicia sesión y lista siempre las mismas tareas.
+- en **"3. Mis tareas"**, pon tu email y tu contraseña (12 caracteres como mínimo) en las variables `myEmail` y `myPassword` y lanza cualquier petición suelta: el script de la carpeta crea la cuenta si no existe e inicia sesión antes de enviarla (y otra vez cuando la sesión tiene más de 14 minutos), así que no tienes que copiar ninguna cookie.
 
 La colección cubre H1 a H6: crear, consultar, completar, racha, filtros de estado y rango de fechas, paginación, consulta por id, edición, borrado y consulta de avisos, con sus casos de error. La generación de avisos no entra porque depende de que sean las 22:00 en tu zona: se prueba con la guía manual (QS-H6). Las cabeceras dinámicas (`X-Client-Time` y las fechas) las calcula sola la colección.
 

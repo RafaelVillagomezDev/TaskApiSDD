@@ -97,6 +97,14 @@
     {
       "key": "myCsrfToken",
       "value": ""
+    },
+    {
+      "key": "myCookieEmail",
+      "value": ""
+    },
+    {
+      "key": "myCookieAt",
+      "value": ""
     }
   ],
   "item": [
@@ -3212,148 +3220,8 @@
     },
     {
       "name": "3. Mis tareas",
-      "description": "Consulta las tareas de tu propia cuenta: pon tu email y tu contraseña (12 caracteres como mínimo) en las variables de colección `myEmail` y `myPassword`. Las tres primeras peticiones piden el token CSRF previo, crean la cuenta si no existe e inician sesión con ella.",
+      "description": "Consulta las tareas de tu propia cuenta: pon tu email y tu contraseña (12 caracteres como mínimo) en las variables de colección `myEmail` y `myPassword`. Cada petición funciona sola: el script de la carpeta crea la cuenta si no existe e inicia sesión antes de enviarla, y vuelve a hacerlo cuando la sesión tiene más de 14 minutos o cambias de email.",
       "item": [
-        {
-          "name": "Pedir token CSRF previo a la sesión",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('200', () => pm.response.to.have.status(200));",
-                  "pm.collectionVariables.set('presessionCsrfToken', pm.response.json().data.csrfToken);"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/auth/csrf",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "auth",
-                "csrf"
-              ]
-            }
-          },
-          "protocolProfileBehavior": {
-            "disableCookies": true
-          }
-        },
-        {
-          "name": "Crear mi cuenta si no existe",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('201 (cuenta nueva) o 409 (ya existía)', () => pm.expect(pm.response.code).to.be.oneOf([201, 409]));"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "X-CSRF-Token",
-                "value": "{{presessionCsrfToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/auth/register",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "auth",
-                "register"
-              ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"{{myEmail}}\",\n  \"password\": \"{{myPassword}}\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "protocolProfileBehavior": {
-            "disableCookies": true
-          }
-        },
-        {
-          "name": "Iniciar sesión con mi cuenta",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('200 con la sesión de mi cuenta', () => {",
-                  "  pm.response.to.have.status(200);",
-                  "  const { data } = pm.response.json();",
-                  "  pm.expect(data.csrfToken).to.match(/^[A-Za-z0-9_-]{43}$/);",
-                  "  pm.collectionVariables.set('myCsrfToken', data.csrfToken);",
-                  "  // Cookies a mano en la cabecera Cookie: Newman y Postman no envían cookies Secure por http a un host",
-                  "  // que no sea localhost (por ejemplo host.docker.internal)",
-                  "  const cookies = pm.response.headers.all().filter((header) => header.key.toLowerCase() === 'set-cookie');",
-                  "  pm.expect(cookies).to.have.lengthOf(2);",
-                  "  pm.collectionVariables.set('myCookie', cookies.map((header) => header.value.split(';')[0]).join('; '));",
-                  "});"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "X-CSRF-Token",
-                "value": "{{presessionCsrfToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/auth/login",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "auth",
-                "login"
-              ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"{{myEmail}}\",\n  \"password\": \"{{myPassword}}\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "protocolProfileBehavior": {
-            "disableCookies": true
-          }
-        },
         {
           "name": "Listar mis tareas",
           "event": [
@@ -3664,6 +3532,51 @@
           },
           "protocolProfileBehavior": {
             "disableCookies": true
+          }
+        }
+      ],
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Cada petición de esta carpeta funciona sola: antes de enviarla, si no hay sesión de myEmail o tiene más de",
+              "// 14 minutos (el token de acceso dura 15), pide el token CSRF previo, crea la cuenta si no existe e inicia sesión",
+              "const SESSION_TTL_MS = 14 * 60 * 1000;",
+              "// pm.variables respeta el entorno (p. ej. --env-var de Newman), como las propias peticiones",
+              "const baseUrl = pm.variables.get('baseUrl');",
+              "const email = pm.collectionVariables.get('myEmail');",
+              "const password = pm.collectionVariables.get('myPassword');",
+              "const startedAt = Number(pm.collectionVariables.get('myCookieAt') || 0);",
+              "const fresh = pm.collectionVariables.get('myCookie') && pm.collectionVariables.get('myCookieEmail') === email &&",
+              "  Date.now() - startedAt < SESSION_TTL_MS;",
+              "if (!fresh) {",
+              "  const post = (path, csrfToken, body) => ({",
+              "    url: `${baseUrl}${path}`,",
+              "    method: 'POST',",
+              "    header: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },",
+              "    body: { mode: 'raw', raw: JSON.stringify(body) },",
+              "  });",
+              "  pm.sendRequest(`${baseUrl}/auth/csrf`, (csrfError, csrfResponse) => {",
+              "    if (csrfError) throw csrfError;",
+              "    const presession = csrfResponse.json().data.csrfToken;",
+              "    // 201 si la cuenta es nueva, 409 si ya existía: en los dos casos se sigue con el login",
+              "    pm.sendRequest(post('/auth/register', presession, { email, password }), (registerError) => {",
+              "      if (registerError) throw registerError;",
+              "      pm.sendRequest(post('/auth/login', presession, { email, password }), (loginError, login) => {",
+              "        if (loginError) throw loginError;",
+              "        if (login.code !== 200) throw new Error(`No se pudo iniciar sesión con myEmail (${login.code}): revisa myEmail y myPassword`);",
+              "        const cookies = login.headers.all().filter((header) => header.key.toLowerCase() === 'set-cookie');",
+              "        pm.collectionVariables.set('myCookie', cookies.map((header) => header.value.split(';')[0]).join('; '));",
+              "        pm.collectionVariables.set('myCsrfToken', login.json().data.csrfToken);",
+              "        pm.collectionVariables.set('myCookieEmail', email);",
+              "        pm.collectionVariables.set('myCookieAt', String(Date.now()));",
+              "      });",
+              "    });",
+              "  });",
+              "}"
+            ]
           }
         }
       ]

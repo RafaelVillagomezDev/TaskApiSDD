@@ -3,7 +3,7 @@
 Guía para probar a mano cada historia. Los *checkpoints* de `tasks.md` citan estos pasos (QS-0.1, QS-H1.1…).
 Todo el servidor corre en Docker (AGENTS.md); en tu máquina solo se usan `curl` y `date`.
 
-> **Alternativa con Postman (QS-H1 a QS-H6):** importa `sdd/001-taskApiSDD-mvp/mvp-p1.postman-collection.json`, ajusta la variable de colección `timeZone` a la zona de tu ordenador y ejecuta la carpeta "1. Flujo MVP" (*Run folder*) y después "2. Errores". El flujo crea una cuenta nueva e inicia sesión, y cada petición envía la cookie y el token CSRF de esa sesión (funcionalidad 002). La carpeta "3. Mis tareas" entra con la cuenta de las variables `myEmail` y `myPassword` (la crea si no existe) y lista sus tareas. Para ejecutarla desde la terminal sin instalar nada:
+> **Alternativa con Postman (QS-H1 a QS-H6):** importa `sdd/001-taskApiSDD-mvp/mvp-p1.postman-collection.json`, ajusta la variable de colección `timeZone` a la zona de tu ordenador y ejecuta la carpeta "1. Flujo MVP" (*Run folder*) y después "2. Errores". El flujo crea una cuenta nueva e inicia sesión, y cada petición envía la cookie y el token CSRF de esa sesión (funcionalidad 002). La carpeta "3. Mis tareas" usa la cuenta de las variables `myEmail` y `myPassword`: cada petición funciona sola, porque el script de la carpeta crea la cuenta si no existe e inicia sesión antes de enviarla (y otra vez cuando la sesión tiene más de 14 minutos). Para ejecutarla desde la terminal sin instalar nada:
 > ```bash
 > docker run --rm -e TZ=Europe/Madrid -v "$PWD/sdd/001-taskApiSDD-mvp":/etc/newman postman/newman:6-alpine \
 >   run mvp-p1.postman-collection.json --env-var baseUrl=http://host.docker.internal:3000
