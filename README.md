@@ -469,6 +469,8 @@ TaskApiSDD/
 │   ├── spec.md                #   Registro, login, sesiones en cookies, refresh token, CSRF y gestión de la cuenta
 │   ├── plan.md                #   Módulo users, tablas nuevas, Argon2id (argon2), tokens aleatorios y AES-GCM de node:crypto
 │   └── tasks.md               #   121 tareas: base, H1–H7 y robustez, con su estado [x]/[ ]
+├── sdd/003-session-csrf-on-me/ # Funcionalidad 003: token CSRF de la sesión en GET /me (especificada)
+│   └── spec.md                #   GET /me devuelve { user, csrfToken }
 ├── prisma/
 │   ├── schema.prisma          # Modelo de datos
 │   └── migrations/            # Migraciones versionadas (nunca se editan)
@@ -726,6 +728,10 @@ Abre `graphify-out/graph.html` en el navegador para verlo de forma interactiva.
 ---
 
 ## Estado del proyecto
+
+### Funcionalidad 003 — Token CSRF de la sesión en `GET /me` (especificada)
+
+[`spec.md`](sdd/003-session-csrf-on-me/spec.md) *Clarificada*, pendiente de aprobación; sin plan ni tareas todavía. `GET /me` pasará a devolver `data: { user, csrfToken }`, la misma forma que el login, para que el frontend recupere el token CSRF de la sesión tras recargar la página sin guardarlo en el navegador. `PATCH /me` no cambia. La pide TaskFrontSDD (requisito previo de su spec 001).
 
 ### Funcionalidad 002 — Cuentas de usuario (en curso)
 
