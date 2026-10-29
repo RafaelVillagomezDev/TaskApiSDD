@@ -17,7 +17,7 @@ import type { LogoutUseCase } from '../application/logout.use-case.js';
 import type { RefreshSessionUseCase } from '../application/refresh-session.use-case.js';
 import type { RegisterUserUseCase } from '../application/register-user.use-case.js';
 import { requireCsrfHeader } from './session.middleware.js';
-import { toUserResponse } from './user.mapper.js';
+import { toSessionUserResponse, toUserResponse } from './user.mapper.js';
 import { loginBodySchema, registerBodySchema } from './user.schema.js';
 
 // Errores de la renovación con los que la sesión ya no existe: se borran sus cookies (contrato, POST /auth/refresh)
@@ -57,10 +57,7 @@ export class AuthController {
       // Instante del login: con él las cookies duran exactamente 15 minutos y 7 días
       now: result.session.createdAt,
     });
-    sendSuccess(res, 200, 'Sesión iniciada con éxito', {
-      user: toUserResponse(result.user),
-      csrfToken: result.csrfToken,
-    });
+    sendSuccess(res, 200, 'Sesión iniciada con éxito', toSessionUserResponse(result.user, result.csrfToken));
   };
 
   // Se identifica con el token de acceso o, si caducó, con el refresh token, que solo viaja a /auth (RF-15)

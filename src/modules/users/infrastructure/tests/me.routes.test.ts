@@ -26,6 +26,8 @@ describe('rutas de /me', () => {
     const response = await server.request('/me', { headers });
     return { response, status: response.status, body: (await response.json()) as Envelope };
   };
+  // GET /me devuelve { user, csrfToken } (RF-01 de la 003): la cuenta va en data.user
+  const userOf = async (cookie: string) => ((await me({ Cookie: cookie })).body.data as { user: unknown }).user;
 
   const patchMe = async (body: unknown, headers: Record<string, string>) => {
     const response = await server.request('/me', {
@@ -72,16 +74,69 @@ describe('rutas de /me', () => {
   afterEach(() => server.close());
 
   describe('GET /me', () => {
-    it('con sesión → 200 con el recurso User, sin la contraseña (RF-25, RNF-04)', async () => {
-      const { status, body } = await me({ Cookie: (await signIn(server)).Cookie });
+    it('con sesión → 200 con data { user, csrfToken }: la cuenta y el mismo token CSRF del login (RF-01, RF-02 de la 003)', async () => {
+      const session = await signIn(server);
+      const { status, body } = await me({ Cookie: session.Cookie });
       expect(status).toBe(200);
       expect(body).toEqual({
         success: true,
         status: 200,
         message: 'Operación realizada con éxito',
-        data: { id: expect.any(String), email: 'ana@example.com', name: 'Ana', createdAt: expect.stringMatching(/Z$/) },
+        data: {
+          user: { id: expect.any(String), email: 'ana@example.com', name: 'Ana', createdAt: expect.stringMatching(/Z$/) },
+          csrfToken: session['X-CSRF-Token'],
+        },
       });
-      expect(Object.keys(body.data as object).sort()).toEqual(['createdAt', 'email', 'id', 'name']);
+      const data = body.data as { user: object };
+      expect(Object.keys(data).sort()).toEqual(['csrfToken', 'user']);
+      expect(Object.keys(data.user).sort()).toEqual(['createdAt', 'email', 'id', 'name']);
+    });
+
+    it('la respuesta no se puede guardar en caché, tampoco la de error (RNF-03 de la 003)', async () => {
+      const ok = await me({ Cookie: (await signIn(server)).Cookie });
+      expect(ok.response.headers.get('cache-control')).toBe('no-store');
+      const missing = await me();
+      expect(missing.body.error?.code).toBe('MISSING_TOKEN');
+      expect(missing.response.headers.get('cache-control')).toBe('no-store');
+    });
+
+    it('ningún token de acceso ni de refresco en el cuerpo (RNF-02 de la 003, CE-02)', async () => {
+      const session = await signIn(server);
+      const text = JSON.stringify((await me({ Cookie: session.Cookie })).body);
+      for (const pair of session.Cookie.split('; ')) {
+        expect(text).not.toContain(pair.split('=')[1]);
+      }
+    });
+
+    it('tras POST /auth/refresh devuelve el mismo csrfToken (RF-02 de la 003, RF-24 de la 002)', async () => {
+      const session = await signIn(server);
+      const renewed = await server.request('/auth/refresh', { method: 'POST', headers: session });
+      const cookie = renewed.headers
+        .getSetCookie()
+        .map((value) => value.split(';')[0])
+        .join('; ');
+      expect(((await me({ Cookie: cookie })).body.data as { csrfToken: string }).csrfToken).toBe(session['X-CSRF-Token']);
+    });
+
+    it('dos sesiones de la misma cuenta → tokens distintos; el de una responde INVALID_CSRF_TOKEN en la otra (RF-01)', async () => {
+      const laptop = await signIn(server);
+      const phone = await signIn(server);
+      const tokenOf = async (cookie: string) => ((await me({ Cookie: cookie })).body.data as { csrfToken: string }).csrfToken;
+      const laptopToken = await tokenOf(laptop.Cookie);
+      expect(laptopToken).not.toBe(await tokenOf(phone.Cookie));
+      const crossed = await patchMe({ name: 'Otra' }, { Cookie: phone.Cookie, 'X-CSRF-Token': laptopToken });
+      expect(crossed.body.error?.code).toBe('INVALID_CSRF_TOKEN');
+    });
+
+    it('CE-01: solo con las cookies, GET /me y POST /tasks con su csrfToken → 201', async () => {
+      const { Cookie } = await signIn(server);
+      const { csrfToken } = (await me({ Cookie })).body.data as { csrfToken: string };
+      const created = await server.request('/tasks', {
+        method: 'POST',
+        headers: { ...clientHeaders(), Cookie, 'X-CSRF-Token': csrfToken },
+        body: JSON.stringify({ title: 'Tras recargar', date: '2026-10-24' }),
+      });
+      expect(created.status).toBe(201);
     });
 
     it('no pide X-Client-Time, X-Timezone ni X-CSRF-Token (RF-23, RF-30)', async () => {
@@ -95,10 +150,11 @@ describe('rutas de /me', () => {
       expect(body.error?.code).toBe('MISSING_TOKEN');
     });
 
-    it('con un token inventado → 401 INVALID_TOKEN (RF-19)', async () => {
+    it('con un token inventado → 401 INVALID_TOKEN, sin token CSRF (RF-19)', async () => {
       const { status, body } = await me({ Cookie: 'access_token=inventado' });
       expect(status).toBe(401);
       expect(body.error?.code).toBe('INVALID_TOKEN');
+      expect(body.data).toBeUndefined();
     });
 
     it('con el token caducado a los 15 minutos → 401 TOKEN_EXPIRED (RF-20)', async () => {
@@ -112,7 +168,7 @@ describe('rutas de /me', () => {
     it('cada sesión ve solo su cuenta (RF-21)', async () => {
       await signIn(server);
       const bea = await signIn(server, 'bea@example.com');
-      expect((await me({ Cookie: bea.Cookie })).body.data).toMatchObject({ email: 'bea@example.com' });
+      expect(await userOf(bea.Cookie)).toMatchObject({ email: 'bea@example.com' });
     });
   });
 
@@ -127,7 +183,8 @@ describe('rutas de /me', () => {
         message: 'Perfil actualizado con éxito',
         data: { id: expect.any(String), email: 'ana@example.com', name: 'Ana García', createdAt: expect.stringMatching(/Z$/) },
       });
-      expect((await me({ Cookie: session.Cookie })).body.data).toMatchObject({ name: 'Ana García' });
+      expect(await userOf(session.Cookie)).toMatchObject({ name: 'Ana García' });
+      expect(body.data).not.toHaveProperty('csrfToken');
     });
 
     it.each([['   '], [null]])('nombre %p → 200 con name null (RF-05)', async (name) => {
@@ -142,7 +199,7 @@ describe('rutas de /me', () => {
       expect(status).toBe(400);
       expect(body.error?.code).toBe('VALIDATION_ERROR');
       expect(body.error?.details?.length).toBeGreaterThan(0);
-      expect((await me({ Cookie: session.Cookie })).body.data).toMatchObject({ email: 'ana@example.com', name: 'Ana' });
+      expect(await userOf(session.Cookie)).toMatchObject({ email: 'ana@example.com', name: 'Ana' });
     });
 
     it.each([
@@ -158,7 +215,7 @@ describe('rutas de /me', () => {
       const { status, body } = await patchMe({ name: 'Otra' }, { Cookie: session.Cookie });
       expect(status).toBe(403);
       expect(body.error?.code).toBe('INVALID_CSRF_TOKEN');
-      expect((await me({ Cookie: session.Cookie })).body.data).toMatchObject({ name: 'Ana' });
+      expect(await userOf(session.Cookie)).toMatchObject({ name: 'Ana' });
     });
 
     it('sin cookie de sesión → 401 MISSING_TOKEN (RF-18)', async () => {
@@ -177,7 +234,7 @@ describe('rutas de /me', () => {
       const ana = await signIn(server);
       const bea = await signIn(server, 'bea@example.com');
       await patchMe({ name: 'Bea' }, bea);
-      expect((await me({ Cookie: ana.Cookie })).body.data).toMatchObject({ email: 'ana@example.com', name: 'Ana' });
+      expect(await userOf(ana.Cookie)).toMatchObject({ email: 'ana@example.com', name: 'Ana' });
     });
   });
 
@@ -347,7 +404,7 @@ describe('rutas de /me', () => {
       const ana = await signIn(server);
       const bea = await signIn(server, 'bea@example.com');
       await deleteMe({ password: TEST_PASSWORD }, ana);
-      expect((await me({ Cookie: bea.Cookie })).body.data).toMatchObject({ email: 'bea@example.com' });
+      expect(await userOf(bea.Cookie)).toMatchObject({ email: 'bea@example.com' });
     });
   });
 

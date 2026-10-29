@@ -56,22 +56,25 @@ Spec: `sdd/003-session-csrf-on-me/spec.md` (Aprobada) · Plan: `sdd/003-session-
 ## Fase H1 — Recuperar el token CSRF de mi sesión (HU-01, P1)
 
 ### Tests (deben fallar)
-- [ ] T012 [P] [H1] Test del caso de uso: devuelve el token descifrado de la sesión; sesión inexistente → `INVALID_TOKEN`; copia alterada → error (RF-01, RF-02, D-4) — `users/application/tests/get-session-csrf-token.use-case.test.ts`
+- [x] T012 [P] [H1] Test del caso de uso: devuelve el token descifrado de la sesión; sesión inexistente → `INVALID_TOKEN`; copia alterada → error (RF-01, RF-02, D-4) — `users/application/tests/get-session-csrf-token.use-case.test.ts`
   - Verifica: `dce pnpm test users/application/tests/get-session-csrf-token` **falla**.
-- [ ] T013 [P] [H1] Test del middleware de caché: añade `Cache-Control: no-store` y llama a `next` (RNF-03, D-3) — `src/shared/infrastructure/http/tests/no-store.middleware.test.ts`
+  - Hecho (2026-10-29): la copia que no se abre se comprueba como rechazo que no es `AppError` (error interno, D-4): el error de `node:crypto` llega de otro contexto de Jest y `toBeInstanceOf(Error)` no sirve.
+- [x] T013 [P] [H1] Test del middleware de caché: añade `Cache-Control: no-store` y llama a `next` (RNF-03, D-3) — `src/shared/infrastructure/http/tests/no-store.middleware.test.ts`
   - Verifica: `dce pnpm test src/shared/infrastructure/http/tests/no-store` **falla**.
-- [ ] T014 [P] [H1] Tests HTTP de `GET /me`: `200` con `data` de claves exactas `user` y `csrfToken`, igual al del login; igual tras `POST /auth/refresh`; dos sesiones de la misma cuenta → tokens distintos y el de una responde `INVALID_CSRF_TOKEN` en la otra; `Cache-Control: no-store` en el `200` y en `MISSING_TOKEN`; ningún token de acceso ni de refresco en el cuerpo; con el `csrfToken` de `GET /me` y solo las cookies, `POST /tasks` → `201`; `PATCH /me` sigue devolviendo `User` sin `csrfToken`. Se adaptan los tests existentes de `GET /me` a `data.user` (RF-01 a RF-03, RNF-02, RNF-03, CE-01, CE-02) — `users/infrastructure/tests/me.routes.test.ts`
+- [x] T014 [P] [H1] Tests HTTP de `GET /me`: `200` con `data` de claves exactas `user` y `csrfToken`, igual al del login; igual tras `POST /auth/refresh`; dos sesiones de la misma cuenta → tokens distintos y el de una responde `INVALID_CSRF_TOKEN` en la otra; `Cache-Control: no-store` en el `200` y en `MISSING_TOKEN`; ningún token de acceso ni de refresco en el cuerpo; con el `csrfToken` de `GET /me` y solo las cookies, `POST /tasks` → `201`; `PATCH /me` sigue devolviendo `User` sin `csrfToken`. Se adaptan los tests existentes de `GET /me` a `data.user` (RF-01 a RF-03, RNF-02, RNF-03, CE-01, CE-02) — `users/infrastructure/tests/me.routes.test.ts`
   - Verifica: `dce pnpm test users/infrastructure/tests/me.routes` **falla**.
+  - Hecho (2026-10-29): las comprobaciones de los tests de la 002 que leían la cuenta en `data` usan un helper `userOf` que lee `data.user`; `PATCH /me` comprueba además que su `data` no tiene `csrfToken` (RF-03).
 
 ### Implementación
-- [ ] T015 [H1] `GetSessionCsrfTokenUseCase.execute(sessionId)`: `findById` → `open(csrfTokenSealed)`; sin sesión → `INVALID_TOKEN` (RF-01, RF-02, D-5) — `users/application/get-session-csrf-token.use-case.ts`
+- [x] T015 [H1] `GetSessionCsrfTokenUseCase.execute(sessionId)`: `findById` → `open(csrfTokenSealed)`; sin sesión → `INVALID_TOKEN` (RF-01, RF-02, D-5) — `users/application/get-session-csrf-token.use-case.ts`
   - Verifica: `dce pnpm test users/application/tests/get-session-csrf-token` pasa.
-- [ ] T016 [P] [H1] `noStoreMiddleware` (RNF-03, D-3) — `src/shared/infrastructure/http/no-store.middleware.ts`
+- [x] T016 [P] [H1] `noStoreMiddleware` (RNF-03, D-3) — `src/shared/infrastructure/http/no-store.middleware.ts`
   - Verifica: `dce pnpm test src/shared/infrastructure/http/tests/no-store` pasa.
-- [ ] T017 [P] [H1] `toSessionUserResponse(user, csrfToken)` → `{ user, csrfToken }`, y el login lo usa sin cambiar su respuesta (RF-01; RF-24 de la 002) — `users/infrastructure/user.mapper.ts`, `users/infrastructure/auth.controller.ts`
+- [x] T017 [P] [H1] `toSessionUserResponse(user, csrfToken)` → `{ user, csrfToken }`, y el login lo usa sin cambiar su respuesta (RF-01; RF-24 de la 002) — `users/infrastructure/user.mapper.ts`, `users/infrastructure/auth.controller.ts`
   - Verifica: `dce pnpm test users/infrastructure/tests/auth.routes` pasa.
-- [ ] T018 [H1] `MeController.show` responde `toSessionUserResponse(user, csrfToken)`; ruta `GET /me` con `noStore` antes de `session`; cableado de `GetSessionCsrfTokenUseCase` en los dos contenedores (RF-01 a RF-03, RNF-03) — `users/infrastructure/me.controller.ts`, `users/infrastructure/me.routes.ts`, `src/dependency.container.ts`, `tests/support/test.container.ts`
+- [x] T018 [H1] `MeController.show` responde `toSessionUserResponse(user, csrfToken)`; ruta `GET /me` con `noStore` antes de `session`; cableado de `GetSessionCsrfTokenUseCase` en los dos contenedores (RF-01 a RF-03, RNF-03) — `users/infrastructure/me.controller.ts`, `users/infrastructure/me.routes.ts`, `src/dependency.container.ts`, `tests/support/test.container.ts`
   - Verifica: `dce pnpm test users/infrastructure/tests/me.routes` pasa.
+  - Hecho (2026-10-29): QS-01 a QS-05 ejecutados a mano contra la API de desarrollo (también `Cache-Control: no-store` en el `401`). Antes hubo que reiniciar `api`: el proceso seguía con el cliente de Prisma anterior a la columna `csrf_token_sealed` de la fase base y el login respondía `INTERNAL_ERROR`; los tests no lo detectan porque cada ejecución arranca un proceso nuevo. QS-06 no se puede repetir en desarrollo, porque la migración ya se aplicó en la fase base.
 
 ### Checkpoint H1
 - `dce pnpm test` pasa entero.

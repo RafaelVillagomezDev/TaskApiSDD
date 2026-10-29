@@ -28,6 +28,7 @@ import { ChangePasswordUseCase } from '../../src/modules/users/application/chang
 import { ConfirmPasswordUseCase } from '../../src/modules/users/application/confirm-password.use-case.js';
 import { DeleteAccountUseCase } from '../../src/modules/users/application/delete-account.use-case.js';
 import { GetProfileUseCase } from '../../src/modules/users/application/get-profile.use-case.js';
+import { GetSessionCsrfTokenUseCase } from '../../src/modules/users/application/get-session-csrf-token.use-case.js';
 import { IssueCsrfTokenUseCase } from '../../src/modules/users/application/issue-csrf-token.use-case.js';
 import { LoginUseCase } from '../../src/modules/users/application/login.use-case.js';
 import { LogoutUseCase } from '../../src/modules/users/application/logout.use-case.js';
@@ -150,6 +151,7 @@ export function createTestContainer(): TestContainer {
       new UpdateProfileUseCase(users),
       new ChangePasswordUseCase(confirmPassword, users, sessions, passwordHasher),
       new DeleteAccountUseCase(confirmPassword, users, loginAttempts),
+      new GetSessionCsrfTokenUseCase(sessions, secretCipher),
     ),
     session,
   });

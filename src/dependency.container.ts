@@ -29,6 +29,7 @@ import { ChangePasswordUseCase } from './modules/users/application/change-passwo
 import { ConfirmPasswordUseCase } from './modules/users/application/confirm-password.use-case.js';
 import { DeleteAccountUseCase } from './modules/users/application/delete-account.use-case.js';
 import { GetProfileUseCase } from './modules/users/application/get-profile.use-case.js';
+import { GetSessionCsrfTokenUseCase } from './modules/users/application/get-session-csrf-token.use-case.js';
 import { IssueCsrfTokenUseCase } from './modules/users/application/issue-csrf-token.use-case.js';
 import { LoginUseCase } from './modules/users/application/login.use-case.js';
 import { LogoutUseCase } from './modules/users/application/logout.use-case.js';
@@ -151,6 +152,7 @@ export function createContainer(): Container {
       new UpdateProfileUseCase(users),
       new ChangePasswordUseCase(confirmPassword, users, sessions, passwordHasher),
       new DeleteAccountUseCase(confirmPassword, users, loginAttempts),
+      new GetSessionCsrfTokenUseCase(sessions, secretCipher),
     ),
     session,
   });

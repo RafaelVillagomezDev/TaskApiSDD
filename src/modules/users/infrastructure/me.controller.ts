@@ -7,8 +7,9 @@ import { getSessionContext } from '../../../shared/infrastructure/http/session-c
 import type { ChangePasswordUseCase } from '../application/change-password.use-case.js';
 import type { DeleteAccountUseCase } from '../application/delete-account.use-case.js';
 import type { GetProfileUseCase } from '../application/get-profile.use-case.js';
+import type { GetSessionCsrfTokenUseCase } from '../application/get-session-csrf-token.use-case.js';
 import type { UpdateProfileUseCase } from '../application/update-profile.use-case.js';
-import { toUserResponse } from './user.mapper.js';
+import { toSessionUserResponse, toUserResponse } from './user.mapper.js';
 import { changePasswordBodySchema, deleteAccountBodySchema, updateProfileBodySchema } from './user.schema.js';
 
 // Traduce HTTP ↔ casos de uso de /me; el usuario sale siempre de la sesión (RF-17, RF-21)
@@ -18,11 +19,15 @@ export class MeController {
     private readonly updateProfile: UpdateProfileUseCase,
     private readonly changeUserPassword: ChangePasswordUseCase,
     private readonly deleteAccount: DeleteAccountUseCase,
+    private readonly getSessionCsrfToken: GetSessionCsrfTokenUseCase,
   ) {}
 
+  // La cuenta y el token CSRF de la sesión, para que el cliente lo recupere al recargar (RF-01 de la 003)
   show: RequestHandler = async (_req, res) => {
-    const user = await this.getProfile.execute(getSessionContext(res).userId);
-    sendSuccess(res, 200, 'Operación realizada con éxito', toUserResponse(user));
+    const { userId, sessionId } = getSessionContext(res);
+    const user = await this.getProfile.execute(userId);
+    const csrfToken = await this.getSessionCsrfToken.execute(sessionId);
+    sendSuccess(res, 200, 'Operación realizada con éxito', toSessionUserResponse(user, csrfToken));
   };
 
   update: RequestHandler = async (req, res) => {

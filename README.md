@@ -184,7 +184,7 @@ Si una petición responde `401 TOKEN_EXPIRED` (el token de acceso dura 15 minuto
 | `POST` | `/auth/login` | **(002)** Abre una sesión: cookies `access_token` (15 min) y `refresh_token` (7 días) y, en el cuerpo, la cuenta y el token CSRF de la sesión. 5 fallos en 15 minutos bloquean el email 15 minutos |
 | `POST` | `/auth/refresh` | **(002)** Renueva la sesión: cookies nuevas, el mismo token CSRF. El refresh token anterior devuelve los mismos tokens durante 30 s; después, reutilizarlo cierra la sesión. Caduca a los 7 días sin renovar y a los 30 días del login |
 | `POST` | `/auth/logout` | **(002)** Cierra la sesión de las cookies (también con el token de acceso caducado) y las borra |
-| `GET` | `/me` | **(002)** Tu cuenta, identificada por la cookie de sesión |
+| `GET` | `/me` | **(002, ampliado en la 003)** Tu cuenta y el token CSRF de tu sesión: `data: { user, csrfToken }`, la misma forma que el login, para recuperar el token tras recargar la página. La respuesta lleva `Cache-Control: no-store` |
 | `PATCH` | `/me` | **(002)** Cambia tu nombre visible (`{ "name": "Ana" }`; `null` o vacío lo borra). Cualquier otro campo, incluido el email, responde `VALIDATION_ERROR` |
 | `PATCH` | `/me/password` | **(002)** Cambia tu contraseña (`{ "currentPassword": "…", "newPassword": "…" }`) y cierra todas tus demás sesiones; la actual sigue abierta. Una contraseña actual errónea responde `WRONG_PASSWORD` y cuenta para el bloqueo, como un login fallido |
 | `DELETE` | `/me` | **(002)** Borra tu cuenta para siempre (`{ "password": "…" }`) con tus tareas, avisos, zona y sesiones, y borra las cookies. Una contraseña errónea responde `WRONG_PASSWORD` y la cuenta sigue |
@@ -469,7 +469,7 @@ TaskApiSDD/
 │   ├── spec.md                #   Registro, login, sesiones en cookies, refresh token, CSRF y gestión de la cuenta
 │   ├── plan.md                #   Módulo users, tablas nuevas, Argon2id (argon2), tokens aleatorios y AES-GCM de node:crypto
 │   └── tasks.md               #   121 tareas: base, H1–H7 y robustez, con su estado [x]/[ ]
-├── sdd/003-session-csrf-on-me/ # Funcionalidad 003: token CSRF de la sesión en GET /me (planificada)
+├── sdd/003-session-csrf-on-me/ # Funcionalidad 003: token CSRF de la sesión en GET /me (en curso)
 │   ├── spec.md                #   GET /me devuelve { user, csrfToken }
 │   ├── plan.md                #   Copia AES-256-GCM del token CSRF en sessions, migración que cierra las sesiones y no-store
 │   └── tasks.md               #   25 tareas: base, H1 y robustez, con su estado [x]/[ ]
@@ -731,9 +731,9 @@ Abre `graphify-out/graph.html` en el navegador para verlo de forma interactiva.
 
 ## Estado del proyecto
 
-### Funcionalidad 003 — Token CSRF de la sesión en `GET /me` (planificada)
+### Funcionalidad 003 — Token CSRF de la sesión en `GET /me` (en curso)
 
-[`spec.md`](sdd/003-session-csrf-on-me/spec.md) *Aprobada*; [`plan.md`](sdd/003-session-csrf-on-me/plan.md) *Aprobado* (sin dependencias nuevas: columna `sessions.csrf_token_sealed` cifrada con `SESSION_ENCRYPTION_KEY`; a partir de ahí, cambiar esa clave obliga a cerrar todas las sesiones) y [`tasks.md`](sdd/003-session-csrf-on-me/tasks.md) con 25 tareas (base, H1 y robustez): hecha la fase base (11 tareas: cifrado AES-GCM común, columna `csrf_token_sealed`, migración que cierra las sesiones, repositorio y login con la copia cifrada); `GET /me` aún no devuelve el token. `GET /me` pasará a devolver `data: { user, csrfToken }`, la misma forma que el login, para que el frontend recupere el token CSRF de la sesión tras recargar la página sin guardarlo en el navegador. Para poder devolver el mismo token que el login, la API conserva una copia que solo el servidor puede descifrar (una copia de la base de datos sola no basta para usarlo, como exige RNF-06 de la 002); **al instalarla se cierran todas las sesiones abiertas** y cada usuario vuelve a iniciar sesión una vez. La respuesta de `GET /me` no se guarda en ninguna caché. `PATCH /me` no cambia. La pide TaskFrontSDD (requisito previo de su spec 001).
+[`spec.md`](sdd/003-session-csrf-on-me/spec.md) *Aprobada*; [`plan.md`](sdd/003-session-csrf-on-me/plan.md) *Aprobado* (sin dependencias nuevas: columna `sessions.csrf_token_sealed` cifrada con `SESSION_ENCRYPTION_KEY`; a partir de ahí, cambiar esa clave obliga a cerrar todas las sesiones) y [`tasks.md`](sdd/003-session-csrf-on-me/tasks.md) con 25 tareas (base, H1 y robustez): hechas la fase base y la H1 (18 de 25 tareas: cifrado AES-GCM común, columna `csrf_token_sealed`, migración que cierra las sesiones, repositorio y login con la copia cifrada, y `GET /me` con el token y `Cache-Control: no-store`); falta la fase de robustez (rendimiento, colecciones de Postman, guías, AGENTS.md y la prueba en producción). `GET /me` devuelve ya `data: { user, csrfToken }`, la misma forma que el login, para que el frontend recupere el token CSRF de la sesión tras recargar la página sin guardarlo en el navegador. Para poder devolver el mismo token que el login, la API conserva una copia que solo el servidor puede descifrar (una copia de la base de datos sola no basta para usarlo, como exige RNF-06 de la 002); **al instalarla se cierran todas las sesiones abiertas** y cada usuario vuelve a iniciar sesión una vez. La respuesta de `GET /me` no se guarda en ninguna caché. `PATCH /me` no cambia. La pide TaskFrontSDD (requisito previo de su spec 001).
 
 ### Funcionalidad 002 — Cuentas de usuario (en curso)
 

@@ -23,3 +23,13 @@ export function toUserDomain(row: UserRow): User {
 export function toUserResponse(user: User): UserResponse {
   return { id: user.id, email: user.email, name: user.name, createdAt: user.createdAt.toISOString() };
 }
+
+// Cuenta y token CSRF de la sesión: misma forma en el login y en GET /me (RF-24 de la 002, RF-01 de la 003)
+export interface SessionUserResponse {
+  user: UserResponse;
+  csrfToken: string;
+}
+
+export function toSessionUserResponse(user: User, csrfToken: string): SessionUserResponse {
+  return { user: toUserResponse(user), csrfToken };
+}
