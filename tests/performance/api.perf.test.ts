@@ -38,7 +38,10 @@ const clientTime = () => `${new Date().toISOString().slice(0, 19)}+00:00`;
 let userId = '';
 let sessionCookie = '';
 let csrfToken = '';
+// Token CSRF previo a la sesión (30 minutos): sirve para los registros y logins medidos
+let presessionToken = '';
 const PASSWORD = 'correct horse battery';
+const OTHER_PASSWORD = 'otra frase bastante larga';
 
 const headers = () => ({
   'Content-Type': 'application/json',
@@ -51,9 +54,10 @@ const headers = () => ({
 // GET /auth/csrf, registro y login con la API real (Argon2id incluido)
 const signIn = async (server: TestServer) => {
   const presession = (await (await server.request('/auth/csrf')).json()) as { data: { csrfToken: string } };
+  presessionToken = presession.data.csrfToken;
   const init = (body: unknown): RequestInit => ({
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': presession.data.csrfToken },
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': presessionToken },
     body: JSON.stringify(body),
   });
   const email = `perf-${Date.now()}@test.local`;
@@ -69,6 +73,13 @@ const signIn = async (server: TestServer) => {
     .join('; ');
 };
 
+// Convierte los Set-Cookie de una respuesta en la cabecera Cookie que enviaría el navegador
+const cookiesFrom = (response: Response) =>
+  response.headers
+    .getSetCookie()
+    .map((cookie) => cookie.split(';')[0])
+    .join('; ');
+
 const p95 = (durations: number[]) => {
   const sorted = [...durations].sort((a, b) => a - b);
   return sorted[Math.ceil(sorted.length * 0.95) - 1] ?? 0;
@@ -83,14 +94,23 @@ describe('rendimiento (RNF-01, CE-05, R-1)', () => {
   let today: LocalDate;
   const results: Record<string, number> = {};
 
-  // Mide `SAMPLES` peticiones secuenciales; `next` devuelve la ruta y las opciones de cada una
-  const measure = async (name: string, next: (index: number) => Promise<[string, RequestInit]>) => {
+  // Mide `SAMPLES` peticiones secuenciales; `next` devuelve la ruta y las opciones de cada una (sus cabeceras
+  // se suman a las de la sesión de las pruebas) y `after` recibe cada respuesta, p. ej. para guardar cookies
+  const measure = async (
+    name: string,
+    next: (index: number) => Promise<[string, RequestInit]>,
+    after?: (response: Response) => void,
+  ) => {
     const durations: number[] = [];
     for (let index = 0; index < WARM_UP + SAMPLES; index++) {
       const [path, init] = await next(index);
       const started = performance.now();
-      const response = await server.request(path, { ...init, headers: headers() });
+      const response = await server.request(path, {
+        ...init,
+        headers: { ...headers(), ...(init.headers as Record<string, string> | undefined) },
+      });
       await response.arrayBuffer();
+      after?.(response);
       const elapsed = performance.now() - started;
       if (response.status >= 400) throw new Error(`${name}: respuesta ${response.status}`);
       if (index >= WARM_UP) durations.push(elapsed);
@@ -198,6 +218,76 @@ describe('rendimiento (RNF-01, CE-05, R-1)', () => {
 
   it('GET /alerts', async () => {
     expect(await measure('GET /alerts', async () => ['/alerts', {}])).toBeLessThan(P95_LIMIT_MS);
+  });
+
+  // Endpoints de la 002 con Argon2id real (RNF-01 de la 002, R-1): una cuenta propia para no cerrar la sesión
+  // de las pruebas al cambiar la contraseña
+  describe('cuentas y sesiones (RNF-01 de la 002)', () => {
+    const stamp = Date.now();
+    const authEmail = `perf-auth-${stamp}@test.local`;
+    const auth = (body: unknown, extra: Record<string, string> = {}): RequestInit => ({
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': presessionToken, ...extra },
+      body: JSON.stringify(body),
+    });
+    // Sesión de la cuenta propia: sus cookies cambian en cada renovación
+    let authCookie = '';
+    let authCsrf = '';
+
+    beforeAll(async () => {
+      await server.request('/auth/register', auth({ email: authEmail, password: PASSWORD }));
+      const login = await server.request('/auth/login', auth({ email: authEmail, password: PASSWORD }));
+      if (login.status !== 200) throw new Error(`login de la cuenta de rendimiento: respuesta ${login.status}`);
+      authCsrf = ((await login.json()) as { data: { csrfToken: string } }).data.csrfToken;
+      authCookie = cookiesFrom(login);
+    });
+
+    it('POST /auth/register', async () => {
+      expect(
+        await measure('POST /auth/register', async (index) => [
+          '/auth/register',
+          auth({ email: `perf-registro-${stamp}-${index}@test.local`, password: PASSWORD }),
+        ]),
+      ).toBeLessThan(P95_LIMIT_MS);
+    });
+
+    it('POST /auth/login', async () => {
+      expect(
+        await measure('POST /auth/login', async () => ['/auth/login', auth({ email: authEmail, password: PASSWORD })]),
+      ).toBeLessThan(P95_LIMIT_MS);
+    });
+
+    it('POST /auth/refresh', async () => {
+      expect(
+        await measure(
+          'POST /auth/refresh',
+          async () => ['/auth/refresh', { method: 'POST', headers: { Cookie: authCookie, 'X-CSRF-Token': authCsrf } }],
+          (response) => (authCookie = cookiesFrom(response)),
+        ),
+      ).toBeLessThan(P95_LIMIT_MS);
+    });
+
+    it('GET /me', async () => {
+      expect(await measure('GET /me', async () => ['/me', {}])).toBeLessThan(P95_LIMIT_MS);
+    });
+
+    it('PATCH /me/password', async () => {
+      // Alterna entre dos contraseñas; la sesión desde la que se cambia sigue abierta (RF-27)
+      const passwords = (index: number) =>
+        index % 2 === 0
+          ? { currentPassword: PASSWORD, newPassword: OTHER_PASSWORD }
+          : { currentPassword: OTHER_PASSWORD, newPassword: PASSWORD };
+      expect(
+        await measure('PATCH /me/password', async (index) => [
+          '/me/password',
+          {
+            method: 'PATCH',
+            headers: { Cookie: authCookie, 'X-CSRF-Token': authCsrf },
+            body: JSON.stringify(passwords(index)),
+          },
+        ]),
+      ).toBeLessThan(P95_LIMIT_MS);
+    });
   });
 
   it(

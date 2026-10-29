@@ -189,6 +189,32 @@ describe('rutas de /auth', () => {
       expect(body.error?.code).toBe('TOO_MANY_ATTEMPTS');
     });
 
+    describe('precedencia (RF-34)', () => {
+      const lockAna = async (token: string) => {
+        for (let attempt = 0; attempt < 5; attempt++) {
+          await login({ email: 'ana@example.com', password: 'contraseña equivocada' }, token);
+        }
+      };
+
+      it('bloqueada y con la contraseña errónea → TOO_MANY_ATTEMPTS, no INVALID_CREDENTIALS', async () => {
+        const token = await registered();
+        await lockAna(token);
+        const { status, body } = await login({ email: 'ana@example.com', password: 'contraseña equivocada' }, token);
+        expect(status).toBe(429);
+        expect(body.error?.code).toBe('TOO_MANY_ATTEMPTS');
+      });
+
+      it('bloqueada y con el cuerpo no válido → VALIDATION_ERROR, que va antes', async () => {
+        const token = await registered();
+        await lockAna(token);
+        expect((await login({ email: 'ana@example.com' }, token)).body.error?.code).toBe('VALIDATION_ERROR');
+      });
+
+      it('sin X-CSRF-Token y con el cuerpo no válido → INVALID_CSRF_TOKEN, que va antes', async () => {
+        expect((await login({ email: 'no-es-un-email' })).body.error?.code).toBe('INVALID_CSRF_TOKEN');
+      });
+    });
+
     it('datos no válidos → 400 VALIDATION_ERROR con cada campo en details (RF-02, RF-04)', async () => {
       const { status, body } = await login({ email: 'no-es-un-email' }, await csrfToken());
       expect(status).toBe(400);

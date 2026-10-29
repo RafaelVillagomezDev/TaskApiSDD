@@ -49,7 +49,7 @@ El código fuente se organiza en módulos de negocio independientes bajo `src/mo
 └── src/
     ├── shared/                   # Infraestructura global, errores base (AppError) y utilidades
     └── modules/
-        └── [nombre-del-modulo]/  # Ej: tasks, users, streaks
+        └── [nombre-del-modulo]/  # tasks, streaks, alerts (001) y users (002: cuentas, sesiones y CSRF)
             ├── domain/           # Modelos, Value Objects e interfaces de puertos (Salida)
             │   └── tests/        # Tests de los ficheros de domain/
             ├── application/      # Casos de uso / Comandos y Consultas
@@ -68,7 +68,11 @@ Todos los comandos se ejecutan a través de Docker Compose. El servicio de la AP
 ### Configuración inicial
 Cada entorno tiene su propio fichero de variables, que su `docker-compose.*.yml` carga mediante `env_file`. `.env.dev` y `.env.prod` están ignorados por git y nunca deben versionarse.
 
-Crear ambos ficheros en la raíz con las variables: `DATABASE_URL`, `PORT`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`. `.env.dev` lleva además `SONAR_ADMIN_PASSWORD` (mínimo 12 caracteres con mayúscula, minúscula, dígito y símbolo) y `SONAR_TOKEN`, que rellena `scripts/sonar-setup.sh`.
+Crear ambos ficheros en la raíz con las variables: `DATABASE_URL`, `PORT`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `SESSION_ENCRYPTION_KEY` y `CORS_ORIGIN` (`.env.example` las lista sin valor). La API no arranca si falta alguna de las dos últimas o no es válida (`src/shared/infrastructure/config/app.config.ts`):
+- `SESSION_ENCRYPTION_KEY`: clave AES-256 secreta de 64 caracteres hexadecimales (`openssl rand -hex 32`), distinta en cada entorno. Cifra la copia de los tokens de sesión durante los 30 s del margen de gracia de la renovación.
+- `CORS_ORIGIN`: origen exacto del frontend que puede usar la API con cookies, sin barra final: `http://localhost:5173` en desarrollo y `https://kompitu.yandrydev.cloud` en producción.
+
+`.env.dev` lleva además `SONAR_ADMIN_PASSWORD` (mínimo 12 caracteres con mayúscula, minúscula, dígito y símbolo) y `SONAR_TOKEN`, que rellena `scripts/sonar-setup.sh`.
 
 ### Desarrollo (`Dockerfile.dev`)
 ```bash
@@ -86,6 +90,7 @@ docker compose -f docker-compose.dev.yml cp api:/app/node_modules ./  # Copiar n
 > - `docker compose ... run --rm api pnpm install` ya **no** sirve: instala en un volumen temporal que se borra al terminar.
 > - `up --build` sin `-V` reutiliza el volumen anterior y mantiene las dependencias viejas; tras cambiar `package.json` hay que usar `-V` (`--renew-anon-volumes`).
 > - El `./node_modules` del host es solo una copia para el editor (`docker compose cp`); la API nunca lo usa. Para refrescarlo sin restos, bórralo antes de copiar.
+> - **Navegador en desarrollo:** las cookies de sesión son `Secure`. Chrome, Firefox, `curl` y Postman las aceptan en `http://localhost`, pero Safari no: para probar el frontend en desarrollo, usa Chrome o Firefox (riesgo R-2 del plan de la 002).
 > - PostgreSQL publica el puerto `5432` en el host: un cliente de base de datos o `psql` local se conecta a `localhost:5432` con las credenciales de `.env.dev` (dentro de Docker el host sigue siendo `db`).
 
 ### Análisis estático (SonarQube)

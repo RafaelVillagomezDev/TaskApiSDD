@@ -286,3 +286,46 @@ counts   # → 1|1|1|1
   curl -s -X POST $API/auth/login -H "Content-Type: application/json" -H "X-CSRF-Token: $P" -d "{\"email\":\"$EMAIL\",\"password\":\"correct horse battery\"}"; echo
   ```
   → `401 INVALID_CREDENTIALS`. Volver a registrarse con el mismo email crea una cuenta nueva, sin datos.
+
+## QS-R — Producción con cookies y CORS, y rendimiento
+
+Producción usa su propio proyecto de Docker Compose (`taskapisdd-prod`, ver QS-R de la 001), con `.env.prod`. Además de las variables de la 001, necesita las de la 002 con sus valores de producción:
+
+```bash
+SESSION_ENCRYPTION_KEY=<otra clave de openssl rand -hex 32, distinta de la de desarrollo>
+CORS_ORIGIN=https://kompitu.yandrydev.cloud
+```
+
+Si desarrollo ocupa el puerto 3000, publica producción en otro y apunta las ayudas de QS-0 a ella:
+
+```bash
+export API_HOST_PORT=3001
+export API=http://localhost:$API_HOST_PORT
+export JAR=$(mktemp)
+```
+
+- **QS-R.1** Aplicar las migraciones, incluida la de la 002:
+  ```bash
+  docker compose -f docker-compose.prod.yml run --rm migrate
+  ```
+  → `All migrations have been successfully applied.` **La migración de la 002 vacía las tareas, avisos y zonas que hubiera en la base de datos de producción** (RF-33).
+- **QS-R.2** Construir la imagen y levantar la API:
+  ```bash
+  docker compose -f docker-compose.prod.yml up --build -d
+  docker compose -f docker-compose.prod.yml logs api | tail -3
+  ```
+  → `SERVER_STARTED`, `ALERT_PASS_COMPLETED` y `AUTH_CLEANUP_COMPLETED`, sin errores de configuración (si falta `SESSION_ENCRYPTION_KEY` o `CORS_ORIGIN`, la API no arranca y el log dice cuál).
+- **QS-R.3** Petición previa de CORS desde el frontend de producción y desde otra web:
+  ```bash
+  curl -s -i -X OPTIONS $API/auth/login -H "Origin: https://kompitu.yandrydev.cloud" -H "Access-Control-Request-Method: POST"
+  curl -s -i -X OPTIONS $API/auth/login -H "Origin: https://otra-web.com" -H "Access-Control-Request-Method: POST"
+  ```
+  → la primera, `200` con `Access-Control-Allow-Origin: https://kompitu.yandrydev.cloud`, `Access-Control-Allow-Credentials: true`, `Access-Control-Allow-Methods: POST` y las cabeceras permitidas; la segunda, `404 ROUTE_NOT_FOUND` sin cabeceras CORS (RF-35, RF-36).
+- **QS-R.4** Repetir QS-H1 y QS-H2 contra producción con las ayudas de QS-0 (`csrf`, `apij` y `$JAR`): registro `201`, login `200` con las cookies `HttpOnly; Secure; SameSite=Strict`, `GET /me` `200` y logout `200`.
+- **QS-R.5** Rendimiento (en desarrollo, sobre el esquema `test`):
+  ```bash
+  docker compose -f docker-compose.dev.yml exec api pnpm test:perf
+  ```
+  → `15 passed`, con el p95 de cada endpoint por debajo de 300 ms, también registro, login, renovación, `GET /me` y `PATCH /me/password`, que derivan la contraseña con Argon2id (RNF-01, R-1).
+
+Para parar producción: `docker compose -f docker-compose.prod.yml down`. Vuelve a `export API=http://localhost:3000` para seguir contra desarrollo.

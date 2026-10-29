@@ -498,12 +498,20 @@ describe('rutas de tareas', () => {
     });
   });
 
-  // Batería por pares (R-8): partiendo de un PATCH válido, se combinan dos fallos de niveles distintos
-  // y la respuesta debe ser el de menor orden. El nivel 8 tiene dos variantes excluyentes entre sí.
-  // El nivel 3 es la sesión sin cookie, con X-CSRF-Token (decisión 19); el nivel 2 (CSRF) y los pares de
-  // la decisión 19 se añaden en la fase de robustez (T116)
+  // Batería por pares (R-8): partiendo de un PATCH válido, se combinan dos fallos de niveles distintos y la
+  // respuesta debe ser el de menor orden de RF-34 de la 002. El nivel 8 tiene dos variantes excluyentes entre
+  // sí. El fallo de CSRF es la cabecera ausente, que se juzga sin sesión (gana a cualquier otro fallo salvo la ruta)
   describe('precedencia por pares de RF-34 de la 002 (R-8)', () => {
-    type Fault = 'route' | 'session' | 'clientTime' | 'timeZone' | 'validation' | 'notFound' | 'dayClosed' | 'dayNotStarted';
+    type Fault =
+      | 'route'
+      | 'csrf'
+      | 'session'
+      | 'clientTime'
+      | 'timeZone'
+      | 'validation'
+      | 'notFound'
+      | 'dayClosed'
+      | 'dayNotStarted';
 
     interface PatchRequest {
       method: string;
@@ -516,6 +524,7 @@ describe('rutas de tareas', () => {
     // Código esperado y nivel de cada fallo, en el orden de RF-34 de la 002
     const FAULTS: Record<Fault, { level: number; code: string; apply: (request: PatchRequest) => void }> = {
       route: { level: 1, code: 'ROUTE_NOT_FOUND', apply: (request) => (request.method = 'PUT') },
+      csrf: { level: 2, code: 'INVALID_CSRF_TOKEN', apply: (request) => delete request.headers['X-CSRF-Token'] },
       session: { level: 3, code: 'MISSING_TOKEN', apply: (request) => delete request.headers.Cookie },
       clientTime: { level: 4, code: 'INVALID_CLIENT_TIME', apply: (request) => (request.headers['X-Client-Time'] = 'mal') },
       timeZone: { level: 5, code: 'INVALID_TIMEZONE', apply: (request) => (request.headers['X-Timezone'] = 'Mars/Olympus') },
@@ -530,8 +539,24 @@ describe('rutas de tareas', () => {
       .flatMap((first, index) => faults.slice(index + 1).map((second) => [first, second] as const))
       .filter(([first, second]) => FAULTS[first].level !== FAULTS[second].level);
 
+    const baseRequest = (): PatchRequest => ({
+      method: 'PATCH',
+      headers: withSession(),
+      body: { completed: true },
+      owner: 'own',
+      date: TODAY,
+    });
+    const send = (request: PatchRequest) =>
+      call(
+        `/tasks/${taskIds[`${request.owner}|${request.date}`]}`,
+        { method: request.method, body: JSON.stringify(request.body) },
+        request.headers,
+      );
+
     // Una tarea por dueño y día: el fallo de nivel 7 cambia el dueño y los de nivel 8, el día
     let taskIds: Record<string, string>;
+    // Token CSRF de otra sesión válida, para la decisión 19
+    let foreignCsrfToken: string;
     beforeEach(async () => {
       taskIds = {};
       const owners = { own: anaId, other: OTHER_USER };
@@ -541,40 +566,62 @@ describe('rutas de tareas', () => {
           taskIds[`${owner}|${date}`] = task.id;
         }
       }
+      foreignCsrfToken = (await signIn(server, 'bea@example.com'))['X-CSRF-Token'];
     });
 
-    it('cubre los 27 pares de niveles distintos', () => {
-      expect(pairs).toHaveLength(27);
+    it('cubre los 35 pares de niveles distintos', () => {
+      expect(pairs).toHaveLength(35);
     });
 
     it('sin fallos, el PATCH base es válido → 200', async () => {
-      const { status } = await call(`/tasks/${taskIds[`own|${TODAY}`]}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ completed: true }),
-      });
-      expect(status).toBe(200);
+      expect((await send(baseRequest())).status).toBe(200);
     });
 
     it.each(pairs)('%s + %s → gana el de menor orden', async (first, second) => {
-      const request: PatchRequest = {
-        method: 'PATCH',
-        headers: withSession(),
-        body: { completed: true },
-        owner: 'own',
-        date: TODAY,
-      };
+      const request = baseRequest();
       FAULTS[first].apply(request);
       FAULTS[second].apply(request);
 
-      const { status, body } = await call(
-        `/tasks/${taskIds[`${request.owner}|${request.date}`]}`,
-        { method: request.method, body: JSON.stringify(request.body) },
-        request.headers,
-      );
+      const { status, body } = await send(request);
 
       const expected = FAULTS[first].level < FAULTS[second].level ? FAULTS[first].code : FAULTS[second].code;
       expect(body.error?.code).toBe(expected);
       expect(status).toBe(ERROR_CODES[expected as keyof typeof ERROR_CODES].status);
+    });
+
+    // Decisión 19: un X-CSRF-Token que llega pero no es el de la sesión solo se puede juzgar si hay sesión.
+    // Sin sesión gana el error de sesión; con sesión, INVALID_CSRF_TOKEN gana a los niveles 4 a 8
+    describe('token CSRF de otra sesión (decisión 19)', () => {
+      const others = faults.filter((fault) => fault !== 'csrf');
+      const expectedWith = (fault: Fault) => (fault === 'route' || fault === 'session' ? FAULTS[fault].code : 'INVALID_CSRF_TOKEN');
+
+      it('solo, con la sesión de Ana → INVALID_CSRF_TOKEN', async () => {
+        const request = baseRequest();
+        request.headers['X-CSRF-Token'] = foreignCsrfToken;
+        expect((await send(request)).body.error?.code).toBe('INVALID_CSRF_TOKEN');
+      });
+
+      it.each(others)('+ %s → gana el error que corresponde según la decisión 19', async (fault) => {
+        const request = baseRequest();
+        request.headers['X-CSRF-Token'] = foreignCsrfToken;
+        FAULTS[fault].apply(request);
+        const { status, body } = await send(request);
+        expect(body.error?.code).toBe(expectedWith(fault));
+        expect(status).toBe(ERROR_CODES[expectedWith(fault) as keyof typeof ERROR_CODES].status);
+      });
+
+      it('con un token de acceso inventado gana INVALID_TOKEN; con el caducado, INVALID_CSRF_TOKEN (RF-34)', async () => {
+        const invented = baseRequest();
+        invented.headers['X-CSRF-Token'] = foreignCsrfToken;
+        invented.headers.Cookie = 'access_token=inventado';
+        expect((await send(invented)).body.error?.code).toBe('INVALID_TOKEN');
+
+        container.clock.advance(16 * 60_000);
+        const expired = baseRequest();
+        expired.headers['X-CSRF-Token'] = foreignCsrfToken;
+        expired.headers['X-Client-Time'] = '2026-10-24T12:16:00+02:00';
+        expect((await send(expired)).body.error?.code).toBe('INVALID_CSRF_TOKEN');
+      });
     });
   });
 });
