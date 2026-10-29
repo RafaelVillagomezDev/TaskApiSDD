@@ -10,14 +10,15 @@ export interface MeRouterDependencies {
 }
 
 // Rutas de /me: sesión → JSON → controlador, sin cabeceras de hora ni zona (RF-30, D-8). La sesión exige
-// X-CSRF-Token en PATCH, y va antes que el JSON para que sus errores ganen a VALIDATION_ERROR (RF-34).
+// X-CSRF-Token en PATCH y DELETE, y va antes que el JSON para que sus errores ganen a VALIDATION_ERROR (RF-34).
 // El controlador valida el cuerpo antes de comprobar el bloqueo: VALIDATION_ERROR gana a TOO_MANY_ATTEMPTS
 export function createMeRouter({ controller, session }: MeRouterDependencies): Router {
   const router = Router();
   router.get('/me', session, controller.show);
   router.patch('/me', session, jsonBodyMiddleware, controller.update);
   router.patch('/me/password', session, jsonBodyMiddleware, controller.changePassword);
-  allowPreflight(router, '/me', ['GET', 'PATCH']);
+  router.delete('/me', session, jsonBodyMiddleware, controller.remove);
+  allowPreflight(router, '/me', ['GET', 'PATCH', 'DELETE']);
   allowPreflight(router, '/me/password', ['PATCH']);
   return router;
 }

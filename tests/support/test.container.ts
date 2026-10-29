@@ -26,6 +26,7 @@ import { GetPendingTaskUseCase, GetProductiveDateUseCase } from '../../src/modul
 import { AuthenticateSessionUseCase } from '../../src/modules/users/application/authenticate-session.use-case.js';
 import { ChangePasswordUseCase } from '../../src/modules/users/application/change-password.use-case.js';
 import { ConfirmPasswordUseCase } from '../../src/modules/users/application/confirm-password.use-case.js';
+import { DeleteAccountUseCase } from '../../src/modules/users/application/delete-account.use-case.js';
 import { GetProfileUseCase } from '../../src/modules/users/application/get-profile.use-case.js';
 import { IssueCsrfTokenUseCase } from '../../src/modules/users/application/issue-csrf-token.use-case.js';
 import { LoginUseCase } from '../../src/modules/users/application/login.use-case.js';
@@ -139,13 +140,14 @@ export function createTestContainer(): TestContainer {
     ),
     presessionCsrf: createPresessionCsrfMiddleware({ tokens, csrfTokens, clock }),
   });
-  // Cambiar la contraseña y borrar la cuenta (H7) la comprueban con el mismo bloqueo que el login (RF-09, RF-28)
+  // Cambiar la contraseña y borrar la cuenta la comprueban con el mismo bloqueo que el login (RF-09, RF-28)
   const confirmPassword = new ConfirmPasswordUseCase(users, loginAttempts, passwordHasher, clock);
   const meRouter = createMeRouter({
     controller: new MeController(
       new GetProfileUseCase(users),
       new UpdateProfileUseCase(users),
       new ChangePasswordUseCase(confirmPassword, users, sessions, passwordHasher),
+      new DeleteAccountUseCase(confirmPassword, users, loginAttempts),
     ),
     session,
   });

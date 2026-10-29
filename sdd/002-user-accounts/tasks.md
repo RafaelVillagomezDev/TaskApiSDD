@@ -365,22 +365,26 @@ Spec: `sdd/002-user-accounts/spec.md` (Aprobada) · Plan: `sdd/002-user-accounts
 ## Fase H7 — Borrar mi cuenta (HU-07, P3)
 
 ### Tests (deben fallar)
-- [ ] T109 [P] [H7] Test del schema de `DELETE /me` (RF-28) — `users/infrastructure/tests/user.schema.test.ts`
+- [x] T109 [P] [H7] Test del schema de `DELETE /me` (RF-28) — `users/infrastructure/tests/user.schema.test.ts`
   - Verifica: `dce pnpm test src/modules/users/infrastructure/tests/user.schema` **falla**.
-- [ ] T110 [P] [H7] Test de borrar la cuenta: borra la cuenta y el registro de bloqueo; contraseña errónea → `WRONG_PASSWORD`, cuenta intacta y fallo contado (RF-09, RF-28, RF-29) — `users/application/tests/delete-account.use-case.test.ts`
+- [x] T110 [P] [H7] Test de borrar la cuenta: borra la cuenta y el registro de bloqueo; contraseña errónea → `WRONG_PASSWORD`, cuenta intacta y fallo contado (RF-09, RF-28, RF-29) — `users/application/tests/delete-account.use-case.test.ts`
   - Verifica: `dce pnpm test src/modules/users/application/tests/delete-account` **falla**.
-- [ ] T111 [H7] Test HTTP de `DELETE /me`: `200` con cookies borradas; login con ese email → `INVALID_CREDENTIALS`; volver a registrarse con el mismo email → `201` sin datos; petición previa de CORS de `DELETE /me` → `200` (RF-28, RF-29, RF-36) — `users/infrastructure/tests/me.routes.test.ts`
+- [x] T111 [H7] Test HTTP de `DELETE /me`: `200` con cookies borradas; login con ese email → `INVALID_CREDENTIALS`; volver a registrarse con el mismo email → `201` sin datos; petición previa de CORS de `DELETE /me` → `200` (RF-28, RF-29, RF-36) — `users/infrastructure/tests/me.routes.test.ts`
   - Verifica: `dce pnpm test src/modules/users/infrastructure/tests/me.routes` **falla**.
 
 ### Implementación
-- [ ] T112 [H7] Schema de `DELETE /me` (RF-28) — `users/infrastructure/user.schema.ts`
+- [x] T112 [H7] Schema de `DELETE /me` (RF-28) — `users/infrastructure/user.schema.ts`
   - Verifica: `dce pnpm test src/modules/users/infrastructure/tests/user.schema` pasa.
-- [ ] T113 [H7] Caso de uso borrar la cuenta (RF-09, RF-28, RF-29) — `users/application/delete-account.use-case.ts`
+  - Hecho (2026-10-29): `password` comparte con `currentPassword` de `PATCH /me/password` el mismo schema (solo tiene que llegar, sin recortar y con el tope de 128).
+- [x] T113 [H7] Caso de uso borrar la cuenta (RF-09, RF-28, RF-29) — `users/application/delete-account.use-case.ts`
   - Verifica: `dce pnpm test src/modules/users/application/tests/delete-account` pasa.
-- [ ] T114 [H7] Controlador y ruta `DELETE /me`, y `DELETE` en la petición previa de `/me` (RF-29, RF-36) — `users/infrastructure/me.controller.ts`, `users/infrastructure/me.routes.ts`
+  - Hecho (2026-10-29): reutiliza `ConfirmPasswordUseCase` (T106). La cascada de tareas, avisos, zona y sesiones la hace la base de datos (D-9): los repositorios en memoria no la simulan, así que los tests HTTP comprueban la cuenta, las cookies, el login y el nuevo registro, y la cascada la cubren `prisma-user.repository.int.test.ts` (T038) y QS-H7.2.
+- [x] T114 [H7] Controlador y ruta `DELETE /me`, y `DELETE` en la petición previa de `/me` (RF-29, RF-36) — `users/infrastructure/me.controller.ts`, `users/infrastructure/me.routes.ts`
   - Verifica: `dce pnpm test src/modules/users` pasa entero.
-- [ ] T115 [H7] Guía manual, sección QS-H7 — `sdd/002-user-accounts/quickstart.md`
+  - Hecho (2026-10-29): `DELETE /me` encadena sesión → JSON → controlador y borra las cookies al responder; la petición previa de `/me` pasa a `GET, PATCH, DELETE` (RF-36).
+- [x] T115 [H7] Guía manual, sección QS-H7 — `sdd/002-user-accounts/quickstart.md`
   - Verifica: ejecutar QS-H7 a mano.
+  - Hecho (2026-10-29): ejecutado a mano contra la API de desarrollo; QS-H7.2 da `1|1|1|1` antes y `0|0|0|0` después en `users`, `tasks`, `sessions` y `user_time_zones`.
 
 ### Checkpoint H7
 - `dce pnpm test` pasa entero.
@@ -399,7 +403,7 @@ Spec: `sdd/002-user-accounts/spec.md` (Aprobada) · Plan: `sdd/002-user-accounts
 - [x] T119 [P] [Rob] Colección de Postman con `GET /auth/csrf`, registro y login (cookies de Postman y `csrfToken` en una variable), flujo H1–H6 de la 001 con sesión y errores de sesión y CSRF (RF-17, RF-22, RF-23) — `sdd/001-taskApiSDD-mvp/mvp-p1.postman-collection.json`
   - Verifica: `docker run --rm -e TZ=Europe/Madrid -v "$PWD/sdd/001-taskApiSDD-mvp":/etc/newman postman/newman:6-alpine run mvp-p1.postman-collection.json --env-var baseUrl=http://host.docker.internal:3000` sin fallos.
   - Hecho (2026-10-29): 60 peticiones y 66 comprobaciones con Newman, sin fallos. El flujo pide el token previo, registra una cuenta nueva y entra con ella; las peticiones de la 001 envían su cookie y su token CSRF; "2. Errores" añade una segunda cuenta (en lugar de `X-User-Id: otro-usuario`) y los errores de sesión y CSRF (`MISSING_TOKEN`, también con `X-User-Id`; `INVALID_TOKEN`; `INVALID_CSRF_TOKEN` sin cabecera y con el token previo; decisión 19); "3. Mis tareas" entra con `myEmail` y `myPassword`. Las cookies no las gestiona el almacén de Postman, como decía la tarea, sino variables enviadas en la cabecera `Cookie` con `disableCookies` en cada petición (también en la colección de la 002): Newman no reenvía cookies `Secure` por http a `host.docker.internal`, y así Postman no mezcla las cookies guardadas con las de cada cuenta.
-  - Nota (2026-10-28): a petición del usuario, la 002 tiene además su propia colección, `sdd/002-user-accounts/user-accounts.postman-collection.json`, creada tras H1 (token CSRF previo, registro, errores y CORS: 12 peticiones y 12 comprobaciones con Newman, sin fallos) ampliada tras H2 (login, `GET /me`, logout, sus errores y peticiones previas: 26 peticiones y 28 comprobaciones, sin fallos) tras H3 (renovación, margen de gracia, sus errores y la petición previa: 33 peticiones y 35 comprobaciones, sin fallos; la reutilización a los 31 s queda en los tests y en QS-H3.3) tras H5 (cambiar y consultar el nombre, el email rechazado dentro del flujo porque necesita sesión, sus errores y la petición previa: 39 peticiones y 41 comprobaciones, sin fallos) y tras H6 (segunda sesión, cambio de contraseña, la otra sesión cerrada, login con la anterior y con la nueva, contraseña actual errónea, sus errores y la petición previa: 49 peticiones y 51 comprobaciones, sin fallos). Las cookies se guardan en la variable `sessionCookie` y se envían en la cabecera `Cookie`, porque Newman no reenvía cookies `Secure` por http a `host.docker.internal`. Se amplía en cada historia.
+  - Nota (2026-10-28): a petición del usuario, la 002 tiene además su propia colección, `sdd/002-user-accounts/user-accounts.postman-collection.json`, creada tras H1 (token CSRF previo, registro, errores y CORS: 12 peticiones y 12 comprobaciones con Newman, sin fallos) ampliada tras H2 (login, `GET /me`, logout, sus errores y peticiones previas: 26 peticiones y 28 comprobaciones, sin fallos) tras H3 (renovación, margen de gracia, sus errores y la petición previa: 33 peticiones y 35 comprobaciones, sin fallos; la reutilización a los 31 s queda en los tests y en QS-H3.3) tras H5 (cambiar y consultar el nombre, el email rechazado dentro del flujo porque necesita sesión, sus errores y la petición previa: 39 peticiones y 41 comprobaciones, sin fallos) tras H6 (segunda sesión, cambio de contraseña, la otra sesión cerrada, login con la anterior y con la nueva, contraseña actual errónea, sus errores y la petición previa: 49 peticiones y 51 comprobaciones, sin fallos) y tras H7 (carpeta "4. Borrar la cuenta" con una cuenta propia, para que las anteriores conserven la suya; sus errores y la petición previa: 61 peticiones y 63 comprobaciones, sin fallos). Las cookies se guardan en la variable `sessionCookie` y se envían en la cabecera `Cookie`, porque Newman no reenvía cookies `Secure` por http a `host.docker.internal`. Se amplía en cada historia.
 - [ ] T120 [Rob] AGENTS.md: variables `SESSION_ENCRYPTION_KEY` y `CORS_ORIGIN`, módulo `users` y aviso de Safari en desarrollo (R-2) — `AGENTS.md`
   - Verifica: `grep -c "SESSION_ENCRYPTION_KEY\|CORS_ORIGIN" AGENTS.md` ≥ 2.
 - [ ] T121 [Rob] Guía manual, sección QS-R: producción con cookies y CORS (petición previa desde `https://kompitu.yandrydev.cloud` y desde otro origen) y rendimiento — `sdd/002-user-accounts/quickstart.md`

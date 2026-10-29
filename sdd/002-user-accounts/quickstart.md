@@ -2,7 +2,7 @@
 
 Guía para probar a mano cada historia de la spec 002. Los *checkpoints* de `tasks.md` citan estos pasos (QS-H1.1…). Todo el servidor corre en Docker (AGENTS.md); en tu máquina solo se usan `curl`, `openssl` y `sed`.
 
-> **Alternativa con Postman:** importa `sdd/002-user-accounts/user-accounts.postman-collection.json` y ejecuta las carpetas "1. Flujo", "2. Errores" y "3. CORS" en ese orden. Cubre las historias implementadas hasta ahora. Desde la terminal, sin instalar nada:
+> **Alternativa con Postman:** importa `sdd/002-user-accounts/user-accounts.postman-collection.json` y ejecuta las carpetas "1. Flujo", "2. Errores", "3. CORS" y "4. Borrar la cuenta" en ese orden. Cubre las historias implementadas hasta ahora. Desde la terminal, sin instalar nada:
 > ```bash
 > docker run --rm -v "$PWD/sdd/002-user-accounts":/etc/newman postman/newman:6-alpine \
 >   run user-accounts.postman-collection.json --env-var baseUrl=http://host.docker.internal:3000
@@ -247,3 +247,42 @@ CSRF_PHONE=$(login $PHONE "correct horse battery" | sed -E 's/.*"csrfToken":"([^
   curl -s -b $PHONE -X PATCH $API/me/password -H "Content-Type: application/json" -H "X-CSRF-Token: $CSRF_PHONE" -d '{"currentPassword":"contraseña equivocada","newPassword":"una tercera frase larga"}'; echo
   ```
   → `403 WRONG_PASSWORD`. El fallo cuenta para el bloqueo de RF-09, junto con los logins fallidos: con 5 en 15 minutos, `PATCH /me/password` y el login responden `429 TOO_MANY_ATTEMPTS`, aunque las sesiones ya abiertas siguen funcionando.
+
+## QS-H7 — Borrar mi cuenta (HU-07)
+
+Una cuenta nueva con una tarea, para ver que el borrado se lleva todos sus datos:
+
+```bash
+EMAIL="borrar-$RANDOM@example.com"; P=$(csrf); JAR=$(mktemp)
+curl -s -o /dev/null -X POST $API/auth/register -H "Content-Type: application/json" -H "X-CSRF-Token: $P" -d "{\"email\":\"$EMAIL\",\"password\":\"correct horse battery\"}"
+CSRF=$(curl -s -c "$JAR" -X POST $API/auth/login -H "Content-Type: application/json" -H "X-CSRF-Token: $P" -d "{\"email\":\"$EMAIL\",\"password\":\"correct horse battery\"}" | sed -E 's/.*"csrfToken":"([^"]+)".*/\1/')
+USER_ID=$(apij $API/me | sed -E 's/.*"id":"([^"]+)".*/\1/')
+apij -X POST $API/tasks -H "X-Client-Time: $(now)" -H "X-Timezone: $TZ_NAME" -d "{\"title\":\"Tarea\",\"date\":\"$(date +%F)\"}"
+# Filas del usuario en users, tasks, sessions y user_time_zones
+counts() { docker compose -f docker-compose.dev.yml exec -T db sh -c "psql -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" -Atc \"select (select count(*) from users where id = '$USER_ID'), (select count(*) from tasks where user_id = '$USER_ID'), (select count(*) from sessions where user_id = '$USER_ID'), (select count(*) from user_time_zones where user_id = '$USER_ID')\""; }
+counts   # → 1|1|1|1
+```
+
+(`now` y `TZ_NAME` son los de QS-H4. A partir de aquí `apij` usa las cookies de `$JAR` y el token CSRF de esta sesión.)
+
+- **QS-H7.4** Borrar con una contraseña errónea (antes que QS-H7.1, mientras la cuenta existe):
+  ```bash
+  apij -X DELETE $API/me -d '{"password":"contraseña equivocada"}'
+  counts
+  ```
+  → `403 WRONG_PASSWORD` y la cuenta sigue: `1|1|1|1` (RF-28). El fallo cuenta para el bloqueo de RF-09.
+- **QS-H7.1** Borrar la cuenta con su contraseña:
+  ```bash
+  apij -i -X DELETE $API/me -d '{"password":"correct horse battery"}'
+  ```
+  → `200`, `message: "Cuenta eliminada con éxito"`, `data: null` y dos `Set-Cookie` que borran las cookies (RF-29).
+- **QS-H7.2** En la base de datos no queda nada del usuario:
+  ```bash
+  counts
+  ```
+  → `0|0|0|0`: la cuenta, sus tareas, sus sesiones y su zona recordada se han borrado en cascada (RF-29, D-9).
+- **QS-H7.3** Iniciar sesión con ese email:
+  ```bash
+  curl -s -X POST $API/auth/login -H "Content-Type: application/json" -H "X-CSRF-Token: $P" -d "{\"email\":\"$EMAIL\",\"password\":\"correct horse battery\"}"; echo
+  ```
+  → `401 INVALID_CREDENTIALS`. Volver a registrarse con el mismo email crea una cuenta nueva, sin datos.

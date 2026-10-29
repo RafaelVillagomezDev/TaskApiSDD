@@ -47,9 +47,17 @@ export const updateProfileBodySchema = z.strictObject({
   name: z.string().trim().max(NAME_MAX_LENGTH).nullable().transform(emptyToNull),
 });
 
-// PATCH /me/password: la actual solo tiene que llegar (con el tope de 128 para no derivar textos enormes) y la
-// nueva cumple RF-04, sin recortar ninguna; puede coincidir con la actual (RF-27, RF-28)
+// Contraseña actual que se confirma: solo tiene que llegar, sin recortar, con el tope de 128 para no derivar
+// textos enormes (RF-28)
+const currentPasswordSchema = z.string().min(1).max(PASSWORD_MAX_LENGTH);
+
+// PATCH /me/password: la nueva cumple RF-04 y puede coincidir con la actual (RF-27, RF-28)
 export const changePasswordBodySchema = z.object({
-  currentPassword: z.string().min(1).max(PASSWORD_MAX_LENGTH),
+  currentPassword: currentPasswordSchema,
   newPassword: passwordSchema,
+});
+
+// DELETE /me: la contraseña de la cuenta (RF-28, RF-29)
+export const deleteAccountBodySchema = z.object({
+  password: currentPasswordSchema,
 });

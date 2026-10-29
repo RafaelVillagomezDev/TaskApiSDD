@@ -1,4 +1,10 @@
-import { changePasswordBodySchema, loginBodySchema, registerBodySchema, updateProfileBodySchema } from '../user.schema.js';
+import {
+  changePasswordBodySchema,
+  deleteAccountBodySchema,
+  loginBodySchema,
+  registerBodySchema,
+  updateProfileBodySchema,
+} from '../user.schema.js';
 
 const LOCAL_PART = 'a'.repeat(64);
 // 254 caracteres en total, con etiquetas de dominio de 63 como máximo
@@ -137,5 +143,20 @@ describe('changePasswordBodySchema', () => {
     ['con un número', { ...body, currentPassword: 123456789012 }],
   ])('%s → se rechaza', (_case, input) => {
     expect(changePasswordBodySchema.safeParse(input).success).toBe(false);
+  });
+});
+
+describe('deleteAccountBodySchema', () => {
+  it('acepta la contraseña tal cual, sin recortarla (RF-28)', () => {
+    expect(deleteAccountBodySchema.parse({ password: ' con espacios y ñ ' })).toEqual({ password: ' con espacios y ñ ' });
+  });
+
+  it.each([
+    ['sin password', {}],
+    ['con password vacía', { password: '' }],
+    ['con password de más de 128 caracteres', { password: 'a'.repeat(129) }],
+    ['con un número', { password: 123456789012 }],
+  ])('%s → se rechaza', (_case, input) => {
+    expect(deleteAccountBodySchema.safeParse(input).success).toBe(false);
   });
 });

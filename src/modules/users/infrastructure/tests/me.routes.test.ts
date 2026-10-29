@@ -54,6 +54,14 @@ describe('rutas de /me', () => {
     });
     return { status: response.status, body: (await response.json()) as Envelope };
   };
+  const deleteMe = async (body: unknown, headers: Record<string, string>) => {
+    const response = await server.request('/me', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json', ...headers },
+      body: JSON.stringify(body),
+    });
+    return { response, status: response.status, body: (await response.json()) as Envelope };
+  };
   const NEW_PASSWORD = 'otra frase bastante larga';
   const WRONG = 'contraseña equivocada';
 
@@ -264,15 +272,95 @@ describe('rutas de /me', () => {
     });
   });
 
+  describe('DELETE /me', () => {
+    it('borra la cuenta → 200 con data null y las cookies borradas; su sesión deja de servir (RF-29, HU-07)', async () => {
+      const session = await signIn(server);
+      const { response, status, body } = await deleteMe({ password: TEST_PASSWORD }, session);
+      expect(status).toBe(200);
+      expect(body).toEqual({ success: true, status: 200, message: 'Cuenta eliminada con éxito', data: null });
+      const cleared = response.headers.getSetCookie();
+      expect(cleared).toHaveLength(2);
+      expect(cleared.every((cookie) => cookie.includes('Expires=Thu, 01 Jan 1970'))).toBe(true);
+      expect(container.users.count()).toBe(0);
+      expect((await me({ Cookie: session.Cookie })).body.error?.code).toBe('INVALID_TOKEN');
+    });
+
+    it('después, el login con ese email → INVALID_CREDENTIALS (RF-29, RF-08)', async () => {
+      await deleteMe({ password: TEST_PASSWORD }, await signIn(server));
+      const { status, body } = await login(TEST_PASSWORD);
+      expect(status).toBe(401);
+      expect(body.error?.code).toBe('INVALID_CREDENTIALS');
+    });
+
+    it('volver a registrarse con el mismo email → 201, como una cuenta nueva sin datos (RF-29, RF-01)', async () => {
+      const first = await signIn(server);
+      const created = await server.request('/tasks', {
+        method: 'POST',
+        headers: { ...clientHeaders(), ...first },
+        body: JSON.stringify({ title: 'Tarea de la cuenta borrada', date: '2026-10-24' }),
+      });
+      expect(created.status).toBe(201);
+      await deleteMe({ password: TEST_PASSWORD }, first);
+      const again = await signIn(server);
+      const tasks = await server.request('/tasks', { headers: { ...clientHeaders(), ...again } });
+      expect(((await tasks.json()) as { data: { items: unknown[] } }).data.items).toEqual([]);
+      expect(container.users.count()).toBe(1);
+    });
+
+    it('con la contraseña errónea → 403 WRONG_PASSWORD y la cuenta sigue (RF-28)', async () => {
+      const session = await signIn(server);
+      const { status, body } = await deleteMe({ password: WRONG }, session);
+      expect(status).toBe(403);
+      expect(body.error?.code).toBe('WRONG_PASSWORD');
+      expect((await me({ Cookie: session.Cookie })).status).toBe(200);
+      expect((await login(TEST_PASSWORD)).status).toBe(200);
+    });
+
+    it('con la cuenta bloqueada → 429 TOO_MANY_ATTEMPTS aunque la contraseña sea correcta (RF-09)', async () => {
+      const session = await signIn(server);
+      for (let attempt = 0; attempt < 5; attempt++) await login(WRONG);
+      const { status, body } = await deleteMe({ password: TEST_PASSWORD }, session);
+      expect(status).toBe(429);
+      expect(body.error?.code).toBe('TOO_MANY_ATTEMPTS');
+      expect(container.users.count()).toBe(1);
+    });
+
+    it('sin password → 400 VALIDATION_ERROR (RF-28)', async () => {
+      expect((await deleteMe({}, await signIn(server))).body.error?.code).toBe('VALIDATION_ERROR');
+    });
+
+    it('sin X-CSRF-Token → 403 INVALID_CSRF_TOKEN y la cuenta sigue (RF-23)', async () => {
+      const session = await signIn(server);
+      const { status, body } = await deleteMe({ password: TEST_PASSWORD }, { Cookie: session.Cookie });
+      expect(status).toBe(403);
+      expect(body.error?.code).toBe('INVALID_CSRF_TOKEN');
+      expect(container.users.count()).toBe(1);
+    });
+
+    it('sin cookie de sesión → 401 MISSING_TOKEN (RF-18)', async () => {
+      expect((await deleteMe({ password: TEST_PASSWORD }, { 'X-CSRF-Token': 'cualquiera' })).body.error?.code).toBe(
+        'MISSING_TOKEN',
+      );
+    });
+
+    it('solo borra la cuenta de la sesión (RF-21)', async () => {
+      const ana = await signIn(server);
+      const bea = await signIn(server, 'bea@example.com');
+      await deleteMe({ password: TEST_PASSWORD }, ana);
+      expect((await me({ Cookie: bea.Cookie })).body.data).toMatchObject({ email: 'bea@example.com' });
+    });
+  });
+
   it.each([
     ['GET'],
     ['PATCH'],
-  ])('petición previa de CORS de %s /me → 200 con GET y PATCH (RF-36)', async (method) => {
+    ['DELETE'],
+  ])('petición previa de CORS de %s /me → 200 con GET, PATCH y DELETE (RF-36)', async (method) => {
     const response = await server.request('/me', {
       method: 'OPTIONS',
       headers: { Origin: FRONTEND_ORIGIN, 'Access-Control-Request-Method': method },
     });
     expect(response.status).toBe(200);
-    expect(response.headers.get('access-control-allow-methods')).toBe('GET, PATCH');
+    expect(response.headers.get('access-control-allow-methods')).toBe('GET, PATCH, DELETE');
   });
 });
