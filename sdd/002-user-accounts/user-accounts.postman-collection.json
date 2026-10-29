@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "TaskApiSDD — Cuentas de usuario (002)",
-    "description": "Funcionalidad 002 (sdd/002-user-accounts). Implementado por ahora: H1 (token CSRF previo a la sesión y registro) H2 (login, GET /me y logout) H3 (renovación con el refresh token y su margen de gracia) H5 (cambiar el nombre con PATCH /me) H6 (cambiar la contraseña con PATCH /me/password) y H7 (borrar la cuenta con DELETE /me, en la carpeta '4. Borrar la cuenta', que va al final). Ejecuta '1. Flujo' en orden (Run folder) antes de '2. Errores': la primera petición genera un email nuevo en cada ejecución. Las cookies de sesión se guardan en la variable sessionCookie y se envían en la cabecera Cookie, con las cookies automáticas desactivadas en cada petición, porque Newman y Postman no reenvían cookies Secure por http a un host que no sea localhost.",
+    "description": "Funcionalidad 002 (sdd/002-user-accounts). Implementado por ahora: H1 (token CSRF previo a la sesión y registro) H2 (login, GET /me y logout) H3 (renovación con el refresh token y su margen de gracia) H5 (cambiar el nombre con PATCH /me) H6 (cambiar la contraseña con PATCH /me/password) y H7 (borrar la cuenta con DELETE /me, en la carpeta '4. Borrar la cuenta', que va al final). Ejecuta '1. Flujo' en orden (Run folder) antes de '2. Errores': la primera petición genera un email nuevo en cada ejecución. Las cookies de sesión se guardan en la variable sessionCookie y se envían en la cabecera Cookie, con las cookies automáticas desactivadas en cada petición, porque Newman y Postman no reenvían cookies Secure por http a un host que no sea localhost. La carpeta '5. Mi cuenta' usa tu propia cuenta (variables myEmail y myPassword): sus peticiones funcionan sueltas porque inician sesión solas cuando hace falta.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -67,6 +67,34 @@
     },
     {
       "key": "deleteCsrfToken",
+      "value": ""
+    },
+    {
+      "key": "myEmail",
+      "value": "mi-cuenta@example.com"
+    },
+    {
+      "key": "myPassword",
+      "value": "cambia esta contraseña"
+    },
+    {
+      "key": "myName",
+      "value": "Mi nombre"
+    },
+    {
+      "key": "myCookie",
+      "value": ""
+    },
+    {
+      "key": "myCsrfToken",
+      "value": ""
+    },
+    {
+      "key": "myCookieEmail",
+      "value": ""
+    },
+    {
+      "key": "myCookieAt",
       "value": ""
     }
   ],
@@ -3074,6 +3102,242 @@
                   "language": "json"
                 }
               }
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Mi cuenta",
+      "description": "Usa la API con tu propia cuenta: pon tu email y tu contraseña (12 caracteres como mínimo) en las variables de colección `myEmail` y `myPassword`. Cada petición funciona sola: el script de la carpeta crea la cuenta si no existe e inicia sesión antes de enviarla, y vuelve a hacerlo cuando la sesión tiene más de 14 minutos, cuando cambias de email o después de cerrar sesión. Cambiar la contraseña y borrar la cuenta no están aquí a propósito: se prueban en las carpetas 1 y 4.",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Cada petición de esta carpeta funciona sola: antes de enviarla, si no hay sesión de myEmail o tiene más de",
+              "// 14 minutos (el token de acceso dura 15), pide el token CSRF previo, crea la cuenta si no existe e inicia sesión",
+              "const SESSION_TTL_MS = 14 * 60 * 1000;",
+              "// pm.variables respeta el entorno (p. ej. --env-var de Newman), como las propias peticiones",
+              "const baseUrl = pm.variables.get('baseUrl');",
+              "const email = pm.collectionVariables.get('myEmail');",
+              "const password = pm.collectionVariables.get('myPassword');",
+              "const startedAt = Number(pm.collectionVariables.get('myCookieAt') || 0);",
+              "const fresh = pm.collectionVariables.get('myCookie') && pm.collectionVariables.get('myCookieEmail') === email &&",
+              "  Date.now() - startedAt < SESSION_TTL_MS;",
+              "if (!fresh) {",
+              "  const post = (path, csrfToken, body) => ({",
+              "    url: `${baseUrl}${path}`,",
+              "    method: 'POST',",
+              "    header: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },",
+              "    body: { mode: 'raw', raw: JSON.stringify(body) },",
+              "  });",
+              "  pm.sendRequest(`${baseUrl}/auth/csrf`, (csrfError, csrfResponse) => {",
+              "    if (csrfError) throw csrfError;",
+              "    const presession = csrfResponse.json().data.csrfToken;",
+              "    // 201 si la cuenta es nueva, 409 si ya existía: en los dos casos se sigue con el login",
+              "    pm.sendRequest(post('/auth/register', presession, { email, password }), (registerError) => {",
+              "      if (registerError) throw registerError;",
+              "      pm.sendRequest(post('/auth/login', presession, { email, password }), (loginError, login) => {",
+              "        if (loginError) throw loginError;",
+              "        if (login.code !== 200) throw new Error(`No se pudo iniciar sesión con myEmail (${login.code}): revisa myEmail y myPassword`);",
+              "        const cookies = login.headers.all().filter((header) => header.key.toLowerCase() === 'set-cookie');",
+              "        pm.collectionVariables.set('myCookie', cookies.map((header) => header.value.split(';')[0]).join('; '));",
+              "        pm.collectionVariables.set('myCsrfToken', login.json().data.csrfToken);",
+              "        pm.collectionVariables.set('myCookieEmail', email);",
+              "        pm.collectionVariables.set('myCookieAt', String(Date.now()));",
+              "      });",
+              "    });",
+              "  });",
+              "}"
+            ]
+          }
+        }
+      ],
+      "item": [
+        {
+          "name": "Consultar mi cuenta",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con el recurso User (RF-25)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().data.email).to.equal(pm.collectionVariables.get('myEmail').trim().toLowerCase());",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "{{myCookie}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "me"
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Cambiar mi nombre",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con el nombre de la variable myName (RF-26)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().data.name).to.equal(pm.collectionVariables.get('myName').trim() || null);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{myCookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{myCsrfToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "me"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{myName}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Renovar mi sesión",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con cookies nuevas (RF-11)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const cookies = pm.response.headers.all().filter((header) => header.key.toLowerCase() === 'set-cookie');",
+                  "  pm.expect(cookies).to.have.lengthOf(2);",
+                  "  // Las peticiones siguientes usan las cookies nuevas; el token CSRF de la sesión no cambia (RF-24)",
+                  "  pm.collectionVariables.set('myCookie', cookies.map((header) => header.value.split(';')[0]).join('; '));",
+                  "  pm.collectionVariables.set('myCookieAt', String(Date.now()));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "{{myCookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{myCsrfToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "refresh"
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Cerrar mi sesión",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con data null (RF-15)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  // La siguiente petición de la carpeta iniciará sesión de nuevo",
+                  "  pm.collectionVariables.set('myCookie', '');",
+                  "  pm.collectionVariables.set('myCsrfToken', '');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "{{myCookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{myCsrfToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "logout"
+              ]
             }
           },
           "protocolProfileBehavior": {

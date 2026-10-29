@@ -2,7 +2,7 @@
 
 Guía para probar a mano cada historia de la spec 002. Los *checkpoints* de `tasks.md` citan estos pasos (QS-H1.1…). Todo el servidor corre en Docker (AGENTS.md); en tu máquina solo se usan `curl`, `openssl` y `sed`.
 
-> **Alternativa con Postman:** importa `sdd/002-user-accounts/user-accounts.postman-collection.json` y ejecuta las carpetas "1. Flujo", "2. Errores", "3. CORS" y "4. Borrar la cuenta" en ese orden. Cubre las historias implementadas hasta ahora. Desde la terminal, sin instalar nada:
+> **Alternativa con Postman:** importa `sdd/002-user-accounts/user-accounts.postman-collection.json` y ejecuta las carpetas "1. Flujo", "2. Errores", "3. CORS" y "4. Borrar la cuenta" en ese orden. Para usar la API con tu propia cuenta, pon tu email y tu contraseña en las variables `myEmail` y `myPassword` y lanza cualquier petición suelta de "5. Mi cuenta": inicia sesión sola cuando hace falta. Cubre las historias implementadas hasta ahora. Desde la terminal, sin instalar nada:
 > ```bash
 > docker run --rm -v "$PWD/sdd/002-user-accounts":/etc/newman postman/newman:6-alpine \
 >   run user-accounts.postman-collection.json --env-var baseUrl=http://host.docker.internal:3000
