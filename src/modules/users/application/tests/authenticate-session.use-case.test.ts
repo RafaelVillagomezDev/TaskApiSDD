@@ -23,6 +23,7 @@ describe('AuthenticateSessionUseCase', () => {
       accessTokenHash: tokens.fingerprint(accessToken),
       refreshTokenHash: tokens.fingerprint(refreshToken),
       csrfTokenHash: tokens.fingerprint(csrfToken),
+      csrfTokenSealed: 'v1.copia-csrf',
       schedule: Session.schedule(clock.now()),
       now: clock.now(),
     });

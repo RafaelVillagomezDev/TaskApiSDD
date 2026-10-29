@@ -47,6 +47,7 @@ describe('PrismaUserRepository', () => {
         userId,
         accessTokenHash: 'a'.repeat(64),
         csrfTokenHash: 'c'.repeat(64),
+        csrfTokenSealed: 'v1.copia-csrf',
         accessExpiresAt: new Date(),
         refreshExpiresAt: new Date(),
         expiresAt: new Date(),

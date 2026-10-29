@@ -2,6 +2,7 @@ import { FakeClock } from '../../../../../tests/support/fake-clock.adapter.js';
 import { InMemorySessionRepository } from '../../../../../tests/support/in-memory-session.repository.js';
 import { Session } from '../../domain/session.entity.js';
 import { AesGcmGraceCipher } from '../../infrastructure/aes-gcm-grace-cipher.adapter.js';
+import { AesGcmSecretCipher } from '../../infrastructure/aes-gcm-secret-cipher.adapter.js';
 import { CryptoTokenService } from '../../infrastructure/crypto-token.adapter.js';
 import { RefreshSessionUseCase } from '../refresh-session.use-case.js';
 import { VerifySessionCsrfUseCase } from '../verify-session-csrf.use-case.js';
@@ -17,7 +18,8 @@ describe('RefreshSessionUseCase', () => {
   const tokens = new CryptoTokenService();
   // Un token aleatorio son 32 bytes: sirve como clave AES-256 sin depender de ningún secreto
   const randomKey = () => Buffer.from(tokens.randomToken(), 'base64url');
-  const cipher = new AesGcmGraceCipher(randomKey());
+  const graceCipher = () => new AesGcmGraceCipher(new AesGcmSecretCipher(randomKey()));
+  const cipher = graceCipher();
 
   // Sesión abierta ahora (login del día 1) con tokens conocidos
   const openSession = async () => {
@@ -29,6 +31,7 @@ describe('RefreshSessionUseCase', () => {
       accessTokenHash: tokens.fingerprint(accessToken),
       refreshTokenHash: tokens.fingerprint(refreshToken),
       csrfTokenHash: tokens.fingerprint(csrfToken),
+      csrfTokenSealed: 'v1.copia-csrf',
       schedule: Session.schedule(clock.now()),
       now: clock.now(),
     });
@@ -138,7 +141,7 @@ describe('RefreshSessionUseCase', () => {
     const otherKey = new RefreshSessionUseCase(
       sessions,
       tokens,
-      new AesGcmGraceCipher(randomKey()),
+      graceCipher(),
       new VerifySessionCsrfUseCase(tokens),
       clock,
     );

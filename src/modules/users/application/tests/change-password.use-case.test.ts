@@ -25,6 +25,7 @@ describe('ChangePasswordUseCase', () => {
       accessTokenHash: `acceso-${name}`,
       refreshTokenHash: `refresh-${name}`,
       csrfTokenHash: `csrf-${name}`,
+      csrfTokenSealed: 'v1.copia-csrf',
       schedule: Session.schedule(clock.now()),
       now: clock.now(),
     });

@@ -10,6 +10,8 @@ const repository = new PrismaSessionRepository(prisma);
 const NOW = new Date('2026-10-28T10:00:00Z');
 // Huella de 64 caracteres hexadecimales a partir de una letra, para leer los tests con facilidad
 const hash = (seed: string) => seed.repeat(64).slice(0, 64);
+// El repositorio guarda la copia tal cual le llega: el cifrado se prueba en AesGcmSecretCipher
+const SEALED_CSRF = 'v1.iv.copia-csrf.etiqueta';
 
 describe('PrismaSessionRepository', () => {
   let userId: string;
@@ -20,6 +22,7 @@ describe('PrismaSessionRepository', () => {
       accessTokenHash: hash(access),
       refreshTokenHash: hash(refresh),
       csrfTokenHash: hash('c'),
+      csrfTokenSealed: SEALED_CSRF,
       schedule: Session.schedule(NOW),
       now: NOW,
     });
@@ -135,5 +138,38 @@ describe('PrismaSessionRepository', () => {
       SELECT "access_token_hash" AS access, "csrf_token_hash" AS csrf FROM "sessions" WHERE "user_id" = ${userId}::uuid`;
     expect(row?.access).toMatch(/^[0-9a-f]{64}$/);
     expect(row?.csrf).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  describe('copia cifrada del token CSRF (spec 003)', () => {
+    it('create la guarda y findById la devuelve con la sesión (RF-02)', async () => {
+      const session = await open('1', '2');
+      const found = await repository.findById(session.id);
+      expect(found?.session.id).toBe(session.id);
+      expect(found?.csrfTokenHash).toBe(hash('c'));
+      expect(found?.csrfTokenSealed).toBe(SEALED_CSRF);
+      expect((await repository.findByAccessTokenHash(hash('1')))?.csrfTokenSealed).toBe(SEALED_CSRF);
+    });
+
+    it('findById de una sesión inexistente o cerrada → null', async () => {
+      const session = await open('1', '2');
+      await repository.delete(session.id);
+      expect(await repository.findById(session.id)).toBeNull();
+      expect(await repository.findById('00000000-0000-4000-8000-000000000000')).toBeNull();
+    });
+
+    it('la renovación no cambia la copia: el token CSRF vale toda la sesión (RF-02; RF-24 de la 002)', async () => {
+      const session = await open('1', '2');
+      await rotate('2', { access: '3', refresh: '4' }, new Date('2026-10-28T10:20:00Z'));
+      expect((await repository.findById(session.id))?.csrfTokenSealed).toBe(SEALED_CSRF);
+    });
+
+    it('la base de datos rechaza una sesión sin copia (RF-04)', async () => {
+      await expect(
+        prisma.$executeRaw`
+          INSERT INTO "sessions" ("user_id", "access_token_hash", "csrf_token_hash", "access_expires_at",
+            "refresh_expires_at", "expires_at")
+          VALUES (${userId}::uuid, ${hash('x')}, ${hash('c')}, ${NOW}, ${NOW}, ${NOW})`,
+      ).rejects.toThrow();
+    });
   });
 });

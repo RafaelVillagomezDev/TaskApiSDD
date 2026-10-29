@@ -14,6 +14,7 @@ interface StoredSession {
   props: SessionProps;
   accessTokenHash: string;
   csrfTokenHash: string;
+  csrfTokenSealed: string;
   graceTokens: string | null;
 }
 
@@ -54,10 +55,16 @@ export class InMemorySessionRepository implements SessionRepository {
       props,
       accessTokenHash: input.accessTokenHash,
       csrfTokenHash: input.csrfTokenHash,
+      csrfTokenSealed: input.csrfTokenSealed,
       graceTokens: null,
     });
     this.refreshTokens.set(input.refreshTokenHash, { sessionId: props.id, generation: 0, rotatedAt: null });
     return Session.restore(props);
+  }
+
+  async findById(sessionId: string): Promise<SessionRecord | null> {
+    const stored = this.sessions.get(sessionId);
+    return stored ? this.toRecord(stored) : null;
   }
 
   async findByAccessTokenHash(accessTokenHash: string): Promise<SessionRecord | null> {
@@ -141,6 +148,7 @@ export class InMemorySessionRepository implements SessionRepository {
     return {
       session: Session.restore({ ...stored.props }),
       csrfTokenHash: stored.csrfTokenHash,
+      csrfTokenSealed: stored.csrfTokenSealed,
       graceTokens: stored.graceTokens,
     };
   }

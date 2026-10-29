@@ -17,32 +17,35 @@ Spec: `sdd/003-session-csrf-on-me/spec.md` (Aprobada) · Plan: `sdd/003-session-
 ## Fase 0 — Base
 
 ### Cifrado (refactor, D-2)
-- [ ] T001 [P] [Base] Test del cifrado genérico: ida y vuelta; IV distinto en cada cifrado; clave que no es de 32 bytes → error; texto o etiqueta alterados, versión desconocida y clave distinta → error; el texto cifrado no contiene el original (RNF-04) — `users/infrastructure/tests/aes-gcm-secret-cipher.adapter.test.ts`
+- [x] T001 [P] [Base] Test del cifrado genérico: ida y vuelta; IV distinto en cada cifrado; clave que no es de 32 bytes → error; texto o etiqueta alterados, versión desconocida y clave distinta → error; el texto cifrado no contiene el original (RNF-04) — `users/infrastructure/tests/aes-gcm-secret-cipher.adapter.test.ts`
   - Verifica: `dce pnpm test users/infrastructure/tests/aes-gcm-secret` **falla**.
-- [ ] T002 [Base] Puerto `SecretCipher` (`seal(plain)`, `open(sealed)`) y adaptador `AesGcmSecretCipher` con el núcleo AES-256-GCM y el formato `v1.<iv>.<cifrado>.<etiqueta>` de `AesGcmGraceCipher` (D-2) — `users/domain/secret-cipher.port.ts`, `users/infrastructure/aes-gcm-secret-cipher.adapter.ts`
+- [x] T002 [Base] Puerto `SecretCipher` (`seal(plain)`, `open(sealed)`) y adaptador `AesGcmSecretCipher` con el núcleo AES-256-GCM y el formato `v1.<iv>.<cifrado>.<etiqueta>` de `AesGcmGraceCipher` (D-2) — `users/domain/secret-cipher.port.ts`, `users/infrastructure/aes-gcm-secret-cipher.adapter.ts`
   - Verifica: `dce pnpm test users/infrastructure/tests/aes-gcm-secret` pasa.
-- [ ] T003 [Base] `AesGcmGraceCipher` delega en `AesGcmSecretCipher` y solo serializa y valida el JSON de los tokens; nuevo caso de test que abre una copia sellada con el formato `v1` anterior a la extracción (D-2, R-5) — `users/infrastructure/aes-gcm-grace-cipher.adapter.ts`, `users/infrastructure/tests/aes-gcm-grace-cipher.adapter.test.ts`, `src/dependency.container.ts`, `tests/support/test.container.ts`
+- [x] T003 [Base] `AesGcmGraceCipher` delega en `AesGcmSecretCipher` y solo serializa y valida el JSON de los tokens; nuevo caso de test que abre una copia sellada con el formato `v1` anterior a la extracción (D-2, R-5) — `users/infrastructure/aes-gcm-grace-cipher.adapter.ts`, `users/infrastructure/tests/aes-gcm-grace-cipher.adapter.test.ts`, `src/dependency.container.ts`, `tests/support/test.container.ts`
   - Verifica: `dce pnpm test users/infrastructure/tests/aes-gcm` y `dce pnpm test users/application/tests/refresh-session` pasan.
+  - Hecho (2026-10-29): la copia de referencia (`LEGACY_SEALED`) se selló con el algoritmo de la 002 y se comprobó con el adaptador anterior antes de refactorizar. Los casos genéricos del cifrado (alteraciones, formato y longitud de la clave) pasan al test de `AesGcmSecretCipher`; el del margen de gracia se queda con la ida y vuelta, otra clave, el contenido inesperado y la copia de referencia. `refresh-session.use-case.test.ts` solo cambia cómo construye el adaptador (el constructor recibe ahora un `SecretCipher`).
 
 ### Base de datos
-- [ ] T004 [Base] `Session.csrfTokenSealed String @map("csrf_token_sealed")` con su comentario (plan §4) — `prisma/schema.prisma`
+- [x] T004 [Base] `Session.csrfTokenSealed String @map("csrf_token_sealed")` con su comentario (plan §4) — `prisma/schema.prisma`
   - Verifica: `dce pnpm exec prisma validate`.
-- [ ] T005 [Base] Migración: `DELETE FROM "sessions"` con su comentario (RF-04) y `ADD COLUMN "csrf_token_sealed" TEXT NOT NULL`, generada con `prisma migrate diff` (AGENTS.md §3, R-4) — `prisma/migrations/<AAAAMMDDHHMMSS>_session_csrf_sealed/migration.sql`
+- [x] T005 [Base] Migración: `DELETE FROM "sessions"` con su comentario (RF-04) y `ADD COLUMN "csrf_token_sealed" TEXT NOT NULL`, generada con `prisma migrate diff` (AGENTS.md §3, R-4) — `prisma/migrations/<AAAAMMDDHHMMSS>_session_csrf_sealed/migration.sql`
   - Verifica: `dce pnpm prisma migrate deploy` aplica la migración, `dce pnpm prisma generate` termina sin errores y `dce pnpm exec prisma migrate status` → base de datos al día.
+  - Hecho (2026-10-29): `20261029193228_session_csrf_sealed`. Un primer `migrate deploy` en desarrollo se lanzó con el SQL generado aún sin el `DELETE` y PostgreSQL lo rechazó (había sesiones abiertas: es justo R-4/RF-04); no aplicó nada. Se añadió el `DELETE`, se marcó la migración como revertida con `prisma migrate resolve --rolled-back` (solo en desarrollo) y se aplicó bien.
 
 ### Repositorio y login
-- [ ] T006 [P] [Base] Test de integración del repositorio: `create` guarda `csrfTokenSealed`; `findById` lo devuelve; sesión inexistente → `null`; la renovación no lo cambia; la columna rechaza `NULL` (RF-02, RF-04) — `users/infrastructure/tests/prisma-session.repository.int.test.ts`
+- [x] T006 [P] [Base] Test de integración del repositorio: `create` guarda `csrfTokenSealed`; `findById` lo devuelve; sesión inexistente → `null`; la renovación no lo cambia; la columna rechaza `NULL` (RF-02, RF-04) — `users/infrastructure/tests/prisma-session.repository.int.test.ts`
   - Verifica: `dce pnpm test users/infrastructure/tests/prisma-session` **falla**.
-- [ ] T007 [P] [Base] Test del login: guarda la huella y la copia sellada; la copia se abre con el mismo `csrfToken` de la respuesta y no contiene el token en claro (RF-02, RNF-04) — `users/application/tests/login.use-case.test.ts`
+- [x] T007 [P] [Base] Test del login: guarda la huella y la copia sellada; la copia se abre con el mismo `csrfToken` de la respuesta y no contiene el token en claro (RF-02, RNF-04) — `users/application/tests/login.use-case.test.ts`
   - Verifica: `dce pnpm test users/application/tests/login` **falla**.
-- [ ] T008 [Base] `NewSession` y `SessionRecord` con `csrfTokenSealed`; `SessionRepository.findById(sessionId)` (plan §3) — `users/domain/session.repository.ts`
+- [x] T008 [Base] `NewSession` y `SessionRecord` con `csrfTokenSealed`; `SessionRepository.findById(sessionId)` (plan §3) — `users/domain/session.repository.ts`
   - Verifica: `dce pnpm exec tsc --noEmit` solo falla en los ficheros de T009-T011.
-- [ ] T009 [Base] `create` guarda `csrfTokenSealed`, `toRecord` lo lee y `findById` por clave primaria (RF-02, D-6) — `users/infrastructure/prisma-session.repository.ts`
+- [x] T009 [Base] `create` guarda `csrfTokenSealed`, `toRecord` lo lee y `findById` por clave primaria (RF-02, D-6) — `users/infrastructure/prisma-session.repository.ts`
   - Verifica: `dce pnpm test users/infrastructure/tests/prisma-session` pasa.
-- [ ] T010 [P] [Base] Repositorio en memoria con `csrfTokenSealed` y `findById` — `tests/support/in-memory-session.repository.ts`
+- [x] T010 [P] [Base] Repositorio en memoria con `csrfTokenSealed` y `findById` — `tests/support/in-memory-session.repository.ts`
   - Verifica: `dce pnpm exec tsc --noEmit` solo falla en el login.
-- [ ] T011 [Base] `LoginUseCase` recibe `SecretCipher` y guarda `cipher.seal(csrfToken)`; un único `AesGcmSecretCipher` en los dos contenedores (RF-02, D-4) — `users/application/login.use-case.ts`, `src/dependency.container.ts`, `tests/support/test.container.ts`
+- [x] T011 [Base] `LoginUseCase` recibe `SecretCipher` y guarda `cipher.seal(csrfToken)`; un único `AesGcmSecretCipher` en los dos contenedores (RF-02, D-4) — `users/application/login.use-case.ts`, `src/dependency.container.ts`, `tests/support/test.container.ts`
   - Verifica: `dce pnpm test users/application/tests/login` pasa y `dce pnpm exec tsc --noEmit` termina sin errores.
+  - Hecho (2026-10-29): `csrfTokenSealed` es obligatorio en `NewSession`, así que los tests de la 002 que crean sesiones a mano (`authenticate-session`, `change-password`, `logout`, `purge-expired-auth-data`, `refresh-session` y `prisma-user.repository.int`) añaden `csrfTokenSealed: 'v1.copia-csrf'` a sus datos de prueba, sin cambiar ninguna comprobación. Checkpoint Base: `dce pnpm test` → 62 suites y 749 tests en verde; principio V sin resultados.
 
 ### Checkpoint Base
 - `dce pnpm test` pasa entero: el comportamiento observable aún no cambia.

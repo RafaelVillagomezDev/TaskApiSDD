@@ -2,6 +2,7 @@ import type { Clock } from '../../../shared/domain/clock.port.js';
 import { AppError } from '../../../shared/domain/app.error.js';
 import type { LoginAttemptRepository } from '../domain/login-attempt.repository.js';
 import type { PasswordHasher } from '../domain/password-hasher.port.js';
+import type { SecretCipher } from '../domain/secret-cipher.port.js';
 import { Session } from '../domain/session.entity.js';
 import type { SessionRepository } from '../domain/session.repository.js';
 import type { TokenService } from '../domain/token.port.js';
@@ -32,6 +33,7 @@ export class LoginUseCase {
     private readonly loginAttempts: LoginAttemptRepository,
     private readonly passwordHasher: PasswordHasher,
     private readonly tokens: TokenService,
+    private readonly secretCipher: SecretCipher,
     private readonly clock: Clock,
   ) {}
 
@@ -61,7 +63,8 @@ export class LoginUseCase {
     return (await this.passwordHasher.verify(input.password, user.passwordHash)) ? user : null;
   }
 
-  // Tres tokens aleatorios; en la base de datos solo sus huellas (RNF-06)
+  // Tres tokens aleatorios; en la base de datos solo sus huellas (RNF-06) y una copia cifrada del token CSRF,
+  // para que GET /me lo devuelva (RF-02 y RNF-04 de la 003)
   private async openSession(user: User, now: Date): Promise<LoginResult> {
     const accessToken = this.tokens.randomToken();
     const refreshToken = this.tokens.randomToken();
@@ -71,6 +74,7 @@ export class LoginUseCase {
       accessTokenHash: this.tokens.fingerprint(accessToken),
       refreshTokenHash: this.tokens.fingerprint(refreshToken),
       csrfTokenHash: this.tokens.fingerprint(csrfToken),
+      csrfTokenSealed: this.secretCipher.seal(csrfToken),
       schedule: Session.schedule(now),
       now,
     });

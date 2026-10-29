@@ -38,6 +38,7 @@ import { UpdateProfileUseCase } from './modules/users/application/update-profile
 import { RegisterUserUseCase } from './modules/users/application/register-user.use-case.js';
 import { VerifySessionCsrfUseCase } from './modules/users/application/verify-session-csrf.use-case.js';
 import { AesGcmGraceCipher } from './modules/users/infrastructure/aes-gcm-grace-cipher.adapter.js';
+import { AesGcmSecretCipher } from './modules/users/infrastructure/aes-gcm-secret-cipher.adapter.js';
 import { Argon2PasswordHasher } from './modules/users/infrastructure/argon2-password-hasher.adapter.js';
 import { AuthCleanupScheduler } from './modules/users/infrastructure/auth-cleanup.scheduler.js';
 import { AuthController } from './modules/users/infrastructure/auth.controller.js';
@@ -80,6 +81,8 @@ export function createContainer(): Container {
   // inyectada sin importar users (principio V). Exige X-CSRF-Token en POST, PATCH y DELETE (RF-17, RF-23)
   const tokens = new CryptoTokenService();
   const sessions = new PrismaSessionRepository(prisma);
+  // Una sola clave para las copias cifradas: tokens del margen de gracia y token CSRF de la sesión (plan de la 003, D-4)
+  const secretCipher = new AesGcmSecretCipher(config.sessionEncryptionKey);
   const verifyCsrf = new VerifySessionCsrfUseCase(tokens);
   const session = createSessionMiddleware(new AuthenticateSessionUseCase(sessions, tokens, verifyCsrf, clock));
 
@@ -134,15 +137,9 @@ export function createContainer(): Container {
     controller: new AuthController(
       new IssueCsrfTokenUseCase(tokens, csrfTokens, clock),
       new RegisterUserUseCase(users, passwordHasher),
-      new LoginUseCase(users, sessions, loginAttempts, passwordHasher, tokens, clock),
+      new LoginUseCase(users, sessions, loginAttempts, passwordHasher, tokens, secretCipher, clock),
       new LogoutUseCase(sessions, tokens, verifyCsrf),
-      new RefreshSessionUseCase(
-        sessions,
-        tokens,
-        new AesGcmGraceCipher(config.sessionEncryptionKey),
-        verifyCsrf,
-        clock,
-      ),
+      new RefreshSessionUseCase(sessions, tokens, new AesGcmGraceCipher(secretCipher), verifyCsrf, clock),
     ),
     presessionCsrf: createPresessionCsrfMiddleware({ tokens, csrfTokens, clock }),
   });

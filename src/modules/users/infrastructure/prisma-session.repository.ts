@@ -22,6 +22,7 @@ function toRecord(row: SessionRow): SessionRecord {
       createdAt: row.createdAt,
     }),
     csrfTokenHash: row.csrfTokenHash,
+    csrfTokenSealed: row.csrfTokenSealed,
     graceTokens: row.graceTokens,
   };
 }
@@ -72,12 +73,19 @@ export class PrismaSessionRepository implements SessionRepository {
         userId: input.userId,
         accessTokenHash: input.accessTokenHash,
         csrfTokenHash: input.csrfTokenHash,
+        csrfTokenSealed: input.csrfTokenSealed,
         ...input.schedule,
         createdAt: input.now,
         refreshTokens: { create: { tokenHash: input.refreshTokenHash, generation: 0 } },
       },
     });
     return toRecord(row).session;
+  }
+
+  // Por clave primaria (plan de la 003, D-6)
+  async findById(sessionId: string): Promise<SessionRecord | null> {
+    const row = await this.prisma.session.findUnique({ where: { id: sessionId } });
+    return row ? toRecord(row) : null;
   }
 
   async findByAccessTokenHash(accessTokenHash: string): Promise<SessionRecord | null> {

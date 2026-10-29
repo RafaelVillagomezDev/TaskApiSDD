@@ -4,6 +4,7 @@ import { InMemoryLoginAttemptRepository } from '../../../../../tests/support/in-
 import { InMemorySessionRepository } from '../../../../../tests/support/in-memory-session.repository.js';
 import { InMemoryUserRepository } from '../../../../../tests/support/in-memory-user.repository.js';
 import { MAX_FAILED_ATTEMPTS } from '../../domain/login-throttle.value-object.js';
+import { AesGcmSecretCipher } from '../../infrastructure/aes-gcm-secret-cipher.adapter.js';
 import { CryptoTokenService } from '../../infrastructure/crypto-token.adapter.js';
 import { LoginUseCase } from '../login.use-case.js';
 
@@ -19,6 +20,8 @@ describe('LoginUseCase', () => {
   let hasher: FakePasswordHasher;
   let useCase: LoginUseCase;
   const tokens = new CryptoTokenService();
+  // Un token aleatorio son 32 bytes: sirve como clave AES-256 sin depender de ningún secreto
+  const cipher = new AesGcmSecretCipher(Buffer.from(tokens.randomToken(), 'base64url'));
 
   const failTimes = async (times: number, email = EMAIL) => {
     for (let attempt = 0; attempt < times; attempt++) {
@@ -32,7 +35,7 @@ describe('LoginUseCase', () => {
     sessions = new InMemorySessionRepository();
     loginAttempts = new InMemoryLoginAttemptRepository();
     hasher = new FakePasswordHasher();
-    useCase = new LoginUseCase(users, sessions, loginAttempts, hasher, tokens, clock);
+    useCase = new LoginUseCase(users, sessions, loginAttempts, hasher, tokens, cipher, clock);
     await users.create({ email: EMAIL, name: 'Ana', passwordHash: await hasher.hash(PASSWORD) });
   });
 
@@ -58,6 +61,13 @@ describe('LoginUseCase', () => {
       result.session.id,
     );
     expect(await sessions.findByAccessTokenHash(result.accessToken)).toBeNull();
+  });
+
+  it('guarda además una copia cifrada del token CSRF que se abre con el mismo token (RF-02 y RNF-04 de la 003)', async () => {
+    const result = await useCase.execute({ email: EMAIL, password: PASSWORD });
+    const record = await sessions.findById(result.session.id);
+    expect(record?.csrfTokenSealed).not.toContain(result.csrfToken);
+    expect(cipher.open(record?.csrfTokenSealed ?? '')).toBe(result.csrfToken);
   });
 
   it('contraseña errónea → INVALID_CREDENTIALS sin abrir sesión (RF-08)', async () => {

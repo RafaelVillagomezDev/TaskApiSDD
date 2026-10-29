@@ -120,6 +120,8 @@ model Session {
   accessTokenHash  String    @unique @map("access_token_hash") @db.Char(64)
   // Huella del token CSRF de la sesión, fijo durante toda la sesión (RF-24)
   csrfTokenHash    String    @map("csrf_token_hash") @db.Char(64)
+  // Copia AES-256-GCM del token CSRF de la sesión, para devolverlo en GET /me (RF-02 y RNF-04 de la 003)
+  csrfTokenSealed  String    @map("csrf_token_sealed")
   accessExpiresAt  DateTime  @map("access_expires_at") @db.Timestamptz(3)
   refreshExpiresAt DateTime  @map("refresh_expires_at") @db.Timestamptz(3)
   // Login + 30 días: tope absoluto (RF-11, RF-12)

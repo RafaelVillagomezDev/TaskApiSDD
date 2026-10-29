@@ -9,6 +9,7 @@ export interface SessionTokenHashes {
 export interface NewSession extends SessionTokenHashes {
   userId: string;
   csrfTokenHash: string;
+  csrfTokenSealed: string;
   schedule: SessionSchedule;
   now: Date;
 }
@@ -17,6 +18,8 @@ export interface NewSession extends SessionTokenHashes {
 export interface SessionRecord {
   session: Session;
   csrfTokenHash: string;
+  // Copia cifrada del token CSRF, para devolverlo en GET /me (RF-02 de la 003)
+  csrfTokenSealed: string;
   // Copia cifrada de los tokens de la última rotación (margen de gracia, D-1)
   graceTokens: string | null;
 }
@@ -40,6 +43,7 @@ export interface RefreshUnitOfWork {
 // Puerto de salida de sesiones
 export interface SessionRepository {
   create(input: NewSession): Promise<Session>;
+  findById(sessionId: string): Promise<SessionRecord | null>;
   findByAccessTokenHash(accessTokenHash: string): Promise<SessionRecord | null>;
   findByRefreshTokenHash(refreshTokenHash: string): Promise<RefreshTokenRecord | null>;
   // Ejecuta `work` con la sesión del refresh token bloqueada hasta que termina (RF-11 a RF-14, D-4)

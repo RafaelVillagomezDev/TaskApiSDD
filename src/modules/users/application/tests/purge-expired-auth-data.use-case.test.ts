@@ -24,6 +24,7 @@ describe('PurgeExpiredAuthDataUseCase', () => {
       accessTokenHash: `acceso-${name}`,
       refreshTokenHash: `refresh-${name}`,
       csrfTokenHash: `csrf-${name}`,
+      csrfTokenSealed: 'v1.copia-csrf',
       schedule: Session.schedule(openedAt),
       now: openedAt,
     });
