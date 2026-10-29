@@ -335,22 +335,26 @@ Spec: `sdd/002-user-accounts/spec.md` (Aprobada) · Plan: `sdd/002-user-accounts
 ## Fase H6 — Cambiar mi contraseña (HU-06, P2)
 
 ### Tests (deben fallar)
-- [ ] T102 [P] [H6] Test del schema de `PATCH /me/password` (RF-04) — `users/infrastructure/tests/user.schema.test.ts`
+- [x] T102 [P] [H6] Test del schema de `PATCH /me/password` (RF-04) — `users/infrastructure/tests/user.schema.test.ts`
   - Verifica: `dce pnpm test src/modules/users/infrastructure/tests/user.schema` **falla**.
-- [ ] T103 [P] [H6] Test de cambiar la contraseña: cambia la huella, cierra las demás sesiones y mantiene la actual; actual errónea → `WRONG_PASSWORD` y cuenta para el bloqueo; bloqueada → `TOO_MANY_ATTEMPTS`; la nueva puede coincidir con la anterior (RF-09, RF-27, RF-28) — `users/application/tests/change-password.use-case.test.ts`
+- [x] T103 [P] [H6] Test de cambiar la contraseña: cambia la huella, cierra las demás sesiones y mantiene la actual; actual errónea → `WRONG_PASSWORD` y cuenta para el bloqueo; bloqueada → `TOO_MANY_ATTEMPTS`; la nueva puede coincidir con la anterior (RF-09, RF-27, RF-28) — `users/application/tests/change-password.use-case.test.ts`
   - Verifica: `dce pnpm test src/modules/users/application/tests/change-password` **falla**.
-- [ ] T104 [H6] Test HTTP de `PATCH /me/password`: `200`; la otra sesión responde `INVALID_TOKEN` y su refresh `INVALID_REFRESH_TOKEN`; login con la anterior falla y con la nueva funciona; 3 logins fallidos + 2 contraseñas actuales erróneas → bloqueo; la sesión abierta sigue funcionando en `/tasks` con la cuenta bloqueada; petición previa de CORS de `PATCH /me/password` → `200` (RF-09, RF-19, RF-27, RF-28, RF-36) — `users/infrastructure/tests/me.routes.test.ts`
+- [x] T104 [H6] Test HTTP de `PATCH /me/password`: `200`; la otra sesión responde `INVALID_TOKEN` y su refresh `INVALID_REFRESH_TOKEN`; login con la anterior falla y con la nueva funciona; 3 logins fallidos + 2 contraseñas actuales erróneas → bloqueo; la sesión abierta sigue funcionando en `/tasks` con la cuenta bloqueada; petición previa de CORS de `PATCH /me/password` → `200` (RF-09, RF-19, RF-27, RF-28, RF-36) — `users/infrastructure/tests/me.routes.test.ts`
   - Verifica: `dce pnpm test src/modules/users/infrastructure/tests/me.routes` **falla**.
 
 ### Implementación
-- [ ] T105 [H6] Schema de `PATCH /me/password` (RF-04) — `users/infrastructure/user.schema.ts`
+- [x] T105 [H6] Schema de `PATCH /me/password` (RF-04) — `users/infrastructure/user.schema.ts`
   - Verifica: `dce pnpm test src/modules/users/infrastructure/tests/user.schema` pasa.
-- [ ] T106 [H6] Caso de uso cambiar la contraseña (RF-09, RF-27, RF-28) — `users/application/change-password.use-case.ts`
+  - Hecho (2026-10-29): `currentPassword` solo tiene que llegar, con el tope de 128 caracteres para no derivar textos enormes con Argon2id; `newPassword` cumple RF-04. Ninguna se recorta.
+- [x] T106 [H6] Caso de uso cambiar la contraseña (RF-09, RF-27, RF-28) — `users/application/change-password.use-case.ts`
   - Verifica: `dce pnpm test src/modules/users/application/tests/change-password` pasa.
-- [ ] T107 [H6] Controlador y ruta `PATCH /me/password` con su petición previa (RF-27, RF-36) — `users/infrastructure/me.controller.ts`, `users/infrastructure/me.routes.ts`
+  - Hecho (2026-10-29): la comprobación de la contraseña con el bloqueo se extrajo a `users/application/confirm-password.use-case.ts`, con su test, porque `DELETE /me` (T113) la repite tal cual (AGENTS.md §8, sin bloques duplicados). Los fallos cuentan por el email de la cuenta (plan §5.7).
+- [x] T107 [H6] Controlador y ruta `PATCH /me/password` con su petición previa (RF-27, RF-36) — `users/infrastructure/me.controller.ts`, `users/infrastructure/me.routes.ts`
   - Verifica: `dce pnpm test src/modules/users` pasa entero.
-- [ ] T108 [H6] Guía manual, sección QS-H6 — `sdd/002-user-accounts/quickstart.md`
+  - Hecho (2026-10-29): `PATCH /me/password` encadena sesión → JSON → controlador, y el controlador valida el cuerpo antes de comprobar el bloqueo, así que `VALIDATION_ERROR` gana a `TOO_MANY_ATTEMPTS` (RF-34); petición previa de `/me/password` con `PATCH` (RF-36).
+- [x] T108 [H6] Guía manual, sección QS-H6 — `sdd/002-user-accounts/quickstart.md`
   - Verifica: ejecutar QS-H6 a mano.
+  - Hecho (2026-10-29): ejecutado a mano contra la API de desarrollo con dos sesiones de la misma cuenta.
 
 ### Checkpoint H6
 - `dce pnpm test` pasa entero.
@@ -395,7 +399,7 @@ Spec: `sdd/002-user-accounts/spec.md` (Aprobada) · Plan: `sdd/002-user-accounts
 - [x] T119 [P] [Rob] Colección de Postman con `GET /auth/csrf`, registro y login (cookies de Postman y `csrfToken` en una variable), flujo H1–H6 de la 001 con sesión y errores de sesión y CSRF (RF-17, RF-22, RF-23) — `sdd/001-taskApiSDD-mvp/mvp-p1.postman-collection.json`
   - Verifica: `docker run --rm -e TZ=Europe/Madrid -v "$PWD/sdd/001-taskApiSDD-mvp":/etc/newman postman/newman:6-alpine run mvp-p1.postman-collection.json --env-var baseUrl=http://host.docker.internal:3000` sin fallos.
   - Hecho (2026-10-29): 60 peticiones y 66 comprobaciones con Newman, sin fallos. El flujo pide el token previo, registra una cuenta nueva y entra con ella; las peticiones de la 001 envían su cookie y su token CSRF; "2. Errores" añade una segunda cuenta (en lugar de `X-User-Id: otro-usuario`) y los errores de sesión y CSRF (`MISSING_TOKEN`, también con `X-User-Id`; `INVALID_TOKEN`; `INVALID_CSRF_TOKEN` sin cabecera y con el token previo; decisión 19); "3. Mis tareas" entra con `myEmail` y `myPassword`. Las cookies no las gestiona el almacén de Postman, como decía la tarea, sino variables enviadas en la cabecera `Cookie` con `disableCookies` en cada petición (también en la colección de la 002): Newman no reenvía cookies `Secure` por http a `host.docker.internal`, y así Postman no mezcla las cookies guardadas con las de cada cuenta.
-  - Nota (2026-10-28): a petición del usuario, la 002 tiene además su propia colección, `sdd/002-user-accounts/user-accounts.postman-collection.json`, creada tras H1 (token CSRF previo, registro, errores y CORS: 12 peticiones y 12 comprobaciones con Newman, sin fallos) ampliada tras H2 (login, `GET /me`, logout, sus errores y peticiones previas: 26 peticiones y 28 comprobaciones, sin fallos) tras H3 (renovación, margen de gracia, sus errores y la petición previa: 33 peticiones y 35 comprobaciones, sin fallos; la reutilización a los 31 s queda en los tests y en QS-H3.3) y tras H5 (cambiar y consultar el nombre, el email rechazado dentro del flujo porque necesita sesión, sus errores y la petición previa: 39 peticiones y 41 comprobaciones, sin fallos). Las cookies se guardan en la variable `sessionCookie` y se envían en la cabecera `Cookie`, porque Newman no reenvía cookies `Secure` por http a `host.docker.internal`. Se amplía en cada historia.
+  - Nota (2026-10-28): a petición del usuario, la 002 tiene además su propia colección, `sdd/002-user-accounts/user-accounts.postman-collection.json`, creada tras H1 (token CSRF previo, registro, errores y CORS: 12 peticiones y 12 comprobaciones con Newman, sin fallos) ampliada tras H2 (login, `GET /me`, logout, sus errores y peticiones previas: 26 peticiones y 28 comprobaciones, sin fallos) tras H3 (renovación, margen de gracia, sus errores y la petición previa: 33 peticiones y 35 comprobaciones, sin fallos; la reutilización a los 31 s queda en los tests y en QS-H3.3) tras H5 (cambiar y consultar el nombre, el email rechazado dentro del flujo porque necesita sesión, sus errores y la petición previa: 39 peticiones y 41 comprobaciones, sin fallos) y tras H6 (segunda sesión, cambio de contraseña, la otra sesión cerrada, login con la anterior y con la nueva, contraseña actual errónea, sus errores y la petición previa: 49 peticiones y 51 comprobaciones, sin fallos). Las cookies se guardan en la variable `sessionCookie` y se envían en la cabecera `Cookie`, porque Newman no reenvía cookies `Secure` por http a `host.docker.internal`. Se amplía en cada historia.
 - [ ] T120 [Rob] AGENTS.md: variables `SESSION_ENCRYPTION_KEY` y `CORS_ORIGIN`, módulo `users` y aviso de Safari en desarrollo (R-2) — `AGENTS.md`
   - Verifica: `grep -c "SESSION_ENCRYPTION_KEY\|CORS_ORIGIN" AGENTS.md` ≥ 2.
 - [ ] T121 [Rob] Guía manual, sección QS-R: producción con cookies y CORS (petición previa desde `https://kompitu.yandrydev.cloud` y desde otro origen) y rendimiento — `sdd/002-user-accounts/quickstart.md`

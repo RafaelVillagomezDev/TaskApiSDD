@@ -1,4 +1,4 @@
-import { loginBodySchema, registerBodySchema, updateProfileBodySchema } from '../user.schema.js';
+import { changePasswordBodySchema, loginBodySchema, registerBodySchema, updateProfileBodySchema } from '../user.schema.js';
 
 const LOCAL_PART = 'a'.repeat(64);
 // 254 caracteres en total, con etiquetas de dominio de 63 como máximo
@@ -106,5 +106,36 @@ describe('updateProfileBodySchema', () => {
     ['un campo desconocido', { name: 'Ana', role: 'admin' }],
   ])('con %s se rechaza: solo se puede cambiar el nombre (RF-26)', (_case, body) => {
     expect(updateProfileBodySchema.safeParse(body).success).toBe(false);
+  });
+});
+
+describe('changePasswordBodySchema', () => {
+  const body = { currentPassword: 'correct horse battery', newPassword: 'otra frase bastante larga' };
+
+  it('acepta la contraseña actual y una nueva válida, sin recortarlas (RF-04)', () => {
+    const spaced = { currentPassword: ' actual con espacios ', newPassword: ' nueva con ñ y 🙂 ' };
+    expect(changePasswordBodySchema.parse(spaced)).toEqual(spaced);
+  });
+
+  it('la nueva tiene de 12 a 128 caracteres (RF-04)', () => {
+    const withNew = (newPassword: string) => changePasswordBodySchema.safeParse({ ...body, newPassword }).success;
+    expect(withNew('a'.repeat(12))).toBe(true);
+    expect(withNew('a'.repeat(128))).toBe(true);
+    expect(withNew('a'.repeat(11))).toBe(false);
+    expect(withNew('a'.repeat(129))).toBe(false);
+  });
+
+  it('la nueva puede coincidir con la actual (RF-27)', () => {
+    expect(changePasswordBodySchema.safeParse({ ...body, newPassword: body.currentPassword }).success).toBe(true);
+  });
+
+  it.each([
+    ['sin currentPassword', { newPassword: body.newPassword }],
+    ['sin newPassword', { currentPassword: body.currentPassword }],
+    ['con currentPassword vacía', { ...body, currentPassword: '' }],
+    ['con currentPassword de más de 128 caracteres', { ...body, currentPassword: 'a'.repeat(129) }],
+    ['con un número', { ...body, currentPassword: 123456789012 }],
+  ])('%s → se rechaza', (_case, input) => {
+    expect(changePasswordBodySchema.safeParse(input).success).toBe(false);
   });
 });

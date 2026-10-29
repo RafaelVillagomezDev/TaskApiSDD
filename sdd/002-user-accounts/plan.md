@@ -83,6 +83,7 @@ Un módulo vertical nuevo, `users`, gestiona cuentas, sesiones, tokens CSRF y bl
 | `application/get-profile.use-case.ts` | Devuelve el perfil (RF-25). |
 | `application/update-profile.use-case.ts` | Cambia el nombre (RF-05, RF-26). |
 | `application/change-password.use-case.ts` | Verifica la actual con bloqueo, cambia la contraseña y cierra las demás sesiones (RF-09, RF-27, RF-28). |
+| `application/confirm-password.use-case.ts` | Comprueba la contraseña de la cuenta de la sesión con el bloqueo de RF-09 (`TOO_MANY_ATTEMPTS`, `WRONG_PASSWORD` y el fallo contado por su email); lo usan el cambio de contraseña y el borrado de la cuenta, que si no repetirían el mismo código (detectado en T106). |
 | `application/delete-account.use-case.ts` | Verifica la contraseña con bloqueo y borra la cuenta (RF-09, RF-28, RF-29). |
 | `application/purge-expired-auth-data.use-case.ts` | Borra las copias cifradas de más de 30 s, los tokens CSRF previos caducados, las sesiones caducadas y los bloqueos vencidos (D-12). |
 | `infrastructure/argon2-password-hasher.adapter.ts` | Implementa `PasswordHasher` con el paquete `argon2` en modo Argon2id (D-2); el hash ficticio de `verifyDummy` se calcula la primera vez que hace falta y se reutiliza, fuera del constructor (D-3; regla S7059 de SonarQube). |

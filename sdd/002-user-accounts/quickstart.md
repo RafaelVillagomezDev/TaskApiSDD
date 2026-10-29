@@ -210,3 +210,40 @@ Con una sesión abierta (QS-H2.1) y `CSRF` como token de esa sesión:
   ```
   → `400 VALIDATION_ERROR`: `details` indica que falta `name` y que `email` es un campo desconocido. Solo se puede cambiar el nombre (RF-26).
 - Un nombre vacío o solo con espacios (`{"name":"   "}`) o `{"name":null}` lo borra: `200` con `name: null`. Sin `X-CSRF-Token` → `403 INVALID_CSRF_TOKEN`.
+
+## QS-H6 — Cambiar mi contraseña (HU-06)
+
+Dos sesiones de la misma cuenta, cada una con su fichero de cookies (el portátil y el móvil). Usa una cuenta nueva: QS-H2.4 dejó bloqueada la anterior.
+
+```bash
+EMAIL="ana-$RANDOM@example.com"; P=$(csrf)
+curl -s -o /dev/null -X POST $API/auth/register -H "Content-Type: application/json" -H "X-CSRF-Token: $P" -d "{\"email\":\"$EMAIL\",\"password\":\"correct horse battery\"}"
+# login <fichero de cookies> <contraseña>: imprime la respuesta del login
+login() { curl -s -c "$1" -X POST $API/auth/login -H "Content-Type: application/json" -H "X-CSRF-Token: $P" -d "{\"email\":\"$EMAIL\",\"password\":\"$2\"}"; echo; }
+LAPTOP=$(mktemp); PHONE=$(mktemp)
+login $LAPTOP "correct horse battery" > /dev/null
+CSRF_PHONE=$(login $PHONE "correct horse battery" | sed -E 's/.*"csrfToken":"([^"]+)".*/\1/')
+```
+
+- **QS-H6.1** Cambiar la contraseña desde el móvil:
+  ```bash
+  curl -s -b $PHONE -X PATCH $API/me/password -H "Content-Type: application/json" -H "X-CSRF-Token: $CSRF_PHONE" -d '{"currentPassword":"correct horse battery","newPassword":"otra frase bastante larga"}'; echo
+  ```
+  → `200`, `message: "Contraseña cambiada con éxito"` y `data: null` (RF-27).
+- **QS-H6.2** La sesión del portátil se ha cerrado y la del móvil sigue:
+  ```bash
+  curl -s -b $LAPTOP $API/me; echo
+  curl -s -b $PHONE $API/me; echo
+  ```
+  → `401 INVALID_TOKEN` en el portátil (su refresh token responde `INVALID_REFRESH_TOKEN`) y `200` en el móvil.
+- **QS-H6.3** Iniciar sesión con la contraseña anterior y con la nueva:
+  ```bash
+  login /dev/null "correct horse battery"
+  login /dev/null "otra frase bastante larga"
+  ```
+  → `401 INVALID_CREDENTIALS` con la anterior y `200` con la nueva.
+- **QS-H6.4** Contraseña actual errónea:
+  ```bash
+  curl -s -b $PHONE -X PATCH $API/me/password -H "Content-Type: application/json" -H "X-CSRF-Token: $CSRF_PHONE" -d '{"currentPassword":"contraseña equivocada","newPassword":"una tercera frase larga"}'; echo
+  ```
+  → `403 WRONG_PASSWORD`. El fallo cuenta para el bloqueo de RF-09, junto con los logins fallidos: con 5 en 15 minutos, `PATCH /me/password` y el login responden `429 TOO_MANY_ATTEMPTS`, aunque las sesiones ya abiertas siguen funcionando.

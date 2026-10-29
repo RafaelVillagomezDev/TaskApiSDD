@@ -1,7 +1,9 @@
 import {
+  clientHeaders,
   createTestContainer,
   FRONTEND_ORIGIN,
   signIn,
+  TEST_PASSWORD,
   startTestServer,
   type TestContainer,
   type TestServer,
@@ -33,6 +35,27 @@ describe('rutas de /me', () => {
     });
     return { response, status: response.status, body: (await response.json()) as Envelope };
   };
+
+  const changePassword = async (body: unknown, headers: Record<string, string>) => {
+    const response = await server.request('/me/password', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...headers },
+      body: JSON.stringify(body),
+    });
+    return { response, status: response.status, body: (await response.json()) as Envelope };
+  };
+  // Login directo con el token previo, para comprobar qué contraseña vale
+  const login = async (password: string, email = 'ana@example.com') => {
+    const presession = (await (await server.request('/auth/csrf')).json()) as { data: { csrfToken: string } };
+    const response = await server.request('/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': presession.data.csrfToken },
+      body: JSON.stringify({ email, password }),
+    });
+    return { status: response.status, body: (await response.json()) as Envelope };
+  };
+  const NEW_PASSWORD = 'otra frase bastante larga';
+  const WRONG = 'contraseña equivocada';
 
   beforeEach(async () => {
     container = createTestContainer();
@@ -147,6 +170,97 @@ describe('rutas de /me', () => {
       const bea = await signIn(server, 'bea@example.com');
       await patchMe({ name: 'Bea' }, bea);
       expect((await me({ Cookie: ana.Cookie })).body.data).toMatchObject({ email: 'ana@example.com', name: 'Ana' });
+    });
+  });
+
+  describe('PATCH /me/password', () => {
+    it('cambia la contraseña → 200 con data null; la otra sesión se cierra y la actual sigue (RF-27, HU-06)', async () => {
+      const laptop = await signIn(server);
+      const phone = await signIn(server);
+      const { status, body } = await changePassword({ currentPassword: TEST_PASSWORD, newPassword: NEW_PASSWORD }, phone);
+      expect(status).toBe(200);
+      expect(body).toEqual({ success: true, status: 200, message: 'Contraseña cambiada con éxito', data: null });
+      expect((await me({ Cookie: phone.Cookie })).status).toBe(200);
+      expect((await me({ Cookie: laptop.Cookie })).body.error?.code).toBe('INVALID_TOKEN');
+      const refresh = await server.request('/auth/refresh', { method: 'POST', headers: laptop });
+      expect(((await refresh.json()) as Envelope).error?.code).toBe('INVALID_REFRESH_TOKEN');
+    });
+
+    it('después, el login con la anterior → INVALID_CREDENTIALS y con la nueva → 200 (RF-27, HU-06)', async () => {
+      await changePassword({ currentPassword: TEST_PASSWORD, newPassword: NEW_PASSWORD }, await signIn(server));
+      expect((await login(TEST_PASSWORD)).body.error?.code).toBe('INVALID_CREDENTIALS');
+      expect((await login(NEW_PASSWORD)).status).toBe(200);
+    });
+
+    it('con la contraseña actual errónea → 403 WRONG_PASSWORD y no cambia nada (RF-28)', async () => {
+      const laptop = await signIn(server);
+      const phone = await signIn(server);
+      const { status, body } = await changePassword({ currentPassword: WRONG, newPassword: NEW_PASSWORD }, phone);
+      expect(status).toBe(403);
+      expect(body.error?.code).toBe('WRONG_PASSWORD');
+      expect((await me({ Cookie: laptop.Cookie })).status).toBe(200);
+      expect((await login(TEST_PASSWORD)).status).toBe(200);
+    });
+
+    it('3 logins fallidos y 2 contraseñas actuales erróneas bloquean; la sesión abierta sigue en /tasks (RF-09)', async () => {
+      const session = await signIn(server);
+      for (let attempt = 0; attempt < 3; attempt++) {
+        expect((await login(WRONG)).body.error?.code).toBe('INVALID_CREDENTIALS');
+      }
+      for (let attempt = 0; attempt < 2; attempt++) {
+        expect((await changePassword({ currentPassword: WRONG, newPassword: NEW_PASSWORD }, session)).status).toBe(403);
+      }
+      const locked = await changePassword({ currentPassword: TEST_PASSWORD, newPassword: NEW_PASSWORD }, session);
+      expect(locked.status).toBe(429);
+      expect(locked.body.error?.code).toBe('TOO_MANY_ATTEMPTS');
+      expect((await login(TEST_PASSWORD)).body.error?.code).toBe('TOO_MANY_ATTEMPTS');
+      const tasks = await server.request('/tasks', { headers: { ...clientHeaders(), ...session } });
+      expect(tasks.status).toBe(200);
+      expect((await me({ Cookie: session.Cookie })).status).toBe(200);
+    });
+
+    it.each([
+      ['una nueva de 11 caracteres', { currentPassword: TEST_PASSWORD, newPassword: 'a'.repeat(11) }],
+      ['sin la contraseña actual', { newPassword: NEW_PASSWORD }],
+    ])('con %s → 400 VALIDATION_ERROR (RF-04)', async (_case, input) => {
+      const { status, body } = await changePassword(input, await signIn(server));
+      expect(status).toBe(400);
+      expect(body.error?.code).toBe('VALIDATION_ERROR');
+    });
+
+    it('bloqueada y sin newPassword gana VALIDATION_ERROR (RF-34)', async () => {
+      const session = await signIn(server);
+      for (let attempt = 0; attempt < 5; attempt++) await login(WRONG);
+      expect((await changePassword({ currentPassword: TEST_PASSWORD }, session)).body.error?.code).toBe('VALIDATION_ERROR');
+    });
+
+    it('sin X-CSRF-Token → 403 INVALID_CSRF_TOKEN y la contraseña no cambia (RF-23)', async () => {
+      const session = await signIn(server);
+      const { status, body } = await changePassword(
+        { currentPassword: TEST_PASSWORD, newPassword: NEW_PASSWORD },
+        { Cookie: session.Cookie },
+      );
+      expect(status).toBe(403);
+      expect(body.error?.code).toBe('INVALID_CSRF_TOKEN');
+      expect((await login(TEST_PASSWORD)).status).toBe(200);
+    });
+
+    it('sin cookie de sesión → 401 MISSING_TOKEN (RF-18)', async () => {
+      const { status, body } = await changePassword(
+        { currentPassword: TEST_PASSWORD, newPassword: NEW_PASSWORD },
+        { 'X-CSRF-Token': 'cualquiera' },
+      );
+      expect(status).toBe(401);
+      expect(body.error?.code).toBe('MISSING_TOKEN');
+    });
+
+    it('petición previa de CORS de PATCH /me/password → 200 (RF-36)', async () => {
+      const response = await server.request('/me/password', {
+        method: 'OPTIONS',
+        headers: { Origin: FRONTEND_ORIGIN, 'Access-Control-Request-Method': 'PATCH' },
+      });
+      expect(response.status).toBe(200);
+      expect(response.headers.get('access-control-allow-methods')).toBe('PATCH');
     });
   });
 
