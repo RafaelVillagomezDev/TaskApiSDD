@@ -1,5 +1,5 @@
 # Feature: Token CSRF de la sesión en `GET /me`
-Rama: 003-session-csrf-on-me · Estado: Clarificada · Fecha: 2026-10-29
+Rama: 003-session-csrf-on-me · Estado: Aprobada · Fecha: 2026-10-29
 
 ## Contexto y objetivo
 
@@ -18,8 +18,10 @@ Esta spec **modifica** la 002 (`sdd/002-user-accounts/spec.md`), que no se edita
 | RF-25 (`GET /me` devuelve id, email, nombre y fecha de alta) | Ampliado por RF-01: `data` pasa a ser `{ user, csrfToken }`, con la misma forma que la respuesta del login. |
 | RF-24 (el token CSRF se entrega en la respuesta del login) | Ampliado por RF-01: también se entrega en `GET /me`. |
 | Contrato `GET /me` → `data`: recurso `User` | Sustituido por `data: { user: User, csrfToken: string }`. |
+| Resumen de endpoints: `GET /me` → RF-25 | RF-25 de la 002 y RF-01 a RF-04 de esta spec. |
+| RNF-06 (una copia de la base de datos no permite usar los tokens de sesión) | Sigue vigente y se aplica también al token CSRF de la sesión, aunque ahora el sistema deba poder devolverlo (RNF-04 de esta spec). |
 
-El resto de la 002 no cambia. En particular, `PATCH /me` sigue devolviendo el recurso `User` (RF-03).
+El resto de la 002 no cambia. En particular, `PATCH /me` sigue devolviendo el recurso `User` (RF-03 de esta spec).
 
 ## Historias de usuario (con prioridad y prueba independiente)
 
@@ -31,7 +33,7 @@ Como cliente con una sesión abierta, quiero obtener el token CSRF de esa sesió
   - Dada una sesión abierta, cuando el cliente llama a `GET /me`, entonces recibe su cuenta en `data.user` y el token CSRF de esa sesión en `data.csrfToken`.
   - Dada una sesión renovada con `POST /auth/refresh`, cuando el cliente llama a `GET /me`, entonces recibe el mismo token CSRF que en el login (RF-24 de la 002).
   - Dadas dos sesiones de la misma cuenta, cuando cada una llama a `GET /me`, entonces cada una recibe su propio token CSRF.
-- **RF:** RF-01 a RF-03.
+- **RF:** RF-01 a RF-04.
 
 ## Requisitos funcionales (EARS, con ID RF-xx)
 
@@ -40,13 +42,14 @@ Los RF de esta spec se numeran desde RF-01 dentro de la funcionalidad 003. Cuand
 - **RF-01** — Cuando un usuario consulta su perfil con una sesión válida, el sistema deberá devolver en `data` su cuenta (`user`, con los campos de RF-25 de la 002) y el token CSRF de esa sesión (`csrfToken`).
 - **RF-02** — El sistema deberá devolver en `GET /me` el mismo token CSRF que entregó en el login de esa sesión, durante toda la sesión y también tras cada renovación (RF-24 de la 002).
 - **RF-03** — El sistema deberá mantener sin cambios la respuesta de `PATCH /me`: el recurso `User`, sin token CSRF.
+- **RF-04** — Cuando se instala esta funcionalidad, el sistema deberá cerrar todas las sesiones abiertas, porque no conservan lo necesario para devolver su token CSRF (RF-02); cada usuario vuelve a iniciar sesión una vez.
 
 ## Contrato de la API
 
 ### GET `/me`
 
 **Respuestas:**
-- `200 OK` → `data`: la cuenta y el token CSRF de la sesión (RF-01, RF-02).
+- `200 OK` → `data`: la cuenta y el token CSRF de la sesión (RF-01, RF-02). La respuesta no puede guardarse en ninguna caché (RNF-03).
 
 ```json
 {
@@ -68,6 +71,8 @@ El resto de endpoints no cambia.
 
 - **RNF-01** — RNF-01 de la 001 (p95 < 300 ms) se mantiene en `GET /me`.
 - **RNF-02** — `GET /me` no expone ningún token de acceso ni de refresco en el cuerpo (RNF-04 y RNF-05 de la 002 siguen vigentes): solo el token CSRF, que ya viajaba en el cuerpo del login.
+- **RNF-03** — Ni el navegador ni ningún intermediario deberán poder guardar en caché la respuesta de `GET /me`, porque lleva el token CSRF de la sesión.
+- **RNF-04** — RNF-06 de la 002 sigue vigente para el token CSRF de la sesión: aunque el sistema lo conserve para poder devolverlo (RF-02), una copia de la base de datos sola no deberá permitir obtenerlo ni usarlo.
 
 ## Casos límite
 
@@ -78,12 +83,15 @@ El resto de endpoints no cambia.
 - Dos pestañas de la misma sesión → el mismo `csrfToken` en ambas.
 - Dos sesiones de la misma cuenta → `csrfToken` distintos; el de una responde `INVALID_CSRF_TOKEN` en la otra (RF-23 de la 002).
 - `PATCH /me` → `data` es el recurso `User`, sin `csrfToken` (RF-03).
+- Sesión abierta antes de instalar esta funcionalidad → `GET /me` y el resto de rutas protegidas responden `INVALID_TOKEN`; tras un nuevo login, `GET /me` devuelve su `csrfToken` (RF-04).
+- Volver a pedir `GET /me` (recarga, botón «atrás») → la respuesta se pide de nuevo a la API, nunca sale de una caché (RNF-03).
 
 ## Fuera de alcance
 
 - Rotar el token CSRF de la sesión: sigue siendo estable durante toda la sesión (decisión 17 de la 002).
 - Un endpoint dedicado para el token CSRF de la sesión: `GET /me` ya es la consulta que un cliente hace al arrancar.
 - Cambios en `GET /auth/csrf` (token previo a la sesión).
+- Impedir que se guarden en caché las respuestas del resto de rutas protegidas (`/tasks`, `/streak`, `/alerts`, `PATCH /me`…): cambia endpoints de la 001 y la 002 y, si se quiere, irá en su propia funcionalidad.
 
 ## Criterios de éxito (CE-xx)
 
@@ -93,13 +101,18 @@ El resto de endpoints no cambia.
 ## Supuestos
 
 - **S-01** — Devolver el token CSRF en el cuerpo no debilita la protección frente a CSRF: una web de otro origen no puede leer la respuesta, porque CORS solo permite leerla al origen del frontend (RF-35 de la 002). Es el mismo criterio por el que el login ya lo devuelve en el cuerpo.
-- **S-02** — El único cliente de `GET /me` es TaskFrontSDD, que aún no está en producción, así que cambiar la forma de `data` no rompe a nadie. La colección de Postman de la 002 se actualiza en el plan de esta funcionalidad.
+- **S-02** — El único cliente de `GET /me` es TaskFrontSDD, que aún no está en producción, así que cambiar la forma de `data` y cerrar las sesiones abiertas al instalar esta funcionalidad (RF-04) no rompe a nadie. La colección de Postman de la 002 se actualiza en el plan de esta funcionalidad.
 
 ## Clarificaciones
 
 - **2026-10-29** — ¿Cómo recupera el frontend el token CSRF tras recargar sin guardarlo en el navegador? → `GET /me` lo devuelve (decisión del responsable del proyecto, detectada al planificar la spec 001 de TaskFrontSDD).
 - **2026-10-29** — ¿Forma de `data` en `GET /me`? → `{ user, csrfToken }`, la misma que en el login; `PATCH /me` sigue devolviendo solo `User`.
+- **2026-10-29** — La 002 solo guarda la huella del token CSRF de la sesión, así que no puede devolver «el mismo token que el login» (RF-02). ¿Cómo se recupera? (detectado en la revisión de QA) → El sistema conserva además una copia del token que solo el servidor puede descifrar; se descartan generar un token nuevo en cada `GET /me` (invalida las demás pestañas y contradice la decisión 17 de la 002) y derivarlo de la sesión. Las sesiones abiertas antes de instalar la funcionalidad no tienen esa copia y se cierran al instalarla (RF-04).
+- **2026-10-29** — `GET /me` pasa a llevar un secreto en una petición `GET`: ¿qué respuestas no deben guardarse en caché? → Solo la de `GET /me` (RNF-03); el resto de rutas protegidas queda fuera de alcance.
+- **2026-10-29** — ¿Sigue vigente RNF-06 de la 002 para el token CSRF de la sesión, ahora que debe poder devolverse? → Sí: una copia de la base de datos sola no permite obtenerlo ni usarlo (RNF-04).
 
 ## Registro de cambios
 
 - **2026-10-29** — Creación de la spec con las dos clarificaciones. Sin marcas `[NEEDS CLARIFICATION]`. Estado → *Clarificada*, pendiente de la aprobación del responsable del proyecto.
+- **2026-10-29** — Revisión de QA contra CONSTITUTION.md y AGENTS.md: tres clarificaciones nuevas (recuperar el token, caché y RNF-06 de la 002). Se añaden RF-04, RNF-03, RNF-04, dos casos límite, un punto fuera de alcance y dos filas en la relación con la 002; se precisa la referencia a RF-03. Sin marcas `[NEEDS CLARIFICATION]`. Estado → *Clarificada*, pendiente de la aprobación del responsable del proyecto.
+- **2026-10-29** — Aprobada por el responsable del proyecto. Estado → *Aprobada*.

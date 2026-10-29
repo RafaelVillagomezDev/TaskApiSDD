@@ -469,8 +469,10 @@ TaskApiSDD/
 │   ├── spec.md                #   Registro, login, sesiones en cookies, refresh token, CSRF y gestión de la cuenta
 │   ├── plan.md                #   Módulo users, tablas nuevas, Argon2id (argon2), tokens aleatorios y AES-GCM de node:crypto
 │   └── tasks.md               #   121 tareas: base, H1–H7 y robustez, con su estado [x]/[ ]
-├── sdd/003-session-csrf-on-me/ # Funcionalidad 003: token CSRF de la sesión en GET /me (especificada)
-│   └── spec.md                #   GET /me devuelve { user, csrfToken }
+├── sdd/003-session-csrf-on-me/ # Funcionalidad 003: token CSRF de la sesión en GET /me (planificada)
+│   ├── spec.md                #   GET /me devuelve { user, csrfToken }
+│   ├── plan.md                #   Copia AES-256-GCM del token CSRF en sessions, migración que cierra las sesiones y no-store
+│   └── tasks.md               #   25 tareas: base, H1 y robustez, con su estado [x]/[ ]
 ├── prisma/
 │   ├── schema.prisma          # Modelo de datos
 │   └── migrations/            # Migraciones versionadas (nunca se editan)
@@ -729,9 +731,9 @@ Abre `graphify-out/graph.html` en el navegador para verlo de forma interactiva.
 
 ## Estado del proyecto
 
-### Funcionalidad 003 — Token CSRF de la sesión en `GET /me` (especificada)
+### Funcionalidad 003 — Token CSRF de la sesión en `GET /me` (planificada)
 
-[`spec.md`](sdd/003-session-csrf-on-me/spec.md) *Clarificada*, pendiente de aprobación; sin plan ni tareas todavía. `GET /me` pasará a devolver `data: { user, csrfToken }`, la misma forma que el login, para que el frontend recupere el token CSRF de la sesión tras recargar la página sin guardarlo en el navegador. `PATCH /me` no cambia. La pide TaskFrontSDD (requisito previo de su spec 001).
+[`spec.md`](sdd/003-session-csrf-on-me/spec.md) *Aprobada*; [`plan.md`](sdd/003-session-csrf-on-me/plan.md) *Aprobado* (sin dependencias nuevas: columna `sessions.csrf_token_sealed` cifrada con `SESSION_ENCRYPTION_KEY`; a partir de ahí, cambiar esa clave obliga a cerrar todas las sesiones) y [`tasks.md`](sdd/003-session-csrf-on-me/tasks.md) con 25 tareas (base, H1 y robustez), ninguna hecha todavía. `GET /me` pasará a devolver `data: { user, csrfToken }`, la misma forma que el login, para que el frontend recupere el token CSRF de la sesión tras recargar la página sin guardarlo en el navegador. Para poder devolver el mismo token que el login, la API conserva una copia que solo el servidor puede descifrar (una copia de la base de datos sola no basta para usarlo, como exige RNF-06 de la 002); **al instalarla se cierran todas las sesiones abiertas** y cada usuario vuelve a iniciar sesión una vez. La respuesta de `GET /me` no se guarda en ninguna caché. `PATCH /me` no cambia. La pide TaskFrontSDD (requisito previo de su spec 001).
 
 ### Funcionalidad 002 — Cuentas de usuario (en curso)
 
