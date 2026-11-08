@@ -66,7 +66,7 @@ Como usuario, quiero ver todas mis sesiones, activas y pasadas, para saber cuán
 - **Escenarios:**
   - Dadas tres sesiones del usuario, cuando las consulta, entonces recibe las tres con su estado, de la más reciente a la más antigua.
   - Dadas sesiones de otro usuario, cuando el usuario consulta las suyas, entonces no aparecen.
-- **RF:** RF-17, RF-18.
+- **RF:** RF-17, RF-18, RF-64.
 
 ### HU-05 — Pausar, reanudar y terminar la sesión y ver el resultado (P1)
 Como usuario, quiero pausar la sesión si me interrumpen, reanudarla después, terminarla antes de tiempo si acabo, y que al terminar quede cerrada con el resumen de lo que hice, para comparar lo planeado con lo conseguido.
@@ -116,7 +116,7 @@ Como usuario, quiero decidir qué hago con las tareas que no terminé en una ses
 
 ## Requisitos funcionales (EARS, con ID RF-xx)
 
-Los RF de esta spec se numeran desde RF-01 dentro de la funcionalidad 004. Cuando se cita un requisito de otra funcionalidad se indica («RF-21 de la 002»). Los RF-52 a RF-63 salen de separar requisitos compuestos en la revisión de EARS; los números anteriores no cambian para no romper las referencias.
+Los RF de esta spec se numeran desde RF-01 dentro de la funcionalidad 004. Cuando se cita un requisito de otra funcionalidad se indica («RF-21 de la 002»). Los RF-52 a RF-63 salen de separar requisitos compuestos en la revisión de EARS, y RF-64 de una clarificación al planificar; los números anteriores no cambian para no romper las referencias.
 
 ### Propiedad, acceso y relación con la 001
 - **RF-01** — El sistema deberá limitar cada operación sobre sesiones, tareas, racha y logros del pomodoro a los del usuario de la sesión (amplía RF-21 de la 002).
@@ -151,6 +151,7 @@ Los RF de esta spec se numeran desde RF-01 dentro de la funcionalidad 004. Cuand
 ### Consultas
 - **RF-17** — Cuando un usuario consulta una sesión por su id, el sistema deberá devolverla con su estado, sus tareas y su resultado.
 - **RF-18** — Cuando un usuario consulta sus sesiones, el sistema deberá devolver todas, activas y terminadas, ordenadas de la más reciente a la más antigua y paginadas como en RF-39 y RF-42 de la 001.
+- **RF-64** — El sistema deberá devolver las tareas de una sesión, activa o en su foto, en el orden en que se añadieron a ella: en una misma petición, primero las de `newTasks` y después las de `waitingTaskIds`, cada lista en el orden del cuerpo; una tarea que se quita y se vuelve a añadir pasa al final.
 - **RF-19** — Cuando un usuario consulta sus logros del pomodoro, el sistema deberá devolver los 11 logros del catálogo (RF-43), en ese orden y sin paginar, cada uno con su meta, su progreso (nunca mayor que la meta), si está conseguido y el instante en que se consiguió.
 
 ### Tareas en espera
@@ -235,7 +236,7 @@ Todas las rutas usan la cookie de sesión, `X-CSRF-Token` en `POST`/`PATCH`/`DEL
 | :--- | :--- | :--- | :--- |
 | POST | `/pomodoros` | Empezar una sesión con su duración, sus tareas nuevas y, si se quiere, tareas en espera | RF-04 a RF-12, RF-21, RF-49, RF-52, RF-53, RF-55, RF-56 |
 | GET | `/pomodoros` | Listar las sesiones, activas y terminadas, paginadas | RF-18 |
-| GET | `/pomodoros/{id}` | Consultar una sesión | RF-16, RF-17, RF-20, RF-58 |
+| GET | `/pomodoros/{id}` | Consultar una sesión | RF-16, RF-17, RF-20, RF-58, RF-64 |
 | PATCH | `/pomodoros/{id}` | Pausar, reanudar o terminar la sesión | RF-30 a RF-34, RF-50, RF-60, RF-61 |
 | POST | `/pomodoros/{id}/tasks` | Añadir tareas nuevas o en espera a la sesión activa | RF-04 a RF-06, RF-21, RF-25, RF-27, RF-51, RF-56, RF-59 |
 | DELETE | `/pomodoros/{id}/tasks/{taskId}` | Quitar una tarea pendiente de la sesión activa; pasa a estar en espera | RF-26 a RF-28, RF-37, RF-62 |
@@ -265,7 +266,7 @@ Todas las rutas usan la cookie de sesión, `X-CSRF-Token` en `POST`/`PATCH`/`DEL
 }
 ```
 
-- `tasks`: estado actual mientras la sesión está activa; foto del instante de fin cuando está terminada (RF-16).
+- `tasks`: estado actual mientras la sesión está activa; foto del instante de fin cuando está terminada (RF-16). En el orden en que se añadieron a la sesión (RF-64).
 - `completedTasks` y `totalTasks`: resumen del resultado («3 de 5»), calculado sobre `tasks`.
 - `status`: `running`, `paused` o `finished` (RF-14).
 - `endsAt`: fin previsto; `null` mientras está pausada (RF-30). Se recalcula al reanudar (RF-31).
@@ -485,6 +486,9 @@ Todas las rutas usan la cookie de sesión, `X-CSRF-Token` en `POST`/`PATCH`/`DEL
 - `PATCH /pomodoro-tasks/{id}` con `date` → `VALIDATION_ERROR` (RF-54).
 - Editar una tarea completada de una sesión terminada → `INVALID_POMODORO_STATE`; la foto de la sesión no cambia (RF-16, RF-48).
 - `PATCH` de una tarea en espera con `title` y `completed` → `POMODORO_TASK_NOT_IN_SESSION`, y el título no cambia (RF-36).
+- Tarea en espera con fecha de hace un mes añadida a una sesión con 3 tareas → aparece la cuarta, al final (RF-64).
+- Quitar una tarea de la sesión activa y volver a añadirla → pasa al final (RF-64).
+- `POST /pomodoros` con 2 tareas nuevas y 1 en espera → orden: las 2 nuevas en el orden del cuerpo y después la de espera (RF-64).
 - Usuario sin actividad → los 11 logros con `unlocked: false` y `progress: 0` (RF-19).
 - Racha del pomodoro de 3 días que luego se rompe → `STREAK_3` sigue conseguido (RF-44, RF-45).
 - 4 sesiones terminadas por tiempo a las 23:00, 23:30, 00:05 y 00:40 → no hay `MARATHON`: caen en dos días distintos (RF-40, RF-43).
@@ -567,6 +571,7 @@ Ninguna. Todas están resueltas en *Clarificaciones*.
 - **2026-11-08** — Cuerpo de las peticiones (QA-01) → `POST /pomodoros` con `durationMinutes`, `newTasks` y `waitingTaskIds`, todos opcionales (RF-49); el estado se cambia con `PATCH /pomodoros/{id}` y un único campo `status` (RF-50); las tareas de la sesión son un subrecurso: `POST /pomodoros/{id}/tasks` para añadir y `DELETE /pomodoros/{id}/tasks/{taskId}` para quitar (RF-51). Se descartan un `PATCH` con un campo `action` y un `PATCH` con varios cambios a la vez.
 - **2026-11-08** — ¿Qué responde borrar una tarea completada de una sesión terminada? (QA-02) → No se puede: `INVALID_POMODORO_STATE` (RF-22, RF-34), porque forma parte del historial de la sesión (RF-16) y del progreso de los logros (RF-46). Solo se borran tareas en espera. Se descarta permitir borrarla.
 - **2026-11-08** — ¿Se puede editar una tarea del pomodoro? (QA-03) → Título y descripción, nunca la fecha, mientras la tarea está en espera o en la sesión activa, también si está completada (RF-48); en una sesión terminada, `INVALID_POMODORO_STATE`. `PATCH /pomodoro-tasks/{id}` acepta `title`, `description` y `completed`. Se descartan editar también la fecha y no permitir ninguna edición.
+- **2026-11-08** — ¿En qué orden van las tareas dentro de una sesión? (R-1 del plan, detectada al planificar) → En el orden en que se añadieron a la sesión; en una misma petición, primero `newTasks` y después `waitingTaskIds`, cada lista en el orden del cuerpo (RF-64). Se descarta ordenarlas por fecha y creación como las tareas en espera (una tarea traída de espera aparecería arriba aunque se añadiera la última).
 - **2026-11-08** — ¿Qué responde añadir tareas a una sesión si pasaría de 20? (QA-04, detectada en la revisión de EARS y constitución) → `POMODORO_TASK_LIMIT` (`409`, RF-59), comprobado después de que la sesión exista y esté activa (RF-63): una sesión terminada responde siempre `INVALID_POMODORO_STATE`. Al empezar una sesión, más de 20 tareas en el cuerpo sigue siendo `VALIDATION_ERROR` (RF-56). Se descarta mantener `VALIDATION_ERROR` como excepción en la precedencia.
 
 ## Registro de cambios
@@ -590,3 +595,4 @@ Ninguna. Todas están resueltas en *Clarificaciones*.
 - **2026-11-08** — Clarificación QA-03: edición de título y descripción. Se concretan RF-34, RF-48, `PATCH /pomodoro-tasks/{id}` y la tabla de errores; se añaden cinco casos límite. Sin marcas `[NEEDS CLARIFICATION]` y revisión de QA superada. Estado → *Clarificada*, pendiente de la aprobación del responsable del proyecto.
 - **2026-11-08** — Revisión de EARS y de cumplimiento de CONSTITUTION.md y AGENTS.md. Clarificación QA-04: `POMODORO_TASK_LIMIT` (RF-59). Correcciones sin cambio de comportamiento: 17 RF compuestos separados en RF-52 a RF-63 (sin renumerar los existentes), frases explicativas quitadas de los RF, contradicción de RF-04 con RF-25 corregida (RF-52), nueva sección *Términos*, frase del principio VII y ejemplo completo con el sobre en `POST /pomodoros`, escenario de edición en HU-07 y referencias de las historias y del resumen de endpoints actualizadas. Sin marcas `[NEEDS CLARIFICATION]`. Estado → *Clarificada*, pendiente de la aprobación del responsable del proyecto.
 - **2026-11-08** — Aprobada por el responsable del proyecto. Estado → *Aprobada*.
+- **2026-11-08** — Ampliación aprobada por el responsable del proyecto: RF-64 (orden de las tareas dentro de una sesión), detectado al planificar (R-1 del plan). Se añaden tres casos límite y la nota del recurso `Pomodoro`. Estado → *Aprobada*.
