@@ -14,6 +14,8 @@ import { createAlertRouter } from '../../src/modules/alerts/infrastructure/alert
 import { PendingTaskAdapter } from '../../src/modules/alerts/infrastructure/pending-task.adapter.js';
 import { SettleDuePomodoroUseCase } from '../../src/modules/pomodoros/application/settle-due-pomodoro.use-case.js';
 import { StartPomodoroUseCase } from '../../src/modules/pomodoros/application/start-pomodoro.use-case.js';
+import { UpdatePomodoroTaskUseCase } from '../../src/modules/pomodoros/application/update-pomodoro-task.use-case.js';
+import { PomodoroTaskController } from '../../src/modules/pomodoros/infrastructure/pomodoro-task.controller.js';
 import { PomodoroController } from '../../src/modules/pomodoros/infrastructure/pomodoro.controller.js';
 import { createPomodoroRouter } from '../../src/modules/pomodoros/infrastructure/pomodoro.routes.js';
 import { UserTimeZoneAdapter } from '../../src/modules/pomodoros/infrastructure/user-time-zone.adapter.js';
@@ -176,6 +178,7 @@ export function createTestContainer(): TestContainer {
   );
   const pomodoroRouter = createPomodoroRouter({
     pomodoros: new PomodoroController(new StartPomodoroUseCase(pomodoros, settlePomodoros, clock)),
+    pomodoroTasks: new PomodoroTaskController(new UpdatePomodoroTaskUseCase(pomodoros, settlePomodoros, clock)),
     session,
     requestContext,
   });

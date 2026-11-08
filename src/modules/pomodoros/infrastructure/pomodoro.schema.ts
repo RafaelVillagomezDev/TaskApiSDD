@@ -1,6 +1,11 @@
 import { z } from 'zod';
 
-import { daySchema, descriptionSchema, titleSchema } from '../../../shared/infrastructure/http/task-text.schema.js';
+import {
+  daySchema,
+  descriptionSchema,
+  taskPatchBodySchema,
+  titleSchema,
+} from '../../../shared/infrastructure/http/task-text.schema.js';
 import {
   DEFAULT_DURATION_MINUTES,
   MAX_DURATION_MINUTES,
@@ -32,3 +37,10 @@ export const startPomodoroBodySchema = z
     path: ['newTasks'],
     message: `Una sesión no puede tener más de ${MAX_TASKS_PER_POMODORO} tareas`,
   });
+
+// Id de la ruta: solo se valida como cadena; un formato no UUID responde *_NOT_FOUND (D-10 de la 001)
+export const idParamsSchema = z.object({ id: z.string() });
+
+// PATCH /pomodoro-tasks/{id}: las mismas reglas que PATCH /tasks/{id} de la 001: solo título, descripción y
+// completed, y al menos uno; la fecha no se edita (RF-13, RF-48, RF-54; plan, D-8)
+export const updatePomodoroTaskBodySchema = taskPatchBodySchema;

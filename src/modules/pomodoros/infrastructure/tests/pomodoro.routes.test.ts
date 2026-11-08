@@ -216,4 +216,88 @@ describe('rutas del pomodoro', () => {
       expect(response.headers.get('access-control-allow-methods')).toContain('POST');
     });
   });
+  describe('PATCH /pomodoro-tasks/{id}', () => {
+    const patchTask = (id: string | undefined, body: unknown, headers = withSession()) =>
+      call<PomodoroTaskBody>(`/pomodoro-tasks/${id ?? ''}`, { method: 'PATCH', body: JSON.stringify(body) }, headers);
+    // Sesión de `minutes` minutos con una tarea para hoy; devuelve la tarea
+    const sessionTask = async (minutes = 25) => {
+      const { body } = await startPomodoro({ durationMinutes: minutes, newTasks: [{ title: 'Repasar', date: TODAY }] });
+      return body.data?.tasks[0];
+    };
+
+    it('completa una tarea de la sesión activa → 200 con el recurso PomodoroTask (RF-13)', async () => {
+      const task = await sessionTask();
+      container.clock.advance(5 * MINUTE);
+      const { status, body } = await patchTask(task?.id, { completed: true });
+      expect(status).toBe(200);
+      expect(body).toEqual({
+        success: true,
+        status: 200,
+        message: 'Operación realizada con éxito',
+        data: {
+          id: task?.id,
+          title: 'Repasar',
+          description: null,
+          date: TODAY,
+          completed: true,
+          completedAt: new Date(new Date(NOW).getTime() + 5 * MINUTE).toISOString(),
+        },
+      });
+    });
+
+    it('desmarca y edita el título y la descripción (RF-13, RF-48)', async () => {
+      const task = await sessionTask();
+      await patchTask(task?.id, { completed: true });
+      const { status, body } = await patchTask(task?.id, { completed: false, title: ' Repasar el tema 4 ', description: 'Notas' });
+      expect(status).toBe(200);
+      expect(body.data).toMatchObject({ title: 'Repasar el tema 4', description: 'Notas', completed: false, completedAt: null });
+    });
+
+    it('cambiar la fecha → 400 VALIDATION_ERROR con details (RF-54)', async () => {
+      const task = await sessionTask();
+      const { status, body } = await patchTask(task?.id, { date: '2026-10-25' });
+      expect(status).toBe(400);
+      expect(body.error?.code).toBe('VALIDATION_ERROR');
+      expect(body.error?.details?.length).toBeGreaterThan(0);
+    });
+
+    it('completar una tarea en espera → 409 POMODORO_TASK_NOT_IN_SESSION (RF-36)', async () => {
+      const task = await sessionTask(1);
+      container.clock.advance(MINUTE);
+      const { status, body } = await patchTask(task?.id, { completed: true });
+      expect(status).toBe(409);
+      expect(body.error).toEqual({
+        code: 'POMODORO_TASK_NOT_IN_SESSION',
+        message: ERROR_CODES.POMODORO_TASK_NOT_IN_SESSION.message,
+      });
+    });
+
+    it('editar el título de una tarea en espera → 200 (RF-48)', async () => {
+      const task = await sessionTask(1);
+      container.clock.advance(MINUTE);
+      expect((await patchTask(task?.id, { title: 'Corregido' })).body.data?.title).toBe('Corregido');
+    });
+
+    it('desmarcar una tarea de una sesión terminada → 409 INVALID_POMODORO_STATE (RF-34)', async () => {
+      const task = await sessionTask(1);
+      await patchTask(task?.id, { completed: true });
+      container.clock.advance(MINUTE);
+      const { status, body } = await patchTask(task?.id, { completed: false });
+      expect(status).toBe(409);
+      expect(body.error?.code).toBe('INVALID_POMODORO_STATE');
+    });
+
+    it('un id no UUID o una tarea de otra cuenta → 404 POMODORO_TASK_NOT_FOUND (RF-01, RF-07)', async () => {
+      expect((await patchTask('tarea-1', { completed: true })).body.error?.code).toBe('POMODORO_TASK_NOT_FOUND');
+      const task = await sessionTask();
+      const bea = await signIn(server, 'bea@example.com');
+      const { status, body } = await patchTask(task?.id, { completed: true }, { ...withSession(), ...bea });
+      expect(status).toBe(404);
+      expect(body.error?.code).toBe('POMODORO_TASK_NOT_FOUND');
+    });
+
+    it('un cuerpo vacío → 400 VALIDATION_ERROR antes que la tarea inexistente (RF-63)', async () => {
+      expect((await patchTask('8f1c2e4a-0000-4000-8000-0000000000ff', {})).body.error?.code).toBe('VALIDATION_ERROR');
+    });
+  });
 });

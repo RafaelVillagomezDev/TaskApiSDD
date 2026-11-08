@@ -4,7 +4,7 @@ import { paginationQueryShape } from '../../../shared/infrastructure/http/pagina
 import {
   daySchema,
   descriptionSchema,
-  editedDescriptionSchema,
+  taskPatchBodySchema,
   titleSchema,
 } from '../../../shared/infrastructure/http/task-text.schema.js';
 
@@ -18,14 +18,7 @@ export const createTaskBodySchema = z.object({
 export const taskIdParamsSchema = z.object({ id: z.string() });
 
 // PATCH: solo los campos permitidos y al menos uno; un campo ausente no cambia (RF-13, RF-37)
-export const updateTaskBodySchema = z
-  .strictObject({
-    title: titleSchema.optional(),
-    // null, vacía o solo espacios borra la descripción (RF-38)
-    description: editedDescriptionSchema,
-    completed: z.boolean().optional(),
-  })
-  .refine((body) => Object.keys(body).length > 0, { message: 'Debe incluir al menos un campo' });
+export const updateTaskBodySchema = taskPatchBodySchema;
 
 // Consulta de tareas: un día (`date`) o un rango inclusivo (`from`/`to`), nunca ambos (RF-08 a RF-10, RF-40, RF-43)
 export const listTasksQuerySchema = z

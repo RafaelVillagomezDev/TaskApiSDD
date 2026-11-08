@@ -14,6 +14,8 @@ import { PrismaAlertRepository } from './modules/alerts/infrastructure/prisma-al
 import { PrismaUserTimeZoneRepository } from './modules/alerts/infrastructure/prisma-user-time-zone.repository.js';
 import { SettleDuePomodoroUseCase } from './modules/pomodoros/application/settle-due-pomodoro.use-case.js';
 import { StartPomodoroUseCase } from './modules/pomodoros/application/start-pomodoro.use-case.js';
+import { UpdatePomodoroTaskUseCase } from './modules/pomodoros/application/update-pomodoro-task.use-case.js';
+import { PomodoroTaskController } from './modules/pomodoros/infrastructure/pomodoro-task.controller.js';
 import { PomodoroController } from './modules/pomodoros/infrastructure/pomodoro.controller.js';
 import { createPomodoroRouter } from './modules/pomodoros/infrastructure/pomodoro.routes.js';
 import { PomodoroScheduler } from './modules/pomodoros/infrastructure/pomodoro.scheduler.js';
@@ -145,6 +147,7 @@ export function createContainer(): Container {
   const pomodoroScheduler = new PomodoroScheduler(settlePomodoros);
   const pomodoroRouter = createPomodoroRouter({
     pomodoros: new PomodoroController(new StartPomodoroUseCase(pomodoroRepository, settlePomodoros, clock)),
+    pomodoroTasks: new PomodoroTaskController(new UpdatePomodoroTaskUseCase(pomodoroRepository, settlePomodoros, clock)),
     session,
     requestContext,
   });

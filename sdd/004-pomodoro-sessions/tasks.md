@@ -127,16 +127,20 @@ Spec: `sdd/004-pomodoro-sessions/spec.md` (Aprobada) · Plan: `sdd/004-pomodoro-
 ## Fase H2 — Completar y editar tareas durante la sesión (HU-03, P1)
 
 ### Tests (deben fallar)
-- [ ] T027 [P] [H2] Test del schema de `PATCH /pomodoro-tasks/{id}`: al menos un campo; `date` y campos desconocidos → error; descripción vacía → `null` (RF-06, RF-53, RF-54) — `pomodoros/infrastructure/tests/pomodoro.schema.test.ts`
+- [x] T027 [P] [H2] Test del schema de `PATCH /pomodoro-tasks/{id}`: al menos un campo; `date` y campos desconocidos → error; descripción vacía → `null` (RF-06, RF-53, RF-54) — `pomodoros/infrastructure/tests/pomodoro.schema.test.ts`
   - Verifica: `dce pnpm test pomodoros/infrastructure/tests/pomodoro.schema` **falla**.
-- [ ] T028 [P] [H2] Test de `UpdatePomodoroTaskUseCase`: completar (también con fecha futura y en sesión pausada) guarda `completedAt`; desmarcar → `null`; editar en espera y en la sesión activa, también completada; en espera con `completed` → `POMODORO_TASK_NOT_IN_SESSION` sin editar nada; sesión terminada → `INVALID_POMODORO_STATE`; ajena → `POMODORO_TASK_NOT_FOUND` (RF-07, RF-13, RF-34, RF-36, RF-48, RF-57) — `pomodoros/application/tests/update-pomodoro-task.use-case.test.ts`
+  - Hecho (2026-11-08): 14 casos nuevos; falló porque el schema no existía.
+- [x] T028 [P] [H2] Test de `UpdatePomodoroTaskUseCase`: completar (también con fecha futura y en sesión pausada) guarda `completedAt`; desmarcar → `null`; editar en espera y en la sesión activa, también completada; en espera con `completed` → `POMODORO_TASK_NOT_IN_SESSION` sin editar nada; sesión terminada → `INVALID_POMODORO_STATE`; ajena → `POMODORO_TASK_NOT_FOUND` (RF-07, RF-13, RF-34, RF-36, RF-48, RF-57) — `pomodoros/application/tests/update-pomodoro-task.use-case.test.ts`
   - Verifica: `dce pnpm test pomodoros/application/tests/update-pomodoro-task` **falla**.
-- [ ] T029 [P] [H2] Test HTTP de `PATCH /pomodoro-tasks/{id}`: `200` con el recurso; los errores anteriores; id no UUID → `POMODORO_TASK_NOT_FOUND` (RF-13, RF-48, RF-54) — `pomodoros/infrastructure/tests/pomodoro.routes.test.ts`
+  - Hecho (2026-11-08): 15 casos; falló porque el caso de uso no existía.
+- [x] T029 [P] [H2] Test HTTP de `PATCH /pomodoro-tasks/{id}`: `200` con el recurso; los errores anteriores; id no UUID → `POMODORO_TASK_NOT_FOUND` (RF-13, RF-48, RF-54) — `pomodoros/infrastructure/tests/pomodoro.routes.test.ts`
   - Verifica: `dce pnpm test pomodoros/infrastructure/tests/pomodoro.routes` **falla**.
+  - Hecho (2026-11-08): 8 casos, también una tarea de otra cuenta y `VALIDATION_ERROR` antes que la tarea inexistente; fallaron con 404 porque la ruta no existía.
 
 ### Implementación
-- [ ] T030 [H2] Schema del `PATCH` de tarea, `UpdatePomodoroTaskUseCase` (los logros se añaden en T054), `PomodoroTaskController.update` y su ruta — `pomodoros/infrastructure/pomodoro.schema.ts`, `pomodoros/application/update-pomodoro-task.use-case.ts`, `pomodoros/infrastructure/pomodoro-task.controller.ts`, `pomodoros/infrastructure/pomodoro.routes.ts`, contenedores
+- [x] T030 [H2] Schema del `PATCH` de tarea, `UpdatePomodoroTaskUseCase` (los logros se añaden en T054), `PomodoroTaskController.update` y su ruta — `pomodoros/infrastructure/pomodoro.schema.ts`, `pomodoros/application/update-pomodoro-task.use-case.ts`, `pomodoros/infrastructure/pomodoro-task.controller.ts`, `pomodoros/infrastructure/pomodoro.routes.ts`, contenedores
   - Verifica: `dce pnpm test pomodoros` pasa.
+  - Hecho (2026-11-08): el caso de uso bloquea la sesión de la tarea y la vuelve a leer tras el bloqueo, para no cruzarse con su asentamiento (D-4); devuelve la entidad y el controlador responde el recurso `PomodoroTask` con «Operación realizada con éxito». El schema del `PATCH` era idéntico al de `PATCH /tasks/{id}`, así que pasa a `src/shared/infrastructure/http/task-text.schema.ts` como `taskPatchBodySchema` y lo usan los dos (refactor sin cambio observable, como D-8; los tests de `tasks` pasan sin tocarlos). `dce pnpm test pomodoros` → 9 suites y 144 tests; suite completa → 74 suites y 918 tests en verde; `tsc --noEmit` sin errores.
 
 ### Checkpoint H2
 - `dce pnpm test` pasa entero.

@@ -1,4 +1,4 @@
-import { startPomodoroBodySchema } from '../pomodoro.schema.js';
+import { startPomodoroBodySchema, updatePomodoroTaskBodySchema } from '../pomodoro.schema.js';
 
 const UUID_A = '8f1c2e4a-0000-4000-8000-0000000000a1';
 const UUID_B = '8f1c2e4a-0000-4000-8000-0000000000b2';
@@ -56,5 +56,45 @@ describe('startPomodoroBodySchema', () => {
     expect(startPomodoroBodySchema.safeParse({ status: 'running' }).success).toBe(false);
     expect(startPomodoroBodySchema.safeParse({ newTasks: newTask() }).success).toBe(false);
     expect(startPomodoroBodySchema.safeParse({ waitingTaskIds: [5] }).success).toBe(false);
+  });
+});
+
+describe('updatePomodoroTaskBodySchema', () => {
+  it('acepta completar, desmarcar y editar el título y la descripción (RF-13, RF-48)', () => {
+    expect(updatePomodoroTaskBodySchema.parse({ completed: true })).toEqual({ completed: true });
+    expect(updatePomodoroTaskBodySchema.parse({ completed: false })).toEqual({ completed: false });
+    expect(updatePomodoroTaskBodySchema.parse({ title: '  Nuevo título ', description: 'Notas' })).toEqual({
+      title: 'Nuevo título',
+      description: 'Notas',
+    });
+  });
+
+  it.each([null, '', '   '])('la descripción %p se borra: queda null (RF-53)', (description) => {
+    expect(updatePomodoroTaskBodySchema.parse({ description })).toEqual({ description: null });
+  });
+
+  it('un campo ausente no cambia: no aparece en el resultado', () => {
+    expect(updatePomodoroTaskBodySchema.parse({ title: 'Solo el título' })).toEqual({ title: 'Solo el título' });
+  });
+
+  it('un cuerpo vacío → error: hace falta al menos un campo', () => {
+    expect(updatePomodoroTaskBodySchema.safeParse({}).success).toBe(false);
+  });
+
+  it.each([
+    ['la fecha', { date: '2026-11-09' }],
+    ['un campo desconocido', { position: 3 }],
+    ['la fecha junto a un campo permitido', { title: 'Tarea', date: '2026-11-09' }],
+  ])('rechaza %s: la fecha no se edita (RF-54)', (_case, body) => {
+    expect(updatePomodoroTaskBodySchema.safeParse(body).success).toBe(false);
+  });
+
+  it.each([
+    ['título vacío', { title: '   ' }],
+    ['título de 201 caracteres', { title: 'a'.repeat(201) }],
+    ['descripción de 1001 caracteres', { description: 'a'.repeat(1001) }],
+    ['completed que no es booleano', { completed: 'true' }],
+  ])('rechaza %s (RF-06)', (_case, body) => {
+    expect(updatePomodoroTaskBodySchema.safeParse(body).success).toBe(false);
   });
 });

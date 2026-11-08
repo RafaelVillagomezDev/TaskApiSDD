@@ -41,3 +41,15 @@ export const editedDescriptionSchema = z
   .nullable()
   .transform(emptyToNull)
   .optional();
+
+// PATCH de una tarea: solo título, descripción y completed, y al menos uno; la fecha no se edita y un campo
+// ausente no cambia. Lo comparten PATCH /tasks/{id} (RF-13 y RF-37 de la 001) y PATCH /pomodoro-tasks/{id}
+// (RF-48 y RF-54 de la 004)
+export const taskPatchBodySchema = z
+  .strictObject({
+    title: titleSchema.optional(),
+    // null, vacía o solo espacios borra la descripción (RF-38 de la 001)
+    description: editedDescriptionSchema,
+    completed: z.boolean().optional(),
+  })
+  .refine((body) => Object.keys(body).length > 0, { message: 'Debe incluir al menos un campo' });
