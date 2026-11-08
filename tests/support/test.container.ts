@@ -12,9 +12,13 @@ import { RecordUserTimeZoneUseCase } from '../../src/modules/alerts/application/
 import { AlertController } from '../../src/modules/alerts/infrastructure/alert.controller.js';
 import { createAlertRouter } from '../../src/modules/alerts/infrastructure/alert.routes.js';
 import { PendingTaskAdapter } from '../../src/modules/alerts/infrastructure/pending-task.adapter.js';
+import { AddPomodoroTaskUseCase } from '../../src/modules/pomodoros/application/add-pomodoro-task.use-case.js';
 import { ChangePomodoroStatusUseCase } from '../../src/modules/pomodoros/application/change-pomodoro-status.use-case.js';
+import { DeletePomodoroTaskUseCase } from '../../src/modules/pomodoros/application/delete-pomodoro-task.use-case.js';
 import { GetPomodoroUseCase } from '../../src/modules/pomodoros/application/get-pomodoro.use-case.js';
 import { ListPomodorosUseCase } from '../../src/modules/pomodoros/application/list-pomodoro.use-case.js';
+import { ListWaitingPomodoroTasksUseCase } from '../../src/modules/pomodoros/application/list-waiting-pomodoro-task.use-case.js';
+import { RemovePomodoroTaskUseCase } from '../../src/modules/pomodoros/application/remove-pomodoro-task.use-case.js';
 import { SettleDuePomodoroUseCase } from '../../src/modules/pomodoros/application/settle-due-pomodoro.use-case.js';
 import { StartPomodoroUseCase } from '../../src/modules/pomodoros/application/start-pomodoro.use-case.js';
 import { UpdatePomodoroTaskUseCase } from '../../src/modules/pomodoros/application/update-pomodoro-task.use-case.js';
@@ -185,8 +189,14 @@ export function createTestContainer(): TestContainer {
       new GetPomodoroUseCase(pomodoros, settlePomodoros, clock),
       new ListPomodorosUseCase(pomodoros, settlePomodoros, clock),
       new ChangePomodoroStatusUseCase(pomodoros, settlePomodoros, timeZones, clock),
+      new AddPomodoroTaskUseCase(pomodoros, settlePomodoros, clock),
+      new RemovePomodoroTaskUseCase(pomodoros, settlePomodoros, clock),
     ),
-    pomodoroTasks: new PomodoroTaskController(new UpdatePomodoroTaskUseCase(pomodoros, settlePomodoros, clock)),
+    pomodoroTasks: new PomodoroTaskController(
+      new UpdatePomodoroTaskUseCase(pomodoros, settlePomodoros, clock),
+      new ListWaitingPomodoroTasksUseCase(pomodoros, settlePomodoros),
+      new DeletePomodoroTaskUseCase(pomodoros, settlePomodoros),
+    ),
     session,
     requestContext,
   });

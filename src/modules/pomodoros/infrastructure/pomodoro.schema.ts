@@ -50,3 +50,18 @@ export const updatePomodoroTaskBodySchema = taskPatchBodySchema;
 export const changePomodoroStatusBodySchema = z.strictObject({
   status: z.enum(['paused', 'running', 'finished']),
 });
+
+// POST /pomodoros/{id}/tasks: las mismas listas que al empezar, con al menos una tarea entre las dos (RF-51). El
+// límite de 20 lo comprueba el caso de uso con las que ya tiene la sesión (RF-59)
+export const addPomodoroTasksBodySchema = z
+  .strictObject({
+    newTasks: z.array(newTaskSchema).default([]),
+    waitingTaskIds: waitingTaskIdsSchema.default([]),
+  })
+  .refine((body) => body.newTasks.length + body.waitingTaskIds.length > 0, {
+    path: ['newTasks'],
+    message: 'Debe incluir al menos una tarea',
+  });
+
+// Ruta de una tarea dentro de una sesión: los dos ids solo se validan como cadenas (D-10 de la 001)
+export const sessionTaskParamsSchema = z.object({ id: z.string(), taskId: z.string() });

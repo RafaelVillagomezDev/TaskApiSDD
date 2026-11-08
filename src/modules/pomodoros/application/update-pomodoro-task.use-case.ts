@@ -2,7 +2,8 @@ import type { RequestContext } from '../../../shared/application/request-context
 import { AppError } from '../../../shared/domain/app.error.js';
 import type { Clock } from '../../../shared/domain/clock.port.js';
 import type { PomodoroTask, PomodoroTaskEdit } from '../domain/pomodoro-task.entity.js';
-import type { PomodoroRepository, PomodoroUnitOfWork } from '../domain/pomodoro.repository.js';
+import type { PomodoroRepository } from '../domain/pomodoro.repository.js';
+import { lockTaskWithSession } from './pomodoro-task.helper.js';
 import type { SettleDuePomodoroUseCase } from './settle-due-pomodoro.use-case.js';
 
 // Cuerpo de PATCH /pomodoro-tasks/{id} ya validado: al menos un campo (RF-54)
@@ -26,7 +27,9 @@ export class UpdatePomodoroTaskUseCase {
     const now = this.clock.now();
 
     return this.pomodoros.transaction(async (unit) => {
-      const task = await this.lockedTask(unit, context.userId, taskId);
+      const { task, pomodoro } = await lockTaskWithSession(unit, context.userId, taskId);
+      // Una tarea de una sesión terminada ya no admite cambios (RF-34, RF-35)
+      if (pomodoro && !pomodoro.isActive()) throw new AppError('INVALID_POMODORO_STATE');
       if (task.pomodoroId === null && input.completed !== undefined) {
         throw new AppError('POMODORO_TASK_NOT_IN_SESSION');
       }
@@ -37,19 +40,5 @@ export class UpdatePomodoroTaskUseCase {
       await unit.saveTasks([task]);
       return task;
     });
-  }
-
-  // La tarea con su sesión bloqueada, leída de nuevo tras el bloqueo: así no se cruza con el asentamiento
-  // de esa sesión (D-4). Una tarea de una sesión terminada ya no admite cambios (RF-34, RF-35)
-  private async lockedTask(unit: PomodoroUnitOfWork, userId: string, taskId: string): Promise<PomodoroTask> {
-    const [found] = await unit.findTasks(userId, [taskId]);
-    if (!found) throw new AppError('POMODORO_TASK_NOT_FOUND');
-    if (found.pomodoroId === null) return found;
-
-    const pomodoro = await unit.lockPomodoro(userId, found.pomodoroId);
-    const [task] = await unit.findTasks(userId, [taskId]);
-    if (!task) throw new AppError('POMODORO_TASK_NOT_FOUND');
-    if (pomodoro && !pomodoro.isActive()) throw new AppError('INVALID_POMODORO_STATE');
-    return task;
   }
 }

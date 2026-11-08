@@ -463,4 +463,107 @@ describe('rutas del pomodoro', () => {
       expect(response.status).toBe(200);
     });
   });
+  describe('tareas en espera y lista de la sesión activa', () => {
+    interface TaskPage {
+      items: PomodoroTaskBody[];
+      page: number;
+      pageSize: number;
+      totalItems: number;
+      totalPages: number;
+    }
+    const addTasks = (id: string | undefined, body: unknown, headers = withSession()) =>
+      call(`/pomodoros/${id ?? ''}/tasks`, { method: 'POST', body: JSON.stringify(body) }, headers);
+    const removeTask = (id: string | undefined, taskId: string | undefined) =>
+      call(`/pomodoros/${id ?? ''}/tasks/${taskId ?? ''}`, { method: 'DELETE' });
+    const deleteTask = (taskId: string | undefined) => call<null>(`/pomodoro-tasks/${taskId ?? ''}`, { method: 'DELETE' });
+
+    it('POST /pomodoros/{id}/tasks añade nuevas y en espera al final → 200 con la sesión (RF-25, RF-51, RF-64)', async () => {
+      const old = await startPomodoro({ durationMinutes: 1, newTasks: [{ title: 'En espera', date: TODAY }] });
+      container.clock.advance(MINUTE);
+      const current = await startPomodoro({ newTasks: [{ title: 'Primera', date: TODAY }] });
+      const { status, body } = await addTasks(current.body.data?.id, {
+        newTasks: [{ title: 'Nueva', date: TODAY }],
+        waitingTaskIds: [old.body.data?.tasks[0]?.id],
+      });
+      expect(status).toBe(200);
+      expect(body).toMatchObject({ success: true, status: 200, message: 'Operación realizada con éxito' });
+      expect(body.data?.tasks.map((task) => task.title)).toEqual(['Primera', 'Nueva', 'En espera']);
+    });
+
+    it('POST /pomodoros/{id}/tasks sin tareas → 400; pasando de 20 → 409 POMODORO_TASK_LIMIT (RF-51, RF-59)', async () => {
+      const titles = Array.from({ length: 19 }, (_, index) => ({ title: `Tarea ${index}`, date: TODAY }));
+      const id = (await startPomodoro({ newTasks: titles })).body.data?.id;
+      expect((await addTasks(id, {})).body.error?.code).toBe('VALIDATION_ERROR');
+      const { status, body } = await addTasks(id, { newTasks: [{ title: 'A', date: TODAY }, { title: 'B', date: TODAY }] });
+      expect(status).toBe(409);
+      expect(body.error).toEqual({ code: 'POMODORO_TASK_LIMIT', message: ERROR_CODES.POMODORO_TASK_LIMIT.message });
+    });
+
+    it('DELETE /pomodoros/{id}/tasks/{taskId} quita la tarea, que pasa a GET /pomodoro-tasks (RF-26, RF-62)', async () => {
+      const started = await startPomodoro({ newTasks: [{ title: 'A', date: TODAY }, { title: 'B', date: TODAY }] });
+      const [a] = started.body.data?.tasks ?? [];
+      const { status, body } = await removeTask(started.body.data?.id, a?.id);
+      expect(status).toBe(200);
+      expect(body.data?.tasks.map((task) => task.title)).toEqual(['B']);
+      const waiting = await call<TaskPage>('/pomodoro-tasks');
+      expect(waiting.body.data?.items.map((task) => task.title)).toEqual(['A']);
+    });
+
+    it('quitar una completada → 409 POMODORO_TASK_COMPLETED; una que no está → 404 (RF-28, RF-37)', async () => {
+      const started = await startPomodoro({ newTasks: [{ title: 'Hecha', date: TODAY }] });
+      const taskId = started.body.data?.tasks[0]?.id;
+      await call(`/pomodoro-tasks/${taskId ?? ''}`, { method: 'PATCH', body: JSON.stringify({ completed: true }) });
+      expect((await removeTask(started.body.data?.id, taskId)).body.error?.code).toBe('POMODORO_TASK_COMPLETED');
+      const missing = await removeTask(started.body.data?.id, '8f1c2e4a-0000-4000-8000-0000000000ff');
+      expect(missing.status).toBe(404);
+      expect(missing.body.error?.code).toBe('POMODORO_TASK_NOT_FOUND');
+    });
+
+    it('GET /pomodoro-tasks lista las tareas en espera por fecha y creación, paginadas (RF-24)', async () => {
+      await startPomodoro({
+        durationMinutes: 1,
+        newTasks: [
+          { title: 'Mañana', date: '2026-10-25' },
+          { title: 'Hoy', date: TODAY },
+        ],
+      });
+      container.clock.advance(MINUTE);
+      const { status, body } = await call<TaskPage>('/pomodoro-tasks?page=1&pageSize=1');
+      expect(status).toBe(200);
+      expect(body.data?.items).toEqual([
+        { id: expect.any(String), title: 'Hoy', description: null, date: TODAY, completed: false, completedAt: null },
+      ]);
+      expect(body.data).toMatchObject({ page: 1, pageSize: 1, totalItems: 2, totalPages: 2 });
+    });
+
+    it('DELETE /pomodoro-tasks/{id} borra una tarea en espera → 200 con data null (RF-22)', async () => {
+      const started = await startPomodoro({ durationMinutes: 1, newTasks: [{ title: 'Sobra', date: TODAY }] });
+      container.clock.advance(MINUTE);
+      const taskId = started.body.data?.tasks[0]?.id;
+      const { status, body } = await deleteTask(taskId);
+      expect(status).toBe(200);
+      expect(body).toEqual({ success: true, status: 200, message: 'Operación realizada con éxito', data: null });
+      expect((await deleteTask(taskId)).body.error?.code).toBe('POMODORO_TASK_NOT_FOUND');
+    });
+
+    it('DELETE /pomodoro-tasks/{id} de una tarea de la sesión activa → 409 POMODORO_TASK_IN_SESSION (RF-29)', async () => {
+      const started = await startPomodoro({ newTasks: [{ title: 'En curso', date: TODAY }] });
+      const { status, body } = await deleteTask(started.body.data?.tasks[0]?.id);
+      expect(status).toBe(409);
+      expect(body.error?.code).toBe('POMODORO_TASK_IN_SESSION');
+    });
+
+    it('la petición previa de CORS admite cada método en su ruta', async () => {
+      const preflight = (path: string, method: string) =>
+        server.request(path, {
+          method: 'OPTIONS',
+          headers: { Origin: FRONTEND_ORIGIN, 'Access-Control-Request-Method': method },
+        });
+      const id = '8f1c2e4a-0000-4000-8000-0000000000ff';
+      expect((await preflight(`/pomodoros/${id}/tasks`, 'POST')).status).toBe(200);
+      expect((await preflight(`/pomodoros/${id}/tasks/${id}`, 'DELETE')).status).toBe(200);
+      expect((await preflight('/pomodoro-tasks', 'GET')).status).toBe(200);
+      expect((await preflight(`/pomodoro-tasks/${id}`, 'DELETE')).status).toBe(200);
+    });
+  });
 });

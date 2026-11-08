@@ -5,12 +5,20 @@ import { paginationQuerySchema } from '../../../shared/infrastructure/http/pagin
 import { getRequestContext } from '../../../shared/infrastructure/http/request-context.middleware.js';
 import { parseOrThrow } from '../../../shared/infrastructure/http/request-validation.helper.js';
 import { sendSuccess } from '../../../shared/infrastructure/http/response-envelope.helper.js';
+import type { AddPomodoroTaskUseCase } from '../application/add-pomodoro-task.use-case.js';
 import type { ChangePomodoroStatusUseCase } from '../application/change-pomodoro-status.use-case.js';
 import type { GetPomodoroUseCase } from '../application/get-pomodoro.use-case.js';
 import type { ListPomodorosUseCase } from '../application/list-pomodoro.use-case.js';
+import type { RemovePomodoroTaskUseCase } from '../application/remove-pomodoro-task.use-case.js';
 import type { StartPomodoroUseCase } from '../application/start-pomodoro.use-case.js';
 import { toPomodoroResponse } from './pomodoro.mapper.js';
-import { changePomodoroStatusBodySchema, idParamsSchema, startPomodoroBodySchema } from './pomodoro.schema.js';
+import {
+  addPomodoroTasksBodySchema,
+  changePomodoroStatusBodySchema,
+  idParamsSchema,
+  sessionTaskParamsSchema,
+  startPomodoroBodySchema,
+} from './pomodoro.schema.js';
 
 // Traduce HTTP ↔ casos de uso de las sesiones pomodoro (plan, D-11)
 export class PomodoroController {
@@ -19,6 +27,8 @@ export class PomodoroController {
     private readonly getPomodoro: GetPomodoroUseCase,
     private readonly listPomodoros: ListPomodorosUseCase,
     private readonly changePomodoroStatus: ChangePomodoroStatusUseCase,
+    private readonly addPomodoroTasks: AddPomodoroTaskUseCase,
+    private readonly removePomodoroTask: RemovePomodoroTaskUseCase,
   ) {}
 
   // Sin cuerpo equivale a un cuerpo vacío: todos sus campos son opcionales (RF-49)
@@ -48,6 +58,21 @@ export class PomodoroController {
     const { id } = parseOrThrow(idParamsSchema, req.params);
     const { status } = parseOrThrow(changePomodoroStatusBodySchema, req.body);
     const detail = await this.changePomodoroStatus.execute(context, id, status);
+    sendSuccess(res, 200, 'Operación realizada con éxito', toPomodoroResponse(detail));
+  };
+
+  addTasks: RequestHandler = async (req, res) => {
+    const context = getRequestContext(res);
+    const { id } = parseOrThrow(idParamsSchema, req.params);
+    const input = parseOrThrow(addPomodoroTasksBodySchema, req.body);
+    const detail = await this.addPomodoroTasks.execute(context, id, input);
+    sendSuccess(res, 200, 'Operación realizada con éxito', toPomodoroResponse(detail));
+  };
+
+  removeTask: RequestHandler = async (req, res) => {
+    const context = getRequestContext(res);
+    const { id, taskId } = parseOrThrow(sessionTaskParamsSchema, req.params);
+    const detail = await this.removePomodoroTask.execute(context, id, taskId);
     sendSuccess(res, 200, 'Operación realizada con éxito', toPomodoroResponse(detail));
   };
 }

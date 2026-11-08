@@ -1,4 +1,5 @@
 import {
+  addPomodoroTasksBodySchema,
   changePomodoroStatusBodySchema,
   startPomodoroBodySchema,
   updatePomodoroTaskBodySchema,
@@ -115,5 +116,30 @@ describe('changePomodoroStatusBodySchema', () => {
     ['un campo además de status', { status: 'paused', durationMinutes: 10 }],
   ])('rechaza %s (RF-50)', (_case, body) => {
     expect(changePomodoroStatusBodySchema.safeParse(body).success).toBe(false);
+  });
+});
+
+describe('addPomodoroTasksBodySchema', () => {
+  it('acepta tareas nuevas, en espera o ambas (RF-51)', () => {
+    expect(addPomodoroTasksBodySchema.parse({ newTasks: [newTask()] }).waitingTaskIds).toEqual([]);
+    expect(addPomodoroTasksBodySchema.parse({ waitingTaskIds: [UUID_A] }).newTasks).toEqual([]);
+  });
+
+  it.each([
+    ['un cuerpo vacío', {}],
+    ['dos listas vacías', { newTasks: [], waitingTaskIds: [] }],
+  ])('rechaza %s: hace falta al menos una tarea (RF-51)', (_case, body) => {
+    expect(addPomodoroTasksBodySchema.safeParse(body).success).toBe(false);
+  });
+
+  it('rechaza una tarea en espera repetida, textos no válidos y campos desconocidos (RF-06, RF-56)', () => {
+    expect(addPomodoroTasksBodySchema.safeParse({ waitingTaskIds: [UUID_A, UUID_A] }).success).toBe(false);
+    expect(addPomodoroTasksBodySchema.safeParse({ newTasks: [{ title: '', date: '2026-11-08' }] }).success).toBe(false);
+    expect(addPomodoroTasksBodySchema.safeParse({ newTasks: [newTask()], durationMinutes: 5 }).success).toBe(false);
+  });
+
+  it('el límite de 20 lo comprueba el caso de uso con las que ya tiene la sesión (RF-59)', () => {
+    const many = Array.from({ length: 21 }, (_, index) => newTask(`Tarea ${index}`));
+    expect(addPomodoroTasksBodySchema.safeParse({ newTasks: many }).success).toBe(true);
   });
 });

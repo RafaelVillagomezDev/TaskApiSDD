@@ -28,9 +28,16 @@ export function createPomodoroRouter({
   router.get('/pomodoros', session, requestContext, pomodoros.list);
   router.get('/pomodoros/:id', session, requestContext, pomodoros.get);
   router.patch('/pomodoros/:id', session, requestContext, jsonBodyMiddleware, pomodoros.changeStatus);
+  router.post('/pomodoros/:id/tasks', session, requestContext, jsonBodyMiddleware, pomodoros.addTasks);
+  router.delete('/pomodoros/:id/tasks/:taskId', session, requestContext, pomodoros.removeTask);
+  router.get('/pomodoro-tasks', session, requestContext, pomodoroTasks.listWaiting);
   router.patch('/pomodoro-tasks/:id', session, requestContext, jsonBodyMiddleware, pomodoroTasks.update);
+  router.delete('/pomodoro-tasks/:id', session, requestContext, pomodoroTasks.remove);
   allowPreflight(router, '/pomodoros', ['GET', 'POST']);
   allowPreflight(router, '/pomodoros/:id', ['GET', 'PATCH']);
-  allowPreflight(router, '/pomodoro-tasks/:id', ['PATCH']);
+  allowPreflight(router, '/pomodoros/:id/tasks', ['POST']);
+  allowPreflight(router, '/pomodoros/:id/tasks/:taskId', ['DELETE']);
+  allowPreflight(router, '/pomodoro-tasks', ['GET']);
+  allowPreflight(router, '/pomodoro-tasks/:id', ['PATCH', 'DELETE']);
   return router;
 }
