@@ -300,4 +300,84 @@ describe('rutas del pomodoro', () => {
       expect((await patchTask('8f1c2e4a-0000-4000-8000-0000000000ff', {})).body.error?.code).toBe('VALIDATION_ERROR');
     });
   });
+  describe('GET /pomodoros y GET /pomodoros/{id}', () => {
+    interface PomodoroPage {
+      items: PomodoroBody[];
+      page: number;
+      pageSize: number;
+      totalItems: number;
+      totalPages: number;
+    }
+
+    it('GET /pomodoros/{id} devuelve la sesión con el sobre (RF-17)', async () => {
+      const started = await startPomodoro({ newTasks: [{ title: 'Repasar', date: TODAY }] });
+      container.clock.advance(5 * MINUTE);
+      const { status, body } = await call(`/pomodoros/${started.body.data?.id ?? ''}`);
+      expect(status).toBe(200);
+      expect(body).toMatchObject({ success: true, status: 200, message: 'Operación realizada con éxito' });
+      expect(body.data).toMatchObject({ id: started.body.data?.id, status: 'running', remainingSeconds: 1200, totalTasks: 1 });
+    });
+
+    it('una sesión vencida se ve terminada por tiempo, con su foto (RF-15, RF-16)', async () => {
+      const started = await startPomodoro({ durationMinutes: 1, newTasks: [{ title: 'Repasar', date: TODAY }] });
+      container.clock.advance(3 * MINUTE);
+      const { body } = await call(`/pomodoros/${started.body.data?.id ?? ''}`);
+      expect(body.data).toMatchObject({
+        status: 'finished',
+        endReason: 'time',
+        finishedAt: new Date(new Date(NOW).getTime() + MINUTE).toISOString(),
+        focusedSeconds: 60,
+        endsAt: null,
+        remainingSeconds: 0,
+        completedTasks: 0,
+        totalTasks: 1,
+      });
+      expect(body.data?.tasks.map((task) => task.title)).toEqual(['Repasar']);
+    });
+
+    it('un id no UUID, inexistente o de otra cuenta → 404 POMODORO_NOT_FOUND (RF-01, RF-20, CE-02)', async () => {
+      const started = await startPomodoro();
+      expect((await call('/pomodoros/sesion-1')).body.error?.code).toBe('POMODORO_NOT_FOUND');
+      expect((await call('/pomodoros/8f1c2e4a-0000-4000-8000-0000000000ff')).status).toBe(404);
+      const bea = await signIn(server, 'bea@example.com');
+      const { status, body } = await call(`/pomodoros/${started.body.data?.id ?? ''}`, {}, { ...withSession(), ...bea });
+      expect(status).toBe(404);
+      expect(body.error).toEqual({ code: 'POMODORO_NOT_FOUND', message: ERROR_CODES.POMODORO_NOT_FOUND.message });
+    });
+
+    it('GET /pomodoros lista las sesiones de la más reciente a la más antigua, paginadas (RF-18)', async () => {
+      const ids: (string | undefined)[] = [];
+      for (let index = 0; index < 3; index++) {
+        ids.push((await startPomodoro({ durationMinutes: 1 })).body.data?.id);
+        container.clock.advance(MINUTE);
+      }
+      const { status, body } = await call<PomodoroPage>('/pomodoros?page=1&pageSize=2');
+      expect(status).toBe(200);
+      expect(body.data?.items.map((pomodoro) => pomodoro.id)).toEqual([ids[2], ids[1]]);
+      expect(body.data).toMatchObject({ page: 1, pageSize: 2, totalItems: 3, totalPages: 2 });
+    });
+
+    it('GET /pomodoros sin sesiones → lista vacía; no muestra las de otra cuenta (RF-01, CE-02)', async () => {
+      await startPomodoro();
+      const bea = await signIn(server, 'bea@example.com');
+      const { body } = await call<PomodoroPage>('/pomodoros', {}, { ...withSession(), ...bea });
+      expect(body.data).toMatchObject({ items: [], totalItems: 0, totalPages: 0 });
+    });
+
+    it('GET /pomodoros con pageSize 101 → 400 VALIDATION_ERROR (RF-42 de la 001)', async () => {
+      const { status, body } = await call('/pomodoros?pageSize=101');
+      expect(status).toBe(400);
+      expect(body.error?.code).toBe('VALIDATION_ERROR');
+    });
+
+    it('la petición previa de CORS admite GET y POST en /pomodoros y GET en /pomodoros/{id}', async () => {
+      const preflight = (path: string, method: string) =>
+        server.request(path, {
+          method: 'OPTIONS',
+          headers: { Origin: FRONTEND_ORIGIN, 'Access-Control-Request-Method': method },
+        });
+      expect((await preflight('/pomodoros', 'GET')).status).toBe(200);
+      expect((await preflight('/pomodoros/8f1c2e4a-0000-4000-8000-0000000000ff', 'GET')).status).toBe(200);
+    });
+  });
 });

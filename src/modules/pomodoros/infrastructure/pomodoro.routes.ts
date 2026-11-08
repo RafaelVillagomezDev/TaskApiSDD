@@ -25,8 +25,11 @@ export function createPomodoroRouter({
 }: PomodoroRouterDependencies): Router {
   const router = Router();
   router.post('/pomodoros', session, requestContext, jsonBodyMiddleware, pomodoros.start);
+  router.get('/pomodoros', session, requestContext, pomodoros.list);
+  router.get('/pomodoros/:id', session, requestContext, pomodoros.get);
   router.patch('/pomodoro-tasks/:id', session, requestContext, jsonBodyMiddleware, pomodoroTasks.update);
-  allowPreflight(router, '/pomodoros', ['POST']);
+  allowPreflight(router, '/pomodoros', ['GET', 'POST']);
+  allowPreflight(router, '/pomodoros/:id', ['GET']);
   allowPreflight(router, '/pomodoro-tasks/:id', ['PATCH']);
   return router;
 }

@@ -150,16 +150,20 @@ Spec: `sdd/004-pomodoro-sessions/spec.md` (Aprobada) · Plan: `sdd/004-pomodoro-
 ## Fase H3 — Listar y consultar mis sesiones (HU-04, P1)
 
 ### Tests (deben fallar)
-- [ ] T031 [P] [H3] Test de `GetPomodoroUseCase`: propia, ajena e inexistente (`POMODORO_NOT_FOUND`); activa con sus tareas actuales y terminada con su foto aunque las tareas cambien después; orden de RF-64; una vencida se ve terminada sin barrido (RF-16, RF-17, RF-20, RF-58, RF-64, R-2) — `pomodoros/application/tests/get-pomodoro.use-case.test.ts`
+- [x] T031 [P] [H3] Test de `GetPomodoroUseCase`: propia, ajena e inexistente (`POMODORO_NOT_FOUND`); activa con sus tareas actuales y terminada con su foto aunque las tareas cambien después; orden de RF-64; una vencida se ve terminada sin barrido (RF-16, RF-17, RF-20, RF-58, RF-64, R-2) — `pomodoros/application/tests/get-pomodoro.use-case.test.ts`
   - Verifica: `dce pnpm test pomodoros/application/tests/get-pomodoro` **falla**.
-- [ ] T032 [P] [H3] Test de `ListPomodorosUseCase`: activas y terminadas, de la más reciente a la más antigua, paginadas (RF-18) — `pomodoros/application/tests/list-pomodoro.use-case.test.ts`
+  - Hecho (2026-11-08): 7 casos, entre ellos la foto que no cambia aunque la tarea pendiente pase a otra sesión, se renombre y se complete allí; falló porque el caso de uso no existía.
+- [x] T032 [P] [H3] Test de `ListPomodorosUseCase`: activas y terminadas, de la más reciente a la más antigua, paginadas (RF-18) — `pomodoros/application/tests/list-pomodoro.use-case.test.ts`
   - Verifica: `dce pnpm test pomodoros/application/tests/list-pomodoro` **falla**.
-- [ ] T033 [P] [H3] Test HTTP de `GET /pomodoros` y `GET /pomodoros/{id}`: sobre, paginación, aislamiento entre usuarios, id no UUID → `POMODORO_NOT_FOUND` (RF-01, RF-17, RF-18, RF-20, CE-02) — `pomodoros/infrastructure/tests/pomodoro.routes.test.ts`
+  - Hecho (2026-11-08): 5 casos; falló porque el caso de uso no existía.
+- [x] T033 [P] [H3] Test HTTP de `GET /pomodoros` y `GET /pomodoros/{id}`: sobre, paginación, aislamiento entre usuarios, id no UUID → `POMODORO_NOT_FOUND` (RF-01, RF-17, RF-18, RF-20, CE-02) — `pomodoros/infrastructure/tests/pomodoro.routes.test.ts`
   - Verifica: `dce pnpm test pomodoros/infrastructure/tests/pomodoro.routes` **falla**.
+  - Hecho (2026-11-08): 7 casos, también `pageSize=101` → `VALIDATION_ERROR` y la petición previa de CORS de las dos rutas; fallaron con 404 porque las rutas no existían.
 
 ### Implementación
-- [ ] T034 [H3] `GetPomodoroUseCase`, `ListPomodorosUseCase`, `PomodoroController.get` y `list` y sus rutas — `pomodoros/application/get-pomodoro.use-case.ts`, `pomodoros/application/list-pomodoro.use-case.ts`, `pomodoros/infrastructure/pomodoro.controller.ts`, `pomodoros/infrastructure/pomodoro.routes.ts`, contenedores
+- [x] T034 [H3] `GetPomodoroUseCase`, `ListPomodorosUseCase`, `PomodoroController.get` y `list` y sus rutas — `pomodoros/application/get-pomodoro.use-case.ts`, `pomodoros/application/list-pomodoro.use-case.ts`, `pomodoros/infrastructure/pomodoro.controller.ts`, `pomodoros/infrastructure/pomodoro.routes.ts`, contenedores
   - Verifica: `dce pnpm test pomodoros` pasa.
+  - Hecho (2026-11-08): las sesiones terminadas salen con su foto y solo la activa (como mucho una por usuario, RF-12) lee sus tareas actuales. Paginación con `paginationQuerySchema` de `src/shared`. `dce pnpm test pomodoros` → 11 suites y 163 tests; suite completa → 76 suites y 937 tests en verde; `tsc --noEmit` sin errores.
 
 ### Checkpoint H3
 - `dce pnpm test` pasa entero.
