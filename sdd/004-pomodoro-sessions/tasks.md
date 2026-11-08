@@ -98,20 +98,26 @@ Spec: `sdd/004-pomodoro-sessions/spec.md` (Aprobada) · Plan: `sdd/004-pomodoro-
 ## Fase H1 — Empezar una sesión con sus tareas (HU-01 y HU-02, P1)
 
 ### Tests (deben fallar)
-- [ ] T021 [P] [H1] Test del schema de `POST /pomodoros`: duración 0, 121, 25.5 y ausente (25); 21 tareas; ids de espera repetidos; textos de `newTasks` fuera de límites y recortados; campos desconocidos (RF-06, RF-09, RF-10, RF-53, RF-55, RF-56) — `pomodoros/infrastructure/tests/pomodoro.schema.test.ts`
+- [x] T021 [P] [H1] Test del schema de `POST /pomodoros`: duración 0, 121, 25.5 y ausente (25); 21 tareas; ids de espera repetidos; textos de `newTasks` fuera de límites y recortados; campos desconocidos (RF-06, RF-09, RF-10, RF-53, RF-55, RF-56) — `pomodoros/infrastructure/tests/pomodoro.schema.test.ts`
   - Verifica: `dce pnpm test pomodoros/infrastructure/tests/pomodoro.schema` **falla**.
-- [ ] T022 [P] [H1] Test de `StartPomodoroUseCase`: crea en curso con `ends_at = now + duración`; sin tareas; con nuevas y en espera en el orden de RF-64; espera con fecha pasada → hoy; activa (también pausada) → `POMODORO_ALREADY_ACTIVE`; id ajeno, borrado o no en espera → `POMODORO_TASK_NOT_FOUND`; fecha pasada → `DAY_CLOSED` sin crear nada; asienta antes una vencida y deja empezar otra (RF-04, RF-05, RF-08 a RF-12, RF-21, RF-52, RF-64) — `pomodoros/application/tests/start-pomodoro.use-case.test.ts`
+  - Hecho (2026-11-08): 20 casos; falló porque el schema no existía.
+- [x] T022 [P] [H1] Test de `StartPomodoroUseCase`: crea en curso con `ends_at = now + duración`; sin tareas; con nuevas y en espera en el orden de RF-64; espera con fecha pasada → hoy; activa (también pausada) → `POMODORO_ALREADY_ACTIVE`; id ajeno, borrado o no en espera → `POMODORO_TASK_NOT_FOUND`; fecha pasada → `DAY_CLOSED` sin crear nada; asienta antes una vencida y deja empezar otra (RF-04, RF-05, RF-08 a RF-12, RF-21, RF-52, RF-64) — `pomodoros/application/tests/start-pomodoro.use-case.test.ts`
   - Verifica: `dce pnpm test pomodoros/application/tests/start-pomodoro` **falla**.
-- [ ] T023 [P] [H1] Test HTTP de `POST /pomodoros`: `201` con el sobre completo y «Sesión pomodoro iniciada»; errores de sesión, CSRF y cabeceras de hora; `VALIDATION_ERROR` con `details`; `DAY_CLOSED`; `POMODORO_ALREADY_ACTIVE`; `POMODORO_TASK_NOT_FOUND` con una tarea de la 001; `GET /tasks` y `GET /streak` sin cambios (RF-01 a RF-03, RF-49, CE-01, CE-03) — `pomodoros/infrastructure/tests/pomodoro.routes.test.ts`
+  - Hecho (2026-11-08): 13 casos, con la precedencia de RF-63 entre los tres errores del caso de uso; falló porque el caso de uso no existía.
+- [x] T023 [P] [H1] Test HTTP de `POST /pomodoros`: `201` con el sobre completo y «Sesión pomodoro iniciada»; errores de sesión, CSRF y cabeceras de hora; `VALIDATION_ERROR` con `details`; `DAY_CLOSED`; `POMODORO_ALREADY_ACTIVE`; `POMODORO_TASK_NOT_FOUND` con una tarea de la 001; `GET /tasks` y `GET /streak` sin cambios (RF-01 a RF-03, RF-49, CE-01, CE-03) — `pomodoros/infrastructure/tests/pomodoro.routes.test.ts`
   - Verifica: `dce pnpm test pomodoros/infrastructure/tests/pomodoro.routes` **falla**.
+  - Hecho (2026-11-08): 14 casos, también la petición sin cuerpo y la previa de CORS; fallaron con 404 porque la ruta no existía. El caso de CE-03 comprueba `GET /streak` con su forma de la 001, `{ current, best }`: la spec 004 decía que `GET /pomodoro-streak` devuelve `{ currentStreak, bestStreak }`, «la misma forma que `GET /streak`», lo que se contradecía; el responsable del proyecto eligió `{ current, best }` y se corrigió la spec y el plan (2026-11-08).
 
 ### Implementación
-- [ ] T024 [H1] Schemas de `POST /pomodoros` y de paginación sobre `task-text.schema.ts` (D-8) — `pomodoros/infrastructure/pomodoro.schema.ts`
+- [x] T024 [H1] Schemas de `POST /pomodoros` y de paginación sobre `task-text.schema.ts` (D-8) — `pomodoros/infrastructure/pomodoro.schema.ts`
   - Verifica: `dce pnpm test pomodoros/infrastructure/tests/pomodoro.schema` pasa.
-- [ ] T025 [H1] `StartPomodoroUseCase`, con `P2002` → `POMODORO_ALREADY_ACTIVE` (D-3) — `pomodoros/application/start-pomodoro.use-case.ts`
+  - Hecho (2026-11-08): objetos estrictos; el límite de 20 tareas se comprueba sobre las dos listas juntas. 20 tests en verde.
+- [x] T025 [H1] `StartPomodoroUseCase`, con `P2002` → `POMODORO_ALREADY_ACTIVE` (D-3) — `pomodoros/application/start-pomodoro.use-case.ts`
   - Verifica: `dce pnpm test pomodoros/application/tests/start-pomodoro` pasa.
-- [ ] T026 [H1] Recursos `Pomodoro` y `PomodoroTask` en el mapper (`remainingSeconds`, `completedTasks`, `totalTasks`); `PomodoroController.start`; `pomodoro.routes.ts` con sesión → contexto → JSON → controlador y `allowPreflight`; cableado en los dos contenedores (D-11) — `pomodoros/infrastructure/pomodoro.mapper.ts`, `pomodoros/infrastructure/pomodoro.controller.ts`, `pomodoros/infrastructure/pomodoro.routes.ts`, `src/dependency.container.ts`, `tests/support/test.container.ts`
+  - Hecho (2026-11-08): devuelve un `PomodoroDetail` (sesión, tareas y tiempo restante) de `application/pomodoro-detail.helper.ts`, que reutilizarán los demás casos de uso de sesiones. 13 tests en verde.
+- [x] T026 [H1] Recursos `Pomodoro` y `PomodoroTask` en el mapper (`remainingSeconds`, `completedTasks`, `totalTasks`); `PomodoroController.start`; `pomodoro.routes.ts` con sesión → contexto → JSON → controlador y `allowPreflight`; cableado en los dos contenedores (D-11) — `pomodoros/infrastructure/pomodoro.mapper.ts`, `pomodoros/infrastructure/pomodoro.controller.ts`, `pomodoros/infrastructure/pomodoro.routes.ts`, `src/dependency.container.ts`, `tests/support/test.container.ts`
   - Verifica: `dce pnpm test pomodoros` pasa.
+  - Hecho (2026-11-08): sin cuerpo equivale a `{}` (RF-49). `dce pnpm test pomodoros` → 8 suites y 108 tests en verde; `tsc --noEmit` sin errores. Suite completa: 73 suites y 882 tests, con 1 fallo ajeno al pomodoro en `alerts/infrastructure/tests/prisma-alert.repository.int.test.ts`; con permiso del responsable del proyecto se ejecutó ese fichero solo y pasó entero (9 de 9), así que el fallo es intermitente en la ejecución en paralelo; no se pudo ver qué caso falló.
 
 ### Checkpoint H1
 - `dce pnpm test` pasa entero. A mano (QS-01 de la guía, T058): empezar una sesión con dos tareas para hoy y otra para el mes que viene → `201`; con una tarea de ayer → `DAY_CLOSED`.
@@ -203,7 +209,7 @@ Spec: `sdd/004-pomodoro-sessions/spec.md` (Aprobada) · Plan: `sdd/004-pomodoro-
 ### Tests (deben fallar)
 - [ ] T045 [P] [H6] Test del catálogo: 11 logros en orden; metas exactas (9 → no, 10 → sí); `MARATHON` con 4 el mismo día y no en dos; `FOCUS_10H` con 36 000 s (RF-43, RF-45 a RF-47) — `pomodoros/domain/tests/achievement.value-object.test.ts`
   - Verifica: `dce pnpm test pomodoros/domain/tests/achievement` **falla**.
-- [ ] T046 [P] [H6] Test de `GetPomodoroStreakUseCase`: solo cuentan las terminadas por tiempo; hoy aún no productivo; ayer y anteayer → 2; días según `finished_on` (RF-38 a RF-41) — `pomodoros/application/tests/get-pomodoro-streak.use-case.test.ts`
+- [ ] T046 [P] [H6] Test de `GetPomodoroStreakUseCase` (devuelve `{ current, best }`, como `GET /streak`): solo cuentan las terminadas por tiempo; hoy aún no productivo; ayer y anteayer → 2; días según `finished_on` (RF-38 a RF-41) — `pomodoros/application/tests/get-pomodoro-streak.use-case.test.ts`
   - Verifica: `dce pnpm test pomodoros/application/tests/get-pomodoro-streak` **falla**.
 - [ ] T047 [P] [H6] Test de `UnlockPomodoroAchievementUseCase`: desbloquea con el instante del evento; no sobrescribe; `STREAK_3` con la mejor racha (RF-44, RF-45) — `pomodoros/application/tests/unlock-pomodoro-achievement.use-case.test.ts`
   - Verifica: `dce pnpm test pomodoros/application/tests/unlock` **falla**.

@@ -13,6 +13,9 @@ import { AlertController } from '../../src/modules/alerts/infrastructure/alert.c
 import { createAlertRouter } from '../../src/modules/alerts/infrastructure/alert.routes.js';
 import { PendingTaskAdapter } from '../../src/modules/alerts/infrastructure/pending-task.adapter.js';
 import { SettleDuePomodoroUseCase } from '../../src/modules/pomodoros/application/settle-due-pomodoro.use-case.js';
+import { StartPomodoroUseCase } from '../../src/modules/pomodoros/application/start-pomodoro.use-case.js';
+import { PomodoroController } from '../../src/modules/pomodoros/infrastructure/pomodoro.controller.js';
+import { createPomodoroRouter } from '../../src/modules/pomodoros/infrastructure/pomodoro.routes.js';
 import { UserTimeZoneAdapter } from '../../src/modules/pomodoros/infrastructure/user-time-zone.adapter.js';
 import { GetStreakUseCase } from '../../src/modules/streaks/application/get-streak.use-case.js';
 import { ProductiveDateAdapter } from '../../src/modules/streaks/infrastructure/productive-date.adapter.js';
@@ -171,6 +174,11 @@ export function createTestContainer(): TestContainer {
     timeZones,
     clock,
   );
+  const pomodoroRouter = createPomodoroRouter({
+    pomodoros: new PomodoroController(new StartPomodoroUseCase(pomodoros, settlePomodoros, clock)),
+    session,
+    requestContext,
+  });
 
   return {
     clock,
@@ -186,7 +194,7 @@ export function createTestContainer(): TestContainer {
     pomodoros,
     settlePomodoros,
     corsOrigin: FRONTEND_ORIGIN,
-    routers: [authRouter, meRouter, taskRouter, streakRouter, alertRouter],
+    routers: [authRouter, meRouter, taskRouter, streakRouter, alertRouter, pomodoroRouter],
   };
 }
 

@@ -435,7 +435,7 @@ Todas las rutas usan la cookie de sesión, `X-CSRF-Token` en `POST`/`PATCH`/`DEL
 ### GET `/pomodoro-streak`
 
 **Respuestas:**
-- `200 OK` → `data`: `{ "currentStreak": 3, "bestStreak": 7 }`, la misma forma que `GET /streak` (RF-41).
+- `200 OK` → `data`: `{ "current": 3, "best": 7 }`, la misma forma que `GET /streak` de la 001 (RF-41).
 
 ### GET `/pomodoro-achievements`
 
@@ -571,6 +571,7 @@ Ninguna. Todas están resueltas en *Clarificaciones*.
 - **2026-11-08** — Cuerpo de las peticiones (QA-01) → `POST /pomodoros` con `durationMinutes`, `newTasks` y `waitingTaskIds`, todos opcionales (RF-49); el estado se cambia con `PATCH /pomodoros/{id}` y un único campo `status` (RF-50); las tareas de la sesión son un subrecurso: `POST /pomodoros/{id}/tasks` para añadir y `DELETE /pomodoros/{id}/tasks/{taskId}` para quitar (RF-51). Se descartan un `PATCH` con un campo `action` y un `PATCH` con varios cambios a la vez.
 - **2026-11-08** — ¿Qué responde borrar una tarea completada de una sesión terminada? (QA-02) → No se puede: `INVALID_POMODORO_STATE` (RF-22, RF-34), porque forma parte del historial de la sesión (RF-16) y del progreso de los logros (RF-46). Solo se borran tareas en espera. Se descarta permitir borrarla.
 - **2026-11-08** — ¿Se puede editar una tarea del pomodoro? (QA-03) → Título y descripción, nunca la fecha, mientras la tarea está en espera o en la sesión activa, también si está completada (RF-48); en una sesión terminada, `INVALID_POMODORO_STATE`. `PATCH /pomodoro-tasks/{id}` acepta `title`, `description` y `completed`. Se descartan editar también la fecha y no permitir ninguna edición.
+- **2026-11-08** — ¿Qué forma tiene `data` en `GET /pomodoro-streak`? (detectada al implementar la H1: el contrato decía `{ currentStreak, bestStreak }` y a la vez «la misma forma que `GET /streak`», que en la 001 es `{ current, best }`) → `{ current, best }`, la misma que `GET /streak`, para que el frontend reutilice su componente de racha. Se descarta mantener `{ currentStreak, bestStreak }`.
 - **2026-11-08** — ¿En qué orden van las tareas dentro de una sesión? (R-1 del plan, detectada al planificar) → En el orden en que se añadieron a la sesión; en una misma petición, primero `newTasks` y después `waitingTaskIds`, cada lista en el orden del cuerpo (RF-64). Se descarta ordenarlas por fecha y creación como las tareas en espera (una tarea traída de espera aparecería arriba aunque se añadiera la última).
 - **2026-11-08** — ¿Qué responde añadir tareas a una sesión si pasaría de 20? (QA-04, detectada en la revisión de EARS y constitución) → `POMODORO_TASK_LIMIT` (`409`, RF-59), comprobado después de que la sesión exista y esté activa (RF-63): una sesión terminada responde siempre `INVALID_POMODORO_STATE`. Al empezar una sesión, más de 20 tareas en el cuerpo sigue siendo `VALIDATION_ERROR` (RF-56). Se descarta mantener `VALIDATION_ERROR` como excepción en la precedencia.
 
@@ -596,3 +597,4 @@ Ninguna. Todas están resueltas en *Clarificaciones*.
 - **2026-11-08** — Revisión de EARS y de cumplimiento de CONSTITUTION.md y AGENTS.md. Clarificación QA-04: `POMODORO_TASK_LIMIT` (RF-59). Correcciones sin cambio de comportamiento: 17 RF compuestos separados en RF-52 a RF-63 (sin renumerar los existentes), frases explicativas quitadas de los RF, contradicción de RF-04 con RF-25 corregida (RF-52), nueva sección *Términos*, frase del principio VII y ejemplo completo con el sobre en `POST /pomodoros`, escenario de edición en HU-07 y referencias de las historias y del resumen de endpoints actualizadas. Sin marcas `[NEEDS CLARIFICATION]`. Estado → *Clarificada*, pendiente de la aprobación del responsable del proyecto.
 - **2026-11-08** — Aprobada por el responsable del proyecto. Estado → *Aprobada*.
 - **2026-11-08** — Ampliación aprobada por el responsable del proyecto: RF-64 (orden de las tareas dentro de una sesión), detectado al planificar (R-1 del plan). Se añaden tres casos límite y la nota del recurso `Pomodoro`. Estado → *Aprobada*.
+- **2026-11-08** — Corrección aprobada por el responsable del proyecto: el contrato de `GET /pomodoro-streak` devuelve `{ current, best }`, la forma de `GET /streak` de la 001; el ejemplo anterior (`{ currentStreak, bestStreak }`) contradecía la frase «la misma forma que `GET /streak`». Estado → *Aprobada*.

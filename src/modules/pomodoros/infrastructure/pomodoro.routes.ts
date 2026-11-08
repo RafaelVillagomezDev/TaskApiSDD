@@ -1,0 +1,23 @@
+import { type RequestHandler, Router } from 'express';
+
+import { allowPreflight } from '../../../shared/infrastructure/http/cors.middleware.js';
+import { jsonBodyMiddleware } from '../../../shared/infrastructure/http/json-body.middleware.js';
+import type { PomodoroController } from './pomodoro.controller.js';
+
+export interface PomodoroRouterDependencies {
+  pomodoros: PomodoroController;
+  // Middleware de sesión del módulo users, inyectado por el contenedor (principio V): exige X-CSRF-Token
+  // en POST, PATCH y DELETE
+  session: RequestHandler;
+  // Exige X-Client-Time y X-Timezone y recuerda la zona (RF-03)
+  requestContext: RequestHandler;
+}
+
+// Rutas del pomodoro: cada ruta encadena sesión → contexto → JSON → controlador; nada con router.use
+// (D-8 de la 001 y de la 002, precedencia de RF-63)
+export function createPomodoroRouter({ pomodoros, session, requestContext }: PomodoroRouterDependencies): Router {
+  const router = Router();
+  router.post('/pomodoros', session, requestContext, jsonBodyMiddleware, pomodoros.start);
+  allowPreflight(router, '/pomodoros', ['POST']);
+  return router;
+}

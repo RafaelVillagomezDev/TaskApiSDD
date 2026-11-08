@@ -1,0 +1,34 @@
+import { z } from 'zod';
+
+import { daySchema, descriptionSchema, titleSchema } from '../../../shared/infrastructure/http/task-text.schema.js';
+import {
+  DEFAULT_DURATION_MINUTES,
+  MAX_DURATION_MINUTES,
+  MAX_TASKS_PER_POMODORO,
+  MIN_DURATION_MINUTES,
+} from '../domain/pomodoro.entity.js';
+
+// Tarea nueva: mismas reglas de texto y día que las tareas de la 001 (RF-06, RF-53; plan, D-8)
+const newTaskSchema = z.strictObject({
+  title: titleSchema,
+  description: descriptionSchema,
+  date: daySchema,
+});
+
+// Ids de tareas en espera, sin repetir (RF-56); su existencia la comprueba el caso de uso (RF-11)
+const waitingTaskIdsSchema = z
+  .array(z.string())
+  .refine((ids) => new Set(ids).size === ids.length, { message: 'No se puede incluir la misma tarea dos veces' });
+
+// POST /pomodoros: todos los campos son opcionales (RF-49); duración entera de 1 a 120, 25 por defecto (RF-09, RF-55);
+// como mucho 20 tareas entre las nuevas y las en espera (RF-10, RF-56)
+export const startPomodoroBodySchema = z
+  .strictObject({
+    durationMinutes: z.number().int().min(MIN_DURATION_MINUTES).max(MAX_DURATION_MINUTES).default(DEFAULT_DURATION_MINUTES),
+    newTasks: z.array(newTaskSchema).default([]),
+    waitingTaskIds: waitingTaskIdsSchema.default([]),
+  })
+  .refine((body) => body.newTasks.length + body.waitingTaskIds.length <= MAX_TASKS_PER_POMODORO, {
+    path: ['newTasks'],
+    message: `Una sesión no puede tener más de ${MAX_TASKS_PER_POMODORO} tareas`,
+  });

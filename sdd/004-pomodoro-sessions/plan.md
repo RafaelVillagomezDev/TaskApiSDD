@@ -247,7 +247,7 @@ Contrato completo en la spec (sección *Contrato de la API*). Todas las rutas: c
 | `GET /pomodoro-tasks` | `page`, `pageSize` | `200`, página de `PomodoroTask` | — |
 | `PATCH /pomodoro-tasks/{id}` | `{ title?, description?, completed? }` | `200`, `PomodoroTask` | `POMODORO_TASK_NOT_FOUND`, `INVALID_POMODORO_STATE`, `POMODORO_TASK_NOT_IN_SESSION` |
 | `DELETE /pomodoro-tasks/{id}` | — | `200`, `null` | `POMODORO_TASK_NOT_FOUND`, `INVALID_POMODORO_STATE`, `POMODORO_TASK_IN_SESSION` |
-| `GET /pomodoro-streak` | — | `200`, `{ currentStreak, bestStreak }` | — |
+| `GET /pomodoro-streak` | — | `200`, `{ current, best }`, como `GET /streak` | — |
 | `GET /pomodoro-achievements` | — | `200`, `Achievement[]` | — |
 
 Códigos nuevos en `error-code.constant.ts` (mensajes en español, RNF-03):

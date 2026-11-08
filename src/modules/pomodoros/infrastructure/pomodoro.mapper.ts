@@ -6,6 +6,7 @@ import {
 import { z } from 'zod';
 
 import { LocalDate } from '../../../shared/domain/local-date.value-object.js';
+import type { PomodoroDetail } from '../application/pomodoro-detail.helper.js';
 import { PomodoroTask } from '../domain/pomodoro-task.entity.js';
 import { Pomodoro, type PomodoroTaskSnapshot } from '../domain/pomodoro.entity.js';
 
@@ -103,5 +104,63 @@ export function toPomodoroTaskUpdate(task: PomodoroTask): Prisma.PomodoroTaskUnc
     completed: task.completed,
     completedAt: task.completedAt,
     position: task.position,
+  };
+}
+
+// Recurso PomodoroTask del contrato de la API (spec, Contrato de la API)
+export interface PomodoroTaskResponse {
+  id: string;
+  title: string;
+  description: string | null;
+  date: string;
+  completed: boolean;
+  completedAt: string | null;
+}
+
+// Recurso Pomodoro del contrato de la API (spec, Contrato de la API)
+export interface PomodoroResponse {
+  id: string;
+  durationMinutes: number;
+  status: string;
+  startedAt: string;
+  endsAt: string | null;
+  remainingSeconds: number;
+  finishedAt: string | null;
+  focusedSeconds: number | null;
+  endReason: string | null;
+  tasks: PomodoroTaskResponse[];
+  completedTasks: number;
+  totalTasks: number;
+  createdAt: string;
+}
+
+// Sirve igual para una tarea actual (toSnapshot) que para una de la foto de una sesión terminada (RF-16)
+export function toPomodoroTaskResponse(task: PomodoroTaskSnapshot): PomodoroTaskResponse {
+  return {
+    id: task.id,
+    title: task.title,
+    description: task.description,
+    date: task.date.toString(),
+    completed: task.completed,
+    completedAt: task.completedAt?.toISOString() ?? null,
+  };
+}
+
+export function toPomodoroResponse({ pomodoro, tasks, remainingSeconds }: PomodoroDetail): PomodoroResponse {
+  return {
+    id: pomodoro.id,
+    durationMinutes: pomodoro.durationMinutes,
+    status: pomodoro.status,
+    startedAt: pomodoro.startedAt.toISOString(),
+    endsAt: pomodoro.endsAt?.toISOString() ?? null,
+    remainingSeconds,
+    finishedAt: pomodoro.finishedAt?.toISOString() ?? null,
+    focusedSeconds: pomodoro.focusedSeconds,
+    endReason: pomodoro.endReason,
+    tasks: tasks.map(toPomodoroTaskResponse),
+    // Resumen del resultado («3 de 5»), calculado sobre las tareas que se devuelven
+    completedTasks: tasks.filter((task) => task.completed).length,
+    totalTasks: tasks.length,
+    createdAt: pomodoro.createdAt.toISOString(),
   };
 }
