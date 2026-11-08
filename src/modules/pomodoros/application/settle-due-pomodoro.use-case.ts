@@ -1,8 +1,8 @@
 import type { Clock } from '../../../shared/domain/clock.port.js';
 import type { TimeZoneService } from '../../../shared/domain/time-zone.port.js';
-import type { PomodoroTask } from '../domain/pomodoro-task.entity.js';
-import type { PomodoroRepository, PomodoroUnitOfWork } from '../domain/pomodoro.repository.js';
+import type { PomodoroRepository } from '../domain/pomodoro.repository.js';
 import type { UserTimeZoneSource } from '../domain/user-time-zone.port.js';
+import { moveUnfinishedToWaiting } from './close-pomodoro.helper.js';
 
 // Sesiones vencidas que asienta el barrido en cada consulta (plan, 5.3)
 export const SETTLE_BATCH_SIZE = 100;
@@ -62,15 +62,9 @@ export class SettleDuePomodoroUseCase {
         finishedOn: this.timeZones.localDateTimeAt(zone, endsAt).date,
         snapshot: tasks.map((task) => task.toSnapshot()),
       });
-      await this.moveUnfinishedToWaiting(unit, tasks);
+      await moveUnfinishedToWaiting(unit, tasks);
       await unit.savePomodoro(pomodoro);
       return true;
     });
-  }
-
-  private async moveUnfinishedToWaiting(unit: PomodoroUnitOfWork, tasks: readonly PomodoroTask[]): Promise<void> {
-    const pending = tasks.filter((task) => !task.completed);
-    for (const task of pending) task.moveToWaiting();
-    await unit.saveTasks(pending);
   }
 }

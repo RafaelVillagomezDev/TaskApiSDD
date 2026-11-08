@@ -44,3 +44,9 @@ export const idParamsSchema = z.object({ id: z.string() });
 // PATCH /pomodoro-tasks/{id}: las mismas reglas que PATCH /tasks/{id} de la 001: solo título, descripción y
 // completed, y al menos uno; la fecha no se edita (RF-13, RF-48, RF-54; plan, D-8)
 export const updatePomodoroTaskBodySchema = taskPatchBodySchema;
+
+// PATCH /pomodoros/{id}: pausar (paused), reanudar (running) o terminar (finished); status es obligatorio y es
+// el único campo (RF-50)
+export const changePomodoroStatusBodySchema = z.strictObject({
+  status: z.enum(['paused', 'running', 'finished']),
+});

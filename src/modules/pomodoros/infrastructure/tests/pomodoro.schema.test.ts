@@ -1,4 +1,8 @@
-import { startPomodoroBodySchema, updatePomodoroTaskBodySchema } from '../pomodoro.schema.js';
+import {
+  changePomodoroStatusBodySchema,
+  startPomodoroBodySchema,
+  updatePomodoroTaskBodySchema,
+} from '../pomodoro.schema.js';
 
 const UUID_A = '8f1c2e4a-0000-4000-8000-0000000000a1';
 const UUID_B = '8f1c2e4a-0000-4000-8000-0000000000b2';
@@ -96,5 +100,20 @@ describe('updatePomodoroTaskBodySchema', () => {
     ['completed que no es booleano', { completed: 'true' }],
   ])('rechaza %s (RF-06)', (_case, body) => {
     expect(updatePomodoroTaskBodySchema.safeParse(body).success).toBe(false);
+  });
+});
+
+describe('changePomodoroStatusBodySchema', () => {
+  it.each(['paused', 'running', 'finished'])('acepta status %s (RF-50)', (status) => {
+    expect(changePomodoroStatusBodySchema.parse({ status })).toEqual({ status });
+  });
+
+  it.each([
+    ['sin status', {}],
+    ['un status desconocido', { status: 'cancelled' }],
+    ['status en mayúsculas', { status: 'PAUSED' }],
+    ['un campo además de status', { status: 'paused', durationMinutes: 10 }],
+  ])('rechaza %s (RF-50)', (_case, body) => {
+    expect(changePomodoroStatusBodySchema.safeParse(body).success).toBe(false);
   });
 });

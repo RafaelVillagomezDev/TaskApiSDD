@@ -380,4 +380,87 @@ describe('rutas del pomodoro', () => {
       expect((await preflight('/pomodoros/8f1c2e4a-0000-4000-8000-0000000000ff', 'GET')).status).toBe(200);
     });
   });
+  describe('PATCH /pomodoros/{id}', () => {
+    const changeStatus = (id: string | undefined, body: unknown, headers = withSession()) =>
+      call(`/pomodoros/${id ?? ''}`, { method: 'PATCH', body: JSON.stringify(body) }, headers);
+
+    it('pausa, reanuda y termina a mano → 200 con la sesión (RF-30 a RF-32, RF-50)', async () => {
+      const started = await startPomodoro({ newTasks: [{ title: 'Repasar', date: TODAY }] });
+      const id = started.body.data?.id;
+      container.clock.advance(5 * MINUTE);
+
+      const paused = await changeStatus(id, { status: 'paused' });
+      expect(paused.status).toBe(200);
+      expect(paused.body).toMatchObject({ success: true, status: 200, message: 'Operación realizada con éxito' });
+      expect(paused.body.data).toMatchObject({ status: 'paused', endsAt: null, remainingSeconds: 1200 });
+
+      container.clock.advance(10 * MINUTE);
+      // El token de acceso dura 15 minutos (002): se vuelve a iniciar sesión, como haría el frontend
+      session = await signIn(server);
+      const resumed = await changeStatus(id, { status: 'running' });
+      expect(resumed.body.data).toMatchObject({
+        status: 'running',
+        endsAt: new Date(container.clock.now().getTime() + 20 * MINUTE).toISOString(),
+      });
+
+      container.clock.advance(5 * MINUTE);
+      const finished = await changeStatus(id, { status: 'finished' });
+      expect(finished.body.data).toMatchObject({
+        status: 'finished',
+        endReason: 'manual',
+        focusedSeconds: 600,
+        finishedAt: container.clock.now().toISOString(),
+        completedTasks: 0,
+        totalTasks: 1,
+      });
+    });
+
+    it('al terminar a mano, las tareas pendientes pasan a espera y se pueden llevar a otra sesión (RF-23, RF-32)', async () => {
+      const started = await startPomodoro({ newTasks: [{ title: 'Pendiente', date: TODAY }] });
+      await changeStatus(started.body.data?.id, { status: 'finished' });
+      const next = await startPomodoro({ waitingTaskIds: [started.body.data?.tasks[0]?.id] });
+      expect(next.status).toBe(201);
+      expect(next.body.data?.tasks.map((task) => task.title)).toEqual(['Pendiente']);
+    });
+
+    it('pedir el estado que ya tiene o cambiar una sesión terminada → 409 INVALID_POMODORO_STATE (RF-34, RF-61)', async () => {
+      const id = (await startPomodoro()).body.data?.id;
+      expect((await changeStatus(id, { status: 'running' })).body.error?.code).toBe('INVALID_POMODORO_STATE');
+      await changeStatus(id, { status: 'finished' });
+      const { status, body } = await changeStatus(id, { status: 'paused' });
+      expect(status).toBe(409);
+      expect(body.error).toEqual({ code: 'INVALID_POMODORO_STATE', message: ERROR_CODES.INVALID_POMODORO_STATE.message });
+    });
+
+    it('con una sesión pausada no se puede empezar otra → 409 POMODORO_ALREADY_ACTIVE (RF-12)', async () => {
+      const id = (await startPomodoro()).body.data?.id;
+      await changeStatus(id, { status: 'paused' });
+      container.clock.advance(60 * MINUTE);
+      // El token de acceso dura 15 minutos (002): se vuelve a iniciar sesión, como haría el frontend
+      session = await signIn(server);
+      expect((await startPomodoro()).body.error?.code).toBe('POMODORO_ALREADY_ACTIVE');
+    });
+
+    it('un status no válido o con campos extra → 400 VALIDATION_ERROR (RF-50)', async () => {
+      const id = (await startPomodoro()).body.data?.id;
+      expect((await changeStatus(id, { status: 'cancelled' })).body.error?.code).toBe('VALIDATION_ERROR');
+      expect((await changeStatus(id, { status: 'paused', durationMinutes: 5 })).status).toBe(400);
+    });
+
+    it('una sesión de otra cuenta → 404 POMODORO_NOT_FOUND (RF-01, RF-20)', async () => {
+      const id = (await startPomodoro()).body.data?.id;
+      const bea = await signIn(server, 'bea@example.com');
+      const { status, body } = await changeStatus(id, { status: 'paused' }, { ...withSession(), ...bea });
+      expect(status).toBe(404);
+      expect(body.error?.code).toBe('POMODORO_NOT_FOUND');
+    });
+
+    it('la petición previa de CORS admite PATCH en /pomodoros/{id}', async () => {
+      const response = await server.request('/pomodoros/8f1c2e4a-0000-4000-8000-0000000000ff', {
+        method: 'OPTIONS',
+        headers: { Origin: FRONTEND_ORIGIN, 'Access-Control-Request-Method': 'PATCH' },
+      });
+      expect(response.status).toBe(200);
+    });
+  });
 });

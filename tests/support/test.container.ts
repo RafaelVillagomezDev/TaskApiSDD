@@ -12,6 +12,7 @@ import { RecordUserTimeZoneUseCase } from '../../src/modules/alerts/application/
 import { AlertController } from '../../src/modules/alerts/infrastructure/alert.controller.js';
 import { createAlertRouter } from '../../src/modules/alerts/infrastructure/alert.routes.js';
 import { PendingTaskAdapter } from '../../src/modules/alerts/infrastructure/pending-task.adapter.js';
+import { ChangePomodoroStatusUseCase } from '../../src/modules/pomodoros/application/change-pomodoro-status.use-case.js';
 import { GetPomodoroUseCase } from '../../src/modules/pomodoros/application/get-pomodoro.use-case.js';
 import { ListPomodorosUseCase } from '../../src/modules/pomodoros/application/list-pomodoro.use-case.js';
 import { SettleDuePomodoroUseCase } from '../../src/modules/pomodoros/application/settle-due-pomodoro.use-case.js';
@@ -183,6 +184,7 @@ export function createTestContainer(): TestContainer {
       new StartPomodoroUseCase(pomodoros, settlePomodoros, clock),
       new GetPomodoroUseCase(pomodoros, settlePomodoros, clock),
       new ListPomodorosUseCase(pomodoros, settlePomodoros, clock),
+      new ChangePomodoroStatusUseCase(pomodoros, settlePomodoros, timeZones, clock),
     ),
     pomodoroTasks: new PomodoroTaskController(new UpdatePomodoroTaskUseCase(pomodoros, settlePomodoros, clock)),
     session,

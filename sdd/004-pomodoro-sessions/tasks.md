@@ -173,14 +173,17 @@ Spec: `sdd/004-pomodoro-sessions/spec.md` (Aprobada) · Plan: `sdd/004-pomodoro-
 ## Fase H4 — Pausar, reanudar y terminar la sesión (HU-05, P1)
 
 ### Tests (deben fallar)
-- [ ] T035 [P] [H4] Test de `ChangePomodoroStatusUseCase`: pausar, reanudar con `ends_at` recalculado y terminar a mano desde en curso y pausada (pendientes a espera, foto, `finished_on` con la zona de la petición); mismo estado y sesión terminada → `INVALID_POMODORO_STATE`; vencida antes de pausar → `INVALID_POMODORO_STATE`; pausada durante días sigue pausada (RF-30 a RF-34, RF-50, RF-60, RF-61) — `pomodoros/application/tests/change-pomodoro-status.use-case.test.ts`
+- [x] T035 [P] [H4] Test de `ChangePomodoroStatusUseCase`: pausar, reanudar con `ends_at` recalculado y terminar a mano desde en curso y pausada (pendientes a espera, foto, `finished_on` con la zona de la petición); mismo estado y sesión terminada → `INVALID_POMODORO_STATE`; vencida antes de pausar → `INVALID_POMODORO_STATE`; pausada durante días sigue pausada (RF-30 a RF-34, RF-50, RF-60, RF-61) — `pomodoros/application/tests/change-pomodoro-status.use-case.test.ts`
   - Verifica: `dce pnpm test pomodoros/application/tests/change-pomodoro-status` **falla**.
-- [ ] T036 [P] [H4] Test HTTP de `PATCH /pomodoros/{id}`: `200`; `status` inválido o con campos extra → `VALIDATION_ERROR`; los errores anteriores; con una sesión pausada, `POST /pomodoros` → `POMODORO_ALREADY_ACTIVE` (RF-12, RF-50, RF-61) — `pomodoros/infrastructure/tests/pomodoro.routes.test.ts`, `pomodoros/infrastructure/tests/pomodoro.schema.test.ts`
+  - Hecho (2026-11-08): 16 casos; falló porque el caso de uso no existía.
+- [x] T036 [P] [H4] Test HTTP de `PATCH /pomodoros/{id}`: `200`; `status` inválido o con campos extra → `VALIDATION_ERROR`; los errores anteriores; con una sesión pausada, `POST /pomodoros` → `POMODORO_ALREADY_ACTIVE` (RF-12, RF-50, RF-61) — `pomodoros/infrastructure/tests/pomodoro.routes.test.ts`, `pomodoros/infrastructure/tests/pomodoro.schema.test.ts`
   - Verifica: `dce pnpm test pomodoros/infrastructure/tests` **falla**.
+  - Hecho (2026-11-08): 6 casos de schema y 7 HTTP; fallaron porque el schema y la ruta no existían. Dos casos HTTP adelantan el reloj 15 y 60 minutos, más que el token de acceso de la 002 (15 min): el primer intento respondió `TOKEN_EXPIRED`, y se vuelve a iniciar sesión tras adelantar el reloj, como haría el frontend, sin cambiar ninguna expectativa del contrato.
 
 ### Implementación
-- [ ] T037 [H4] Schema del `status`, `ChangePomodoroStatusUseCase` (los logros se añaden en T054), `PomodoroController.changeStatus` y su ruta — `pomodoros/infrastructure/pomodoro.schema.ts`, `pomodoros/application/change-pomodoro-status.use-case.ts`, `pomodoros/infrastructure/pomodoro.controller.ts`, `pomodoros/infrastructure/pomodoro.routes.ts`, contenedores
+- [x] T037 [H4] Schema del `status`, `ChangePomodoroStatusUseCase` (los logros se añaden en T054), `PomodoroController.changeStatus` y su ruta — `pomodoros/infrastructure/pomodoro.schema.ts`, `pomodoros/application/change-pomodoro-status.use-case.ts`, `pomodoros/infrastructure/pomodoro.controller.ts`, `pomodoros/infrastructure/pomodoro.routes.ts`, contenedores
   - Verifica: `dce pnpm test pomodoros` pasa.
+  - Hecho (2026-11-08): el día del fin a mano usa la zona de la petición (la recién recordada, RF-40). Pasar las tareas pendientes a espera al terminar, por tiempo o a mano, pasa a `application/close-pomodoro.helper.ts`, que comparten el asentamiento y este caso de uso. `dce pnpm test pomodoros` → 12 suites y 192 tests; suite completa → 77 suites y 966 tests en verde; `tsc --noEmit` sin errores.
 
 ### Checkpoint H4
 - `dce pnpm test` pasa entero.
