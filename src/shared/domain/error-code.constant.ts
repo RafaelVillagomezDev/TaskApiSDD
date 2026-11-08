@@ -40,6 +40,37 @@ export const ERROR_CODES = {
   WRONG_PASSWORD: { status: 403, precedence: 7, message: 'La contraseña actual no es correcta.' },
   EMAIL_ALREADY_REGISTERED: { status: 409, precedence: 7, message: 'Ya existe una cuenta con ese email.' },
   TASK_NOT_FOUND: { status: 404, precedence: 7, message: 'La tarea no existe o ya fue eliminada.' },
+  // Sesiones pomodoro (spec 004). Todos en el orden 7; dentro del grupo, el orden de RF-63 lo da el orden de
+  // comprobación de cada caso de uso: *_NOT_FOUND, INVALID_POMODORO_STATE, POMODORO_TASK_LIMIT y el resto
+  // de conflictos (plan de la 004, D-10)
+  POMODORO_NOT_FOUND: { status: 404, precedence: 7, message: 'La sesión pomodoro no existe.' },
+  POMODORO_TASK_NOT_FOUND: {
+    status: 404,
+    precedence: 7,
+    message: 'La tarea del pomodoro no existe o no está disponible para esta acción.',
+  },
+  INVALID_POMODORO_STATE: {
+    status: 409,
+    precedence: 7,
+    message: 'La sesión pomodoro no permite esta acción en su estado actual.',
+  },
+  POMODORO_TASK_LIMIT: { status: 409, precedence: 7, message: 'Una sesión pomodoro no puede tener más de 20 tareas.' },
+  POMODORO_ALREADY_ACTIVE: { status: 409, precedence: 7, message: 'Ya tienes una sesión pomodoro en curso o pausada.' },
+  POMODORO_TASK_IN_SESSION: {
+    status: 409,
+    precedence: 7,
+    message: 'La tarea está en la sesión activa: quítala de la sesión antes de borrarla.',
+  },
+  POMODORO_TASK_NOT_IN_SESSION: {
+    status: 409,
+    precedence: 7,
+    message: 'La tarea está en espera: inclúyela en una sesión para completarla.',
+  },
+  POMODORO_TASK_COMPLETED: {
+    status: 409,
+    precedence: 7,
+    message: 'La tarea está completada: desmárcala antes de quitarla de la sesión.',
+  },
   DAY_CLOSED: { status: 409, precedence: 8, message: 'El día de la tarea ya ha terminado y no admite cambios.' },
   DAY_NOT_STARTED: {
     status: 409,

@@ -1,6 +1,6 @@
 import type { RequestContext } from '../../../shared/application/request-context.type.js';
+import { Streak } from '../../../shared/domain/streak.value-object.js';
 import type { ProductiveDateSource } from '../domain/productive-date.port.js';
-import { Streak } from '../domain/streak.value-object.js';
 
 // Racha actual y mejor racha del usuario según su día actual (RF-19 a RF-23)
 export class GetStreakUseCase {

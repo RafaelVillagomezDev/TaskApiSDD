@@ -37,6 +37,12 @@ describe('PrismaUserTimeZoneRepository', () => {
     expect((await storedAt(user1))?.getTime()).toBe(before?.getTime());
   });
 
+  it('findTimeZone devuelve la zona recordada o null si no hay ninguna (RF-40 de la 004)', async () => {
+    expect(await repository.findTimeZone(user1)).toBeNull();
+    await repository.record(user1, 'Europe/Madrid');
+    expect(await repository.findTimeZone(user1)).toBe('Europe/Madrid');
+  });
+
   it('record actualiza la zona y su fecha cuando cambia (RF-34)', async () => {
     await repository.record(user1, 'Europe/Madrid');
     const before = await storedAt(user1);

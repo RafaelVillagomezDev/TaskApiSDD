@@ -2,6 +2,7 @@ import type { PrismaClient } from '@prisma/client';
 import type { RequestHandler } from 'express';
 
 import type { AppContainer } from './app.factory.js';
+import { GetUserTimeZoneUseCase } from './modules/alerts/alert.facade.js';
 import { GenerateDueAlertUseCase } from './modules/alerts/application/generate-due-alert.use-case.js';
 import { ListAlertsUseCase } from './modules/alerts/application/list-alert.use-case.js';
 import { RecordUserTimeZoneUseCase } from './modules/alerts/application/record-user-time-zone.use-case.js';
@@ -11,6 +12,10 @@ import { AlertScheduler } from './modules/alerts/infrastructure/alert.scheduler.
 import { PendingTaskAdapter } from './modules/alerts/infrastructure/pending-task.adapter.js';
 import { PrismaAlertRepository } from './modules/alerts/infrastructure/prisma-alert.repository.js';
 import { PrismaUserTimeZoneRepository } from './modules/alerts/infrastructure/prisma-user-time-zone.repository.js';
+import { SettleDuePomodoroUseCase } from './modules/pomodoros/application/settle-due-pomodoro.use-case.js';
+import { PomodoroScheduler } from './modules/pomodoros/infrastructure/pomodoro.scheduler.js';
+import { PrismaPomodoroRepository } from './modules/pomodoros/infrastructure/prisma-pomodoro.repository.js';
+import { UserTimeZoneAdapter } from './modules/pomodoros/infrastructure/user-time-zone.adapter.js';
 import { GetStreakUseCase } from './modules/streaks/application/get-streak.use-case.js';
 import { ProductiveDateAdapter } from './modules/streaks/infrastructure/productive-date.adapter.js';
 import { StreakController } from './modules/streaks/infrastructure/streak.controller.js';
@@ -69,6 +74,7 @@ export interface Container extends AppContainer {
   requestContext: RequestHandler;
   alertScheduler: AlertScheduler;
   authCleanupScheduler: AuthCleanupScheduler;
+  pomodoroScheduler: PomodoroScheduler;
 }
 
 export function createContainer(): Container {
@@ -128,6 +134,13 @@ export function createContainer(): Container {
     requestContext,
   });
 
+  // Módulo pomodoros (spec 004): la zona recordada se lee con la fachada de alerts (D-7), y las sesiones vencidas
+  // se asientan al pedir y en un barrido cada 60 s (D-2)
+  const pomodoroRepository = new PrismaPomodoroRepository(prisma);
+  const pomodoroZones = new UserTimeZoneAdapter(new GetUserTimeZoneUseCase(userTimeZones));
+  const settlePomodoros = new SettleDuePomodoroUseCase(pomodoroRepository, pomodoroZones, timeZones, clock);
+  const pomodoroScheduler = new PomodoroScheduler(settlePomodoros);
+
   // Módulo users (spec 002): registro y login con token CSRF previo a la sesión, renovación, logout y perfil.
   // Un solo hasher para que el hash ficticio del login se calcule una vez (D-3)
   const csrfTokens = new PrismaCsrfTokenRepository(prisma);
@@ -168,6 +181,7 @@ export function createContainer(): Container {
     requestContext,
     alertScheduler,
     authCleanupScheduler,
+    pomodoroScheduler,
     corsOrigin: config.corsOrigin,
     routers: [authRouter, meRouter, taskRouter, streakRouter, alertRouter],
   };

@@ -110,6 +110,15 @@ describe('sobre de error y middlewares transversales (principio VII, RF-46)', ()
     ['INVALID_CREDENTIALS', 401],
     ['WRONG_PASSWORD', 403],
     ['EMAIL_ALREADY_REGISTERED', 409],
+    // Sesiones pomodoro (spec 004, tabla de códigos de error nuevos)
+    ['POMODORO_NOT_FOUND', 404],
+    ['POMODORO_TASK_NOT_FOUND', 404],
+    ['INVALID_POMODORO_STATE', 409],
+    ['POMODORO_TASK_LIMIT', 409],
+    ['POMODORO_ALREADY_ACTIVE', 409],
+    ['POMODORO_TASK_IN_SESSION', 409],
+    ['POMODORO_TASK_NOT_IN_SESSION', 409],
+    ['POMODORO_TASK_COMPLETED', 409],
   ])('%s → %i con el sobre y su mensaje en español (RF-34, RNF-02)', async (code, status) => {
     const response = await server.request(`/fail/${code}`);
     const body = (await response.json()) as { status: number; error: { code: string; message: string; details?: unknown } };
@@ -123,7 +132,7 @@ describe('sobre de error y middlewares transversales (principio VII, RF-46)', ()
     expect(Object.keys(ERROR_CODES)).not.toContain('MISSING_USER');
   });
 
-  it('la precedencia sigue el orden de RF-34 de la 002', () => {
+  it('la precedencia sigue el orden de RF-34 de la 002, ampliado por RF-63 de la 004', () => {
     const precedenceOf = (code: ErrorCode) => ERROR_CODES[code].precedence;
     const order: ErrorCode[][] = [
       ['ROUTE_NOT_FOUND'],
@@ -132,7 +141,22 @@ describe('sobre de error y middlewares transversales (principio VII, RF-46)', ()
       ['INVALID_CLIENT_TIME'],
       ['INVALID_TIMEZONE'],
       ['VALIDATION_ERROR'],
-      ['TOO_MANY_ATTEMPTS', 'INVALID_CREDENTIALS', 'WRONG_PASSWORD', 'EMAIL_ALREADY_REGISTERED', 'TASK_NOT_FOUND'],
+      [
+        'TOO_MANY_ATTEMPTS',
+        'INVALID_CREDENTIALS',
+        'WRONG_PASSWORD',
+        'EMAIL_ALREADY_REGISTERED',
+        'TASK_NOT_FOUND',
+        // Errores de negocio de la 004 (RF-63; plan de la 004, D-10)
+        'POMODORO_NOT_FOUND',
+        'POMODORO_TASK_NOT_FOUND',
+        'INVALID_POMODORO_STATE',
+        'POMODORO_TASK_LIMIT',
+        'POMODORO_ALREADY_ACTIVE',
+        'POMODORO_TASK_IN_SESSION',
+        'POMODORO_TASK_NOT_IN_SESSION',
+        'POMODORO_TASK_COMPLETED',
+      ],
       ['DAY_CLOSED', 'DAY_NOT_STARTED'],
     ];
     order.forEach((codes, index) => {

@@ -16,58 +16,78 @@ Spec: `sdd/004-pomodoro-sessions/spec.md` (Aprobada) · Plan: `sdd/004-pomodoro-
 ## Fase 0 — Base
 
 ### Refactors sin cambio observable (principio II, excepción)
-- [ ] T001 [P] [Base] Mover `Streak` de `streaks/domain/` a `src/shared/domain/streak.value-object.ts` y su test a `src/shared/domain/tests/`; `streaks` importa la nueva ruta (D-6, R-6) — `src/shared/domain/streak.value-object.ts`, `src/shared/domain/tests/streak.value-object.test.ts`, `streaks/application/get-streak.use-case.ts`
+- [x] T001 [P] [Base] Mover `Streak` de `streaks/domain/` a `src/shared/domain/streak.value-object.ts` y su test a `src/shared/domain/tests/`; `streaks` importa la nueva ruta (D-6, R-6) — `src/shared/domain/streak.value-object.ts`, `src/shared/domain/tests/streak.value-object.test.ts`, `streaks/application/get-streak.use-case.ts`
   - Verifica: `dce pnpm test streak` pasa sin cambiar ninguna expectativa.
-- [ ] T002 [P] [Base] Extraer `TITLE_MAX_LENGTH` y `DESCRIPTION_MAX_LENGTH` a `src/shared/domain/task-text.constant.ts`, y `daySchema`, `titleSchema`, `descriptionSchema` y el de descripción opcional del `PATCH` a `src/shared/infrastructure/http/task-text.schema.ts`; `tasks` los importa (D-8, R-6) — `src/shared/domain/task-text.constant.ts`, `src/shared/infrastructure/http/task-text.schema.ts`, `tasks/domain/task.entity.ts`, `tasks/infrastructure/task.schema.ts`
+  - Hecho (2026-11-08): `git mv` del fichero y de su test (se borra la carpeta vacía `streaks/domain/tests/`); solo cambian las rutas de import y el comentario de la clase. `dce pnpm test streak` → 3 suites y 25 tests en verde; `tsc --noEmit` sin errores; suite completa → 64 suites y 759 tests en verde.
+- [x] T002 [P] [Base] Extraer `TITLE_MAX_LENGTH` y `DESCRIPTION_MAX_LENGTH` a `src/shared/domain/task-text.constant.ts`, y `daySchema`, `titleSchema`, `descriptionSchema` y el de descripción opcional del `PATCH` a `src/shared/infrastructure/http/task-text.schema.ts`; `tasks` los importa (D-8, R-6) — `src/shared/domain/task-text.constant.ts`, `src/shared/infrastructure/http/task-text.schema.ts`, `tasks/domain/task.entity.ts`, `tasks/infrastructure/task.schema.ts`
   - Verifica: `dce pnpm test tasks` pasa sin cambiar ninguna expectativa.
+  - Hecho (2026-11-08): el schema de la descripción al editar se llama `editedDescriptionSchema`. Las constantes de longitud solo las usaba el schema, así que se quitan de `task.entity.ts` en lugar de reexportarlas (el plan §3 decía reexportarlas; no hacía falta). `emptyToNull` pasa a ser privada de `task-text.schema.ts`; la copia de `users/infrastructure/user.schema.ts` es anterior y no se toca. `dce pnpm test tasks` → 11 suites y 230 tests en verde; `tsc --noEmit` sin errores; suite completa → 64 suites y 759 tests en verde.
 
 ### Fachada de `alerts` (D-7)
-- [ ] T003 [P] [Base] Test de `GetUserTimeZoneUseCase`: devuelve la zona recordada o `null` (RF-40) — `alerts/application/tests/get-user-time-zone.use-case.test.ts`
+- [x] T003 [P] [Base] Test de `GetUserTimeZoneUseCase`: devuelve la zona recordada o `null` (RF-40) — `alerts/application/tests/get-user-time-zone.use-case.test.ts`
   - Verifica: `dce pnpm test alerts/application/tests/get-user-time-zone` **falla**.
-- [ ] T004 [Base] `UserTimeZoneRepository.find(userId)` en el puerto, en Prisma (por clave primaria) y en memoria; `GetUserTimeZoneUseCase`; fachada `alert.facade.ts` que lo exporta (D-7) — `alerts/domain/user-time-zone.repository.ts`, `alerts/infrastructure/prisma-user-time-zone.repository.ts`, `tests/support/in-memory-user-time-zone.repository.ts`, `alerts/application/get-user-time-zone.use-case.ts`, `alerts/alert.facade.ts`
+  - Hecho (2026-11-08): 3 casos (zona recordada, última zona tras un cambio, sin zona → `null`); falló porque el caso de uso no existía.
+- [x] T004 [Base] `UserTimeZoneRepository.find(userId)` en el puerto, en Prisma (por clave primaria) y en memoria; `GetUserTimeZoneUseCase`; fachada `alert.facade.ts` que lo exporta (D-7) — `alerts/domain/user-time-zone.repository.ts`, `alerts/infrastructure/prisma-user-time-zone.repository.ts`, `tests/support/in-memory-user-time-zone.repository.ts`, `alerts/application/get-user-time-zone.use-case.ts`, `alerts/alert.facade.ts`
   - Verifica: `dce pnpm test alerts` pasa.
+  - Hecho (2026-11-08): el método del puerto se llama `findTimeZone(userId): Promise<string | null>` y no `find`, porque el repositorio en memoria ya tenía un `find` síncrono de ayuda que usan los tests de `alerts` y no se toca. Nuevo caso en `prisma-user-time-zone.repository.int.test.ts`. `dce pnpm test alerts` → 10 suites y 77 tests en verde; `tsc --noEmit` sin errores; suite completa → 65 suites y 763 tests en verde.
 
 ### Errores
-- [ ] T005 [P] [Base] Ocho códigos nuevos con su HTTP, `precedence: 7` y el mensaje del plan §6; el test del catálogo los incluye en el grupo 7 (RF-63, RNF-03, D-10) — `src/shared/domain/error-code.constant.ts`, `src/shared/infrastructure/http/tests/error-handler.middleware.test.ts`
+- [x] T005 [P] [Base] Ocho códigos nuevos con su HTTP, `precedence: 7` y el mensaje del plan §6; el test del catálogo los incluye en el grupo 7 (RF-63, RNF-03, D-10) — `src/shared/domain/error-code.constant.ts`, `src/shared/infrastructure/http/tests/error-handler.middleware.test.ts`
   - Verifica: `dce pnpm test error-handler` pasa.
+  - Hecho (2026-11-08): los 8 códigos, también en el `it.each` de HTTP y mensaje del test de errores. `dce pnpm test error-handler` → 32 tests en verde.
 
 ### Base de datos
-- [ ] T006 [Base] Modelos `Pomodoro`, `PomodoroTask` (con `position`) y `PomodoroAchievement`, enums `PomodoroStatus` y `PomodoroEndReason`, `active_user_id` único y relaciones en `User`, con sus comentarios e índices (plan §4, D-3, D-12) — `prisma/schema.prisma`
+- [x] T006 [Base] Modelos `Pomodoro`, `PomodoroTask` (con `position`) y `PomodoroAchievement`, enums `PomodoroStatus` y `PomodoroEndReason`, `active_user_id` único y relaciones en `User`, con sus comentarios e índices (plan §4, D-3, D-12) — `prisma/schema.prisma`
   - Verifica: `dce pnpm exec prisma validate`.
-- [ ] T007 [Base] Migración generada con `prisma migrate diff` (AGENTS.md §3, R-7), con el `CHECK` de `duration_minutes` entre 1 y 120 añadido a mano — `prisma/migrations/<AAAAMMDDHHMMSS>_pomodoro_sessions/migration.sql`
+  - Hecho (2026-11-08): `prisma format` solo realinea las relaciones de `User`. La FK `pomodoro_tasks.pomodoro_id` es `ON DELETE SET NULL` (las sesiones solo se borran con la cuenta, que borra también sus tareas).
+- [x] T007 [Base] Migración generada con `prisma migrate diff` (AGENTS.md §3, R-7), con el `CHECK` de `duration_minutes` entre 1 y 120 añadido a mano — `prisma/migrations/<AAAAMMDDHHMMSS>_pomodoro_sessions/migration.sql`
   - Verifica: `dce pnpm prisma migrate deploy` la aplica, `dce pnpm prisma generate` termina sin errores y `dce pnpm exec prisma migrate status` → base de datos al día.
+  - Hecho (2026-11-08): `20261108213045_pomodoro_sessions`, con el `CHECK` de `duration_minutes` añadido a mano; `prisma migrate diff --exit-code` sobre el esquema aplicado no detecta deriva (Prisma no gestiona los `CHECK`).
 
 ### Dominio
-- [ ] T008 [P] [Base] Test de `Pomodoro`: pausar, reanudar y terminar desde cada estado; cambios no permitidos o iguales → `INVALID_POMODORO_STATE`; `remainingSeconds`; `isDue`; 25 min pausada 10 a los 5 → fin a los 35 con 1500 s de concentración; fin a mano a los 10 min → 600 s (RF-14, RF-15, RF-30 a RF-34, RF-60, RF-61) — `pomodoros/domain/tests/pomodoro.entity.test.ts`
+- [x] T008 [P] [Base] Test de `Pomodoro`: pausar, reanudar y terminar desde cada estado; cambios no permitidos o iguales → `INVALID_POMODORO_STATE`; `remainingSeconds`; `isDue`; 25 min pausada 10 a los 5 → fin a los 35 con 1500 s de concentración; fin a mano a los 10 min → 600 s (RF-14, RF-15, RF-30 a RF-34, RF-60, RF-61) — `pomodoros/domain/tests/pomodoro.entity.test.ts`
   - Verifica: `dce pnpm test pomodoros/domain/tests/pomodoro.entity` **falla**.
-- [ ] T009 [P] [Base] Test de `PomodoroTask`: completar y desmarcar sin mirar la fecha; editar título y descripción; `moveTo` con fecha pasada → hoy y con fecha futura → igual; `toSnapshot` (RF-13, RF-16, RF-21, RF-48, RF-57) — `pomodoros/domain/tests/pomodoro-task.entity.test.ts`
+  - Hecho (2026-11-08): falló porque la entidad no existía.
+- [x] T009 [P] [Base] Test de `PomodoroTask`: completar y desmarcar sin mirar la fecha; editar título y descripción; `moveTo` con fecha pasada → hoy y con fecha futura → igual; `toSnapshot` (RF-13, RF-16, RF-21, RF-48, RF-57) — `pomodoros/domain/tests/pomodoro-task.entity.test.ts`
   - Verifica: `dce pnpm test pomodoros/domain/tests/pomodoro-task` **falla**.
-- [ ] T010 [Base] Entidad `Pomodoro` con las constantes `MIN_DURATION_MINUTES`, `MAX_DURATION_MINUTES`, `DEFAULT_DURATION_MINUTES` y `MAX_TASKS_PER_POMODORO` (plan §3) — `pomodoros/domain/pomodoro.entity.ts`
+  - Hecho (2026-11-08): falló porque la entidad no existía.
+- [x] T010 [Base] Entidad `Pomodoro` con las constantes `MIN_DURATION_MINUTES`, `MAX_DURATION_MINUTES`, `DEFAULT_DURATION_MINUTES` y `MAX_TASKS_PER_POMODORO` (plan §3) — `pomodoros/domain/pomodoro.entity.ts`
   - Verifica: `dce pnpm test pomodoros/domain/tests/pomodoro.entity` pasa.
-- [ ] T011 [Base] Entidad `PomodoroTask` — `pomodoros/domain/pomodoro-task.entity.ts`
+  - Hecho (2026-11-08): `finishByTime(now, details)` recibe el instante para comprobar que la sesión está vencida (el plan §3 no lo indicaba); `finishManually` rechaza una sesión ya vencida, que se asienta por tiempo. 21 tests en verde.
+- [x] T011 [Base] Entidad `PomodoroTask` — `pomodoros/domain/pomodoro-task.entity.ts`
   - Verifica: `dce pnpm test pomodoros/domain/tests/pomodoro-task` pasa.
-- [ ] T012 [Base] Puertos `PomodoroRepository` (operaciones del plan §5.1) y `UserTimeZoneSource` — `pomodoros/domain/pomodoro.repository.ts`, `pomodoros/domain/user-time-zone.port.ts`
+  - Hecho (2026-11-08): completar una tarea ya completada conserva su `completedAt` original. 13 tests en verde.
+- [x] T012 [Base] Puertos `PomodoroRepository` (operaciones del plan §5.1) y `UserTimeZoneSource` — `pomodoros/domain/pomodoro.repository.ts`, `pomodoros/domain/user-time-zone.port.ts`
   - Verifica: `dce pnpm exec tsc --noEmit` termina sin errores.
+  - Hecho (2026-11-08): `PomodoroRepository` con una unidad de trabajo transaccional (`transaction(work)`, con `lockPomodoro`, `lockActivePomodoro`, `createPomodoro`, `tasksOf`, `maxPosition`…) más las lecturas sin bloqueo. `findProductiveDates` (racha, §5.8) va en este puerto y no en el de logros.
 
 ### Repositorio y zona
-- [ ] T013 [P] [Base] Test de integración del repositorio: una sola sesión activa (`P2002` en `active_user_id`); dos asentamientos concurrentes dejan una sola foto; foto JSONB en orden de `position`; `position` al añadir y al volver a añadir; tareas en espera paginadas en orden; cascada al borrar la cuenta (RF-12, RF-16, RF-23, RF-24, RF-64, R-4) — `pomodoros/infrastructure/tests/prisma-pomodoro.repository.int.test.ts`
+- [x] T013 [P] [Base] Test de integración del repositorio: una sola sesión activa (`P2002` en `active_user_id`); dos asentamientos concurrentes dejan una sola foto; foto JSONB en orden de `position`; `position` al añadir y al volver a añadir; tareas en espera paginadas en orden; cascada al borrar la cuenta (RF-12, RF-16, RF-23, RF-24, RF-64, R-4) — `pomodoros/infrastructure/tests/prisma-pomodoro.repository.int.test.ts`
   - Verifica: `dce pnpm test pomodoros/infrastructure/tests/prisma-pomodoro` **falla**.
-- [ ] T014 [Base] `PrismaPomodoroRepository` con transacciones y `SELECT … FOR UPDATE` por plantilla etiquetada, y el mapeo fila ↔ dominio (D-4, D-9, D-12) — `pomodoros/infrastructure/prisma-pomodoro.repository.ts`, `pomodoros/infrastructure/pomodoro.mapper.ts`
+  - Hecho (2026-11-08): 14 casos; `tests/integration/test-database.helper.ts` añade las tres tablas nuevas a las que se pueden vaciar. Falló porque el repositorio no existía.
+- [x] T014 [Base] `PrismaPomodoroRepository` con transacciones y `SELECT … FOR UPDATE` por plantilla etiquetada, y el mapeo fila ↔ dominio (D-4, D-9, D-12) — `pomodoros/infrastructure/prisma-pomodoro.repository.ts`, `pomodoros/infrastructure/pomodoro.mapper.ts`
   - Verifica: `dce pnpm test pomodoros/infrastructure/tests/prisma-pomodoro` pasa.
-- [ ] T015 [P] [Base] Repositorio en memoria con la misma semántica (una activa, foto, espera, `position`) — `tests/support/in-memory-pomodoro.repository.ts`
+  - Hecho (2026-11-08): la foto JSONB se valida con Zod al leerla. Los ids no UUID devuelven `null` o `[]` sin consultar. `createTasks` crea una a una para que `sequence` siga el orden recibido. 14 tests de integración en verde.
+- [x] T015 [P] [Base] Repositorio en memoria con la misma semántica (una activa, foto, espera, `position`) — `tests/support/in-memory-pomodoro.repository.ts`
   - Verifica: `dce pnpm exec tsc --noEmit` termina sin errores.
-- [ ] T016 [P] [Base] `UserTimeZoneAdapter` sobre la fachada de `alerts` (D-7) — `pomodoros/infrastructure/user-time-zone.adapter.ts`
+  - Hecho (2026-11-08): las transacciones deshacen sus cambios si el trabajo falla; `createPomodoro` lanza `POMODORO_ALREADY_ACTIVE` como el índice único.
+- [x] T016 [P] [Base] `UserTimeZoneAdapter` sobre la fachada de `alerts` (D-7) — `pomodoros/infrastructure/user-time-zone.adapter.ts`
   - Verifica: `dce pnpm exec tsc --noEmit` termina sin errores.
+  - Hecho (2026-11-08).
 
 ### Asentamiento y barrido (D-2)
-- [ ] T017 [P] [Base] Test de `SettleDuePomodoroUseCase`: `finished_at = ends_at`, `end_reason = time`, concentración completa; pendientes a espera y completadas en la sesión; foto en orden; día local en la zona recordada (23:50 + 25 min → día siguiente); idempotente; no toca pausadas ni no vencidas; `dueBatch` por lotes (RF-15, RF-16, RF-23, RF-33, RF-35, RF-40) — `pomodoros/application/tests/settle-due-pomodoro.use-case.test.ts`
+- [x] T017 [P] [Base] Test de `SettleDuePomodoroUseCase`: `finished_at = ends_at`, `end_reason = time`, concentración completa; pendientes a espera y completadas en la sesión; foto en orden; día local en la zona recordada (23:50 + 25 min → día siguiente); idempotente; no toca pausadas ni no vencidas; `dueBatch` por lotes (RF-15, RF-16, RF-23, RF-33, RF-35, RF-40) — `pomodoros/application/tests/settle-due-pomodoro.use-case.test.ts`
   - Verifica: `dce pnpm test pomodoros/application/tests/settle-due` **falla**.
-- [ ] T018 [Base] `SettleDuePomodoroUseCase` (`forUser`, `dueBatch` con `SETTLE_BATCH_SIZE = 100`); los logros se añaden en T054 — `pomodoros/application/settle-due-pomodoro.use-case.ts`
+  - Hecho (2026-11-08): 9 casos; falló porque el caso de uso no existía.
+- [x] T018 [Base] `SettleDuePomodoroUseCase` (`forUser`, `dueBatch` con `SETTLE_BATCH_SIZE = 100`); los logros se añaden en T054 — `pomodoros/application/settle-due-pomodoro.use-case.ts`
   - Verifica: `dce pnpm test pomodoros/application/tests/settle-due` pasa.
-- [ ] T019 [P] [Base] Test del planificador: asienta en cada pasada y registra `POMODORO_SETTLE_FAILED` sin pararse (RF-15) — `pomodoros/infrastructure/tests/pomodoro.scheduler.test.ts`
+  - Hecho (2026-11-08): el tamaño del lote se puede pasar al constructor (el test usa 2). Si un lote completo no asienta ninguna sesión, el barrido se detiene para no repetirlo sin fin. Un usuario sin zona recordada (no debería pasar: empezar una sesión la recuerda, RF-03) usa UTC para el día del fin. 9 tests en verde.
+- [x] T019 [P] [Base] Test del planificador: asienta en cada pasada y registra `POMODORO_SETTLE_FAILED` sin pararse (RF-15) — `pomodoros/infrastructure/tests/pomodoro.scheduler.test.ts`
   - Verifica: `dce pnpm test pomodoros/infrastructure/tests/pomodoro.scheduler` **falla**.
-- [ ] T020 [Base] `PomodoroScheduler` cada 60 s con `IntervalRunner`; el contenedor lo crea y `server.main.ts` lo arranca y lo para con los demás; el contenedor de test cablea el módulo con los fakes — `pomodoros/infrastructure/pomodoro.scheduler.ts`, `src/dependency.container.ts`, `src/server.main.ts`, `tests/support/test.container.ts`
+  - Hecho (2026-11-08): 4 casos; falló porque el planificador no existía.
+- [x] T020 [Base] `PomodoroScheduler` cada 60 s con `IntervalRunner`; el contenedor lo crea y `server.main.ts` lo arranca y lo para con los demás; el contenedor de test cablea el módulo con los fakes — `pomodoros/infrastructure/pomodoro.scheduler.ts`, `src/dependency.container.ts`, `src/server.main.ts`, `tests/support/test.container.ts`
   - Verifica: `dce pnpm test pomodoros/infrastructure/tests/pomodoro.scheduler` pasa.
+  - Hecho (2026-11-08): el barrido solo escribe `POMODORO_SETTLE_COMPLETED` cuando asienta alguna sesión. El contenedor de test expone `pomodoros` y `settlePomodoros`. Tras reiniciar `api`, arranca sin `POMODORO_SETTLE_FAILED` (los fallos anteriores eran de recargas en caliente con el cliente de Prisma sin regenerar). Checkpoint Base: `dce pnpm test` → 70 suites y 835 tests en verde; `tsc --noEmit` sin errores; las dos búsquedas del principio V sin resultados.
 
 ### Checkpoint Base
 - `dce pnpm test` pasa entero: el comportamiento observable de la 001 a la 003 no cambia.

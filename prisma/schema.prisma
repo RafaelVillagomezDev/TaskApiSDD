@@ -100,11 +100,14 @@ model User {
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  tasks             Task[]
-  alerts            Alert[]
-  alertPeriodChecks AlertPeriodCheck[]
-  timeZone          UserTimeZone?
-  sessions          Session[]
+  tasks                Task[]
+  alerts               Alert[]
+  alertPeriodChecks    AlertPeriodCheck[]
+  timeZone             UserTimeZone?
+  sessions             Session[]
+  pomodoros            Pomodoro[]
+  pomodoroTasks        PomodoroTask[]
+  pomodoroAchievements PomodoroAchievement[]
 
   @@map("users")
 }
@@ -169,4 +172,105 @@ model LoginAttempt {
   lockedUntil DateTime?  @map("locked_until") @db.Timestamptz(3)
 
   @@map("login_attempts")
+}
+
+// Estado de una sesión pomodoro (RF-14 de la 004)
+enum PomodoroStatus {
+  running
+  paused
+  finished
+
+  @@map("pomodoro_status")
+}
+
+// Motivo de fin de una sesión pomodoro (RF-33 de la 004)
+enum PomodoroEndReason {
+  time
+  manual
+
+  @@map("pomodoro_end_reason")
+}
+
+// Sesión pomodoro (sdd/004). El estado se calcula con ends_at y el reloj del servidor (RNF-02); una sesión
+// vencida se asienta al pedir y en el barrido cada 60 s (plan de la 004, D-2)
+model Pomodoro {
+  id              String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String             @map("user_id") @db.Uuid
+  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // = user_id mientras está en curso o pausada y NULL al terminar: una sola sesión activa por usuario (RF-12, D-3)
+  activeUserId    String?            @unique @map("active_user_id") @db.Uuid
+  // Entre 1 y 120, comprobado también con un CHECK en la migración (RF-09)
+  durationMinutes Int                @map("duration_minutes") @db.SmallInt
+  status          PomodoroStatus
+  startedAt       DateTime           @map("started_at") @db.Timestamptz(3)
+  // Fin previsto; NULL mientras está pausada o terminada (RF-30, RF-31)
+  endsAt          DateTime?          @map("ends_at") @db.Timestamptz(3)
+  // Tiempo que queda mientras está pausada (RF-30)
+  remainingMs     Int?               @map("remaining_ms")
+  // Por tiempo, = ends_at (RF-15); a mano, el instante de la petición (RF-32)
+  finishedAt      DateTime?          @map("finished_at") @db.Timestamptz(3)
+  // Día local del fin en la zona recordada del usuario (RF-40): base de la racha y de MARATHON
+  finishedOn      DateTime?          @map("finished_on") @db.Date
+  endReason       PomodoroEndReason? @map("end_reason")
+  // Duración menos el tiempo restante al terminar, sin pausas (RF-33, RF-47)
+  focusedSeconds  Int?               @map("focused_seconds")
+  // Foto de las tareas al terminar, en orden de position (RF-16, RF-64, D-9):
+  // [{ "id", "title", "description", "date": "AAAA-MM-DD", "completed", "completedAt" }], sin clave foránea
+  tasksSnapshot   Json?              @map("tasks_snapshot") @db.JsonB
+  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  tasks PomodoroTask[]
+
+  // Listado de la más reciente a la más antigua (RF-18)
+  @@index([userId, startedAt(sort: Desc), id(sort: Desc)])
+  // Barrido de las sesiones vencidas (D-2)
+  @@index([status, endsAt])
+  // Racha y logros (RF-38 a RF-47)
+  @@index([userId, endReason, finishedOn])
+  @@map("pomodoros")
+}
+
+// Tarea del pomodoro (sdd/004), independiente de las tareas de la 001 (RF-02, D-1).
+// pomodoro_id NULL y pendiente = en espera (RF-23); en una sesión terminada solo quedan las completadas (RF-35)
+model PomodoroTask {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pomodoroId  String?   @map("pomodoro_id") @db.Uuid
+  pomodoro    Pomodoro? @relation(fields: [pomodoroId], references: [id], onDelete: SetNull)
+  // Ya recortado (RF-53)
+  title       String    @db.VarChar(200)
+  // Ya recortada; vacía se guarda como NULL (RF-53)
+  description String?   @db.VarChar(1000)
+  date        DateTime  @db.Date
+  completed   Boolean   @default(false)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(3)
+  // Lugar en la sesión: mayor position de la sesión + 1 al añadirla; NULL en espera (RF-64, D-12)
+  position    Int?
+  // Orden de creación exacto, como tasks.sequence (RF-24; D-24 de la 001)
+  sequence    BigInt    @unique @default(autoincrement())
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  // Tareas en espera en orden (RF-24)
+  @@index([userId, pomodoroId, completed, date, sequence])
+  // Tareas de una sesión en orden (RF-64)
+  @@index([pomodoroId, position])
+  // Progreso de los logros de tareas (RF-46)
+  @@index([userId, completed])
+  @@map("pomodoro_tasks")
+}
+
+// Logro del pomodoro conseguido (RF-43, RF-44 de la 004). Solo se guardan los conseguidos y nunca se
+// borran ni se actualizan; el progreso se calcula al leer (plan de la 004, D-5)
+model PomodoroAchievement {
+  userId     String   @map("user_id") @db.Uuid
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Código del catálogo de RF-43
+  code       String   @db.VarChar(32)
+  // Instante del evento que alcanzó la meta (RF-44)
+  unlockedAt DateTime @map("unlocked_at") @db.Timestamptz(3)
+
+  @@id([userId, code])
+  @@map("pomodoro_achievements")
 }

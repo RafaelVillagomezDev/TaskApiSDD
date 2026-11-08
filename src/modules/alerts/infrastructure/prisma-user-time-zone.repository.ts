@@ -14,6 +14,12 @@ export class PrismaUserTimeZoneRepository implements UserTimeZoneRepository {
       WHERE "user_time_zones"."time_zone" <> EXCLUDED."time_zone"`;
   }
 
+  // Lectura por clave primaria
+  async findTimeZone(userId: string): Promise<string | null> {
+    const zone = await this.prisma.userTimeZone.findUnique({ where: { userId }, select: { timeZone: true } });
+    return zone?.timeZone ?? null;
+  }
+
   // Paginación por cursor sobre la clave primaria
   async listBatch(afterUserId: string | null, size: number): Promise<UserTimeZone[]> {
     return this.prisma.userTimeZone.findMany({

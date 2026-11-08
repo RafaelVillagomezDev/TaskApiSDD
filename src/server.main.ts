@@ -12,11 +12,14 @@ const server: Server = createApp(container).listen(port, () => {
   container.alertScheduler.start();
   // Y la limpieza de los datos de sesión caducados mientras la API estaba parada (D-12)
   container.authCleanupScheduler.start();
+  // Y el asentamiento de las sesiones pomodoro que vencieron con la API parada (D-2 de la 004)
+  container.pomodoroScheduler.start();
 });
 
 function stopSchedulers(): void {
   container.alertScheduler.stop();
   container.authCleanupScheduler.stop();
+  container.pomodoroScheduler.stop();
 }
 
 async function shutdown(): Promise<void> {

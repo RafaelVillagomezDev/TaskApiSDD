@@ -1,10 +1,6 @@
 import { AppError } from '../../../shared/domain/app.error.js';
 import type { LocalDate } from '../../../shared/domain/local-date.value-object.js';
 
-// Límites de texto de una tarea (RF-04, RF-05); los aplican los schemas Zod de entrada (D-17)
-export const TITLE_MAX_LENGTH = 200;
-export const DESCRIPTION_MAX_LENGTH = 1000;
-
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface TaskProps {

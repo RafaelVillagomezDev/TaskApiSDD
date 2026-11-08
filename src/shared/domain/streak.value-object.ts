@@ -1,6 +1,7 @@
-import type { LocalDate } from '../../../shared/domain/local-date.value-object.js';
+import type { LocalDate } from './local-date.value-object.js';
 
-// Racha actual y mejor racha de días productivos consecutivos (RF-17 a RF-21)
+// Racha actual y mejor racha de días productivos consecutivos (RF-17 a RF-21 de la 001). Vive en shared porque
+// la comparten la racha de tareas (streaks) y la del pomodoro (RF-41 de la 004, D-6 del plan de la 004)
 export class Streak {
   constructor(
     readonly current: number,

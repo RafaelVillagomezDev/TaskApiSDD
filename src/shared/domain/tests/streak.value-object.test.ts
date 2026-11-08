@@ -1,4 +1,4 @@
-import { LocalDate } from '../../../../shared/domain/local-date.value-object.js';
+import { LocalDate } from '../local-date.value-object.js';
 import { Streak } from '../streak.value-object.js';
 
 const days = (...values: string[]) => values.map((value) => LocalDate.parse(value));

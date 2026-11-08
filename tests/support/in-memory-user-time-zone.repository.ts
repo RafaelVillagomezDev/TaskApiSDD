@@ -23,6 +23,10 @@ export class InMemoryUserTimeZoneRepository implements UserTimeZoneRepository {
       .slice(0, size);
   }
 
+  async findTimeZone(userId: string): Promise<string | null> {
+    return this.zones.get(userId) ?? null;
+  }
+
   // Ayuda para los tests: zona recordada de un usuario
   find(userId: string): string | undefined {
     return this.zones.get(userId);

@@ -1,35 +1,12 @@
 import { z } from 'zod';
 
-import { LocalDate } from '../../../shared/domain/local-date.value-object.js';
 import { paginationQueryShape } from '../../../shared/infrastructure/http/pagination.schema.js';
-import { DESCRIPTION_MAX_LENGTH, TITLE_MAX_LENGTH } from '../domain/task.entity.js';
-
-// Día de calendario AAAA-MM-DD convertido en LocalDate (RF-06)
-export const daySchema = z
-  .string()
-  .refine((value) => LocalDate.tryParse(value) !== null, {
-    message: 'Debe ser un día válido con el formato AAAA-MM-DD',
-  })
-  .transform((value) => LocalDate.parse(value));
-
-// Título: 1–200 caracteres tras recortar espacios (RF-04, RF-38)
-const titleSchema = z.string().trim().min(1).max(TITLE_MAX_LENGTH);
-
-// Una descripción vacía (ya recortada) o ausente se guarda como null (RF-38)
-function emptyToNull(value: string | null | undefined): string | null {
-  if (!value) {
-    return null;
-  }
-  return value;
-}
-
-// Descripción: hasta 1000 caracteres tras recortar; vacía o ausente se guarda como null (RF-05, RF-38)
-const descriptionSchema = z
-  .string()
-  .trim()
-  .max(DESCRIPTION_MAX_LENGTH)
-  .nullish()
-  .transform(emptyToNull);
+import {
+  daySchema,
+  descriptionSchema,
+  editedDescriptionSchema,
+  titleSchema,
+} from '../../../shared/infrastructure/http/task-text.schema.js';
 
 export const createTaskBodySchema = z.object({
   title: titleSchema,
@@ -45,13 +22,7 @@ export const updateTaskBodySchema = z
   .strictObject({
     title: titleSchema.optional(),
     // null, vacía o solo espacios borra la descripción (RF-38)
-    description: z
-      .string()
-      .trim()
-      .max(DESCRIPTION_MAX_LENGTH)
-      .nullable()
-      .transform(emptyToNull)
-      .optional(),
+    description: editedDescriptionSchema,
     completed: z.boolean().optional(),
   })
   .refine((body) => Object.keys(body).length > 0, { message: 'Debe incluir al menos un campo' });

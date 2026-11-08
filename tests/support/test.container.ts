@@ -5,12 +5,15 @@ import type { AddressInfo } from 'node:net';
 import type { Express } from 'express';
 
 import type { AppContainer } from '../../src/app.factory.js';
+import { GetUserTimeZoneUseCase } from '../../src/modules/alerts/alert.facade.js';
 import { GenerateDueAlertUseCase } from '../../src/modules/alerts/application/generate-due-alert.use-case.js';
 import { ListAlertsUseCase } from '../../src/modules/alerts/application/list-alert.use-case.js';
 import { RecordUserTimeZoneUseCase } from '../../src/modules/alerts/application/record-user-time-zone.use-case.js';
 import { AlertController } from '../../src/modules/alerts/infrastructure/alert.controller.js';
 import { createAlertRouter } from '../../src/modules/alerts/infrastructure/alert.routes.js';
 import { PendingTaskAdapter } from '../../src/modules/alerts/infrastructure/pending-task.adapter.js';
+import { SettleDuePomodoroUseCase } from '../../src/modules/pomodoros/application/settle-due-pomodoro.use-case.js';
+import { UserTimeZoneAdapter } from '../../src/modules/pomodoros/infrastructure/user-time-zone.adapter.js';
 import { GetStreakUseCase } from '../../src/modules/streaks/application/get-streak.use-case.js';
 import { ProductiveDateAdapter } from '../../src/modules/streaks/infrastructure/productive-date.adapter.js';
 import { StreakController } from '../../src/modules/streaks/infrastructure/streak.controller.js';
@@ -52,6 +55,7 @@ import { FakePasswordHasher } from './fake-password-hasher.adapter.js';
 import { InMemoryAlertRepository } from './in-memory-alert.repository.js';
 import { InMemoryCsrfTokenRepository } from './in-memory-csrf-token.repository.js';
 import { InMemoryLoginAttemptRepository } from './in-memory-login-attempt.repository.js';
+import { InMemoryPomodoroRepository } from './in-memory-pomodoro.repository.js';
 import { InMemorySessionRepository } from './in-memory-session.repository.js';
 import { InMemoryTaskRepository } from './in-memory-task.repository.js';
 import { InMemoryUserTimeZoneRepository } from './in-memory-user-time-zone.repository.js';
@@ -76,6 +80,9 @@ export interface TestContainer extends AppContainer {
   csrfTokens: InMemoryCsrfTokenRepository;
   sessions: InMemorySessionRepository;
   loginAttempts: InMemoryLoginAttemptRepository;
+  pomodoros: InMemoryPomodoroRepository;
+  // Una pasada del barrido de sesiones pomodoro, para ejecutarla a mano tras mover el reloj (D-2 de la 004)
+  settlePomodoros: SettleDuePomodoroUseCase;
 }
 
 export function createTestContainer(): TestContainer {
@@ -156,6 +163,15 @@ export function createTestContainer(): TestContainer {
     session,
   });
 
+  // Módulo pomodoros (spec 004), con la zona recordada a través de la fachada de alerts (D-7)
+  const pomodoros = new InMemoryPomodoroRepository();
+  const settlePomodoros = new SettleDuePomodoroUseCase(
+    pomodoros,
+    new UserTimeZoneAdapter(new GetUserTimeZoneUseCase(userTimeZones)),
+    timeZones,
+    clock,
+  );
+
   return {
     clock,
     timeZones,
@@ -167,6 +183,8 @@ export function createTestContainer(): TestContainer {
     csrfTokens,
     sessions,
     loginAttempts,
+    pomodoros,
+    settlePomodoros,
     corsOrigin: FRONTEND_ORIGIN,
     routers: [authRouter, meRouter, taskRouter, streakRouter, alertRouter],
   };
