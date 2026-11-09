@@ -643,4 +643,75 @@ describe('rutas del pomodoro', () => {
       }
     });
   });
+  // Dos fallos a la vez: responde solo el primero del orden de RF-63 (RF-34 de la 002)
+  describe('precedencia de errores por pares (RF-63)', () => {
+    const MISSING_ID = '8f1c2e4a-0000-4000-8000-0000000000ff';
+    const twentyTasks = (count: number) => Array.from({ length: count }, (_, index) => ({ title: `Tarea ${index}`, date: TODAY }));
+    const expectCode = async (response: Promise<{ body: Envelope<unknown> }>, code: string) =>
+      expect((await response).body.error?.code).toBe(code);
+
+    it('sin X-CSRF-Token y con la sesión inexistente → INVALID_CSRF_TOKEN', async () => {
+      const { Cookie } = session;
+      await expectCode(
+        call(`/pomodoros/${MISSING_ID}`, { method: 'PATCH', body: JSON.stringify({ status: 'paused' }) }, { ...clientHeaders(), Cookie }),
+        'INVALID_CSRF_TOKEN',
+      );
+    });
+
+    it('token de acceso caducado y cuerpo no válido → TOKEN_EXPIRED', async () => {
+      container.clock.advance(16 * MINUTE);
+      await expectCode(startPomodoro({ durationMinutes: 0 }), 'TOKEN_EXPIRED');
+    });
+
+    it('X-Timezone no válida y sesión inexistente → INVALID_TIMEZONE', async () => {
+      await expectCode(call(`/pomodoros/${MISSING_ID}`, {}, { ...withSession(), 'X-Timezone': 'Marte/Olympus' }), 'INVALID_TIMEZONE');
+    });
+
+    it('cuerpo no válido y sesión inexistente → VALIDATION_ERROR', async () => {
+      await expectCode(
+        call(`/pomodoros/${MISSING_ID}`, { method: 'PATCH', body: JSON.stringify({ status: 'cancelled' }) }),
+        'VALIDATION_ERROR',
+      );
+    });
+
+    it('sesión inexistente y tarea en espera inexistente → POMODORO_NOT_FOUND', async () => {
+      await expectCode(
+        call(`/pomodoros/${MISSING_ID}/tasks`, { method: 'POST', body: JSON.stringify({ waitingTaskIds: [MISSING_ID] }) }),
+        'POMODORO_NOT_FOUND',
+      );
+    });
+
+    it('tarea en espera inexistente y sesión activa → POMODORO_TASK_NOT_FOUND', async () => {
+      await startPomodoro();
+      await expectCode(startPomodoro({ waitingTaskIds: [MISSING_ID] }), 'POMODORO_TASK_NOT_FOUND');
+    });
+
+    it('sesión terminada con 18 tareas y 5 más → INVALID_POMODORO_STATE antes que el límite', async () => {
+      const id = (await startPomodoro({ newTasks: twentyTasks(18) })).body.data?.id ?? '';
+      await call(`/pomodoros/${id}`, { method: 'PATCH', body: JSON.stringify({ status: 'finished' }) });
+      await expectCode(
+        call(`/pomodoros/${id}/tasks`, { method: 'POST', body: JSON.stringify({ newTasks: twentyTasks(5) }) }),
+        'INVALID_POMODORO_STATE',
+      );
+    });
+
+    it('19 tareas y 2 más, una de ayer → POMODORO_TASK_LIMIT antes que DAY_CLOSED', async () => {
+      const id = (await startPomodoro({ newTasks: twentyTasks(19) })).body.data?.id ?? '';
+      const newTasks = [{ title: 'Hoy', date: TODAY }, { title: 'Ayer', date: '2026-10-23' }];
+      await expectCode(call(`/pomodoros/${id}/tasks`, { method: 'POST', body: JSON.stringify({ newTasks }) }), 'POMODORO_TASK_LIMIT');
+    });
+
+    it('sesión activa y tarea nueva para ayer → POMODORO_ALREADY_ACTIVE antes que DAY_CLOSED', async () => {
+      await startPomodoro();
+      await expectCode(startPomodoro({ newTasks: [{ title: 'Ayer', date: '2026-10-23' }] }), 'POMODORO_ALREADY_ACTIVE');
+    });
+
+    it('borrar una completada de una sesión terminada → INVALID_POMODORO_STATE, no POMODORO_TASK_IN_SESSION', async () => {
+      const started = await startPomodoro({ newTasks: [{ title: 'Hecha', date: TODAY }] });
+      const taskId = started.body.data?.tasks[0]?.id ?? '';
+      await call(`/pomodoro-tasks/${taskId}`, { method: 'PATCH', body: JSON.stringify({ completed: true }) });
+      await call(`/pomodoros/${started.body.data?.id ?? ''}`, { method: 'PATCH', body: JSON.stringify({ status: 'finished' }) });
+      await expectCode(call(`/pomodoro-tasks/${taskId}`, { method: 'DELETE' }), 'INVALID_POMODORO_STATE');
+    });
+  });
 });

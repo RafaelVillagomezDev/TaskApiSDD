@@ -1,0 +1,2826 @@
+{
+  "info": {
+    "name": "TaskApiSDD — Sesiones pomodoro (004)",
+    "description": "Funcionalidad 004 (sdd/004-pomodoro-sessions): los 11 endpoints del pomodoro. Ejecuta '1. Flujo' en orden (Run folder) antes de '2. Errores': la primera petición crea una cuenta nueva, así la racha y los logros empiezan en 0. Las cookies de sesión se guardan en la variable sessionCookie y se envían en la cabecera Cookie, con las cookies automáticas desactivadas, porque Newman y Postman no reenvían cookies Secure por http a un host que no sea localhost. La variable timeZone debe ser la zona IANA de la máquina que ejecuta la colección (X-Client-Time sale de su reloj). Las sesiones terminadas por tiempo, la racha y los logros que dependen de ellas no se prueban aquí, porque exigirían esperar el minuto de la sesión: los cubren los tests y la guía quickstart.md.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Calcula X-Client-Time (hora local con ±HH:MM) y las fechas locales en cada petición",
+          "const pad = (n) => String(Math.abs(n)).padStart(2, '0');",
+          "const now = new Date();",
+          "const offset = -now.getTimezoneOffset();",
+          "const sign = offset >= 0 ? '+' : '-';",
+          "pm.variables.set('clientTime',",
+          "  `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}` +",
+          "  `${sign}${pad(Math.floor(Math.abs(offset) / 60))}:${pad(Math.abs(offset) % 60)}`);",
+          "const day = (delta) => {",
+          "  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + delta);",
+          "  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;",
+          "};",
+          "pm.variables.set('today', day(0));",
+          "pm.variables.set('tomorrow', day(1));",
+          "pm.variables.set('yesterday', day(-1));"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Flujo",
+      "item": [
+        {
+          "name": "00a Pedir token CSRF previo a la sesión (002)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Cuenta nueva en cada ejecución: la racha y los logros empiezan en 0",
+                  "pm.collectionVariables.set('email', `postman-pomodoro-${Date.now()}@example.com`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con csrfToken (RF-22 de la 002)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.collectionVariables.set('presessionCsrfToken', pm.response.json().data.csrfToken);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/csrf",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "csrf"
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "00b Registrarse (002)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 con la cuenta (RF-01 de la 002)', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{presessionCsrfToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "00c Iniciar sesión (002)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con el token CSRF de la sesión y sus cookies (RF-07, RF-24 de la 002)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.collectionVariables.set('sessionCsrfToken', pm.response.json().data.csrfToken);",
+                  "  // Cookies a mano en la cabecera Cookie: Newman y Postman no envían cookies Secure por http a un host",
+                  "  // que no sea localhost (por ejemplo host.docker.internal)",
+                  "  const cookies = pm.response.headers.all().filter((header) => header.key.toLowerCase() === 'set-cookie');",
+                  "  pm.collectionVariables.set('sessionCookie', cookies.map((header) => header.value.split(';')[0]).join('; '));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{presessionCsrfToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "01 Racha del pomodoro de una cuenta nueva (H6)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con { current: 0, best: 0 }, la forma de GET /streak (RF-41)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().data).to.eql({ current: 0, best: 0 });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "{{sessionCookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{sessionCsrfToken}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pomodoro-streak",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pomodoro-streak"
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "02 Logros de una cuenta nueva (H6)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con los 11 logros sin conseguir y FOCUS_10H en minutos (RF-19, RF-43, RF-65)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const { data } = pm.response.json();",
+                  "  pm.expect(data).to.have.lengthOf(11);",
+                  "  pm.expect(data[0].code).to.equal('FIRST_POMODORO');",
+                  "  pm.expect(data.every((achievement) => !achievement.unlocked && achievement.progress === 0)).to.equal(true);",
+                  "  pm.expect(data.find((achievement) => achievement.code === 'FOCUS_10H').target).to.equal(600);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "{{sessionCookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{sessionCsrfToken}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pomodoro-achievements",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pomodoro-achievements"
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "03 Empezar una sesión con dos tareas (H1, H2)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Sesión pomodoro iniciada, en curso y con las tareas en orden (RF-04, RF-08, RF-49, RF-64)', () => {",
+                  "  pm.response.to.have.status(201);",
+                  "  const { message, data } = pm.response.json();",
+                  "  pm.expect(message).to.equal('Sesión pomodoro iniciada');",
+                  "  pm.expect(data.status).to.equal('running');",
+                  "  pm.expect(data.durationMinutes).to.equal(25);",
+                  "  pm.expect(data.remainingSeconds).to.be.within(1490, 1500);",
+                  "  pm.expect(data.tasks.map((task) => task.title)).to.eql(['Repasar el tema 3', 'Preparar el examen']);",
+                  "  pm.expect(data.tasks[0].description).to.equal(null);",
+                  "  pm.collectionVariables.set('pomodoroId', data.id);",
+                  "  pm.collectionVariables.set('taskAId', data.tasks[0].id);",
+                  "  pm.collectionVariables.set('taskBId', data.tasks[1].id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "{{sessionCookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{sessionCsrfToken}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pomodoros",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pomodoros"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"newTasks\": [\n    {\n      \"title\": \"  Repasar el tema 3 \",\n      \"description\": \"   \",\n      \"date\": \"{{today}}\"\n    },\n    {\n      \"title\": \"Preparar el examen\",\n      \"date\": \"{{tomorrow}}\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "04 Con una sesión activa no se puede empezar otra (H1)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 POMODORO_ALREADY_ACTIVE con el sobre de error (RF-12)', () => {",
+                  "  pm.response.to.have.status(409);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.equal(false);",
+                  "  pm.expect(body.status).to.equal(409);",
+                  "  pm.expect(body.error.code).to.equal('POMODORO_ALREADY_ACTIVE');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "{{sessionCookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{sessionCsrfToken}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pomodoros",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pomodoros"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "05 Completar la tarea A (H3)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 completada con completedAt (RF-13)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const { data } = pm.response.json();",
+                  "  pm.expect(data.completed).to.equal(true);",
+                  "  pm.expect(data.completedAt).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "{{sessionCookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{sessionCsrfToken}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pomodoro-tasks/{{taskAId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pomodoro-tasks",
+                "{{taskAId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"completed\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "06 Editar el título de la tarea B (H3)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con el título nuevo y la misma fecha (RF-48)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const { data } = pm.response.json();",
+                  "  pm.expect(data.title).to.equal('Preparar el examen final');",
+                  "  pm.expect(data.date).to.equal(pm.variables.get('tomorrow'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "{{sessionCookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{sessionCsrfToken}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pomodoro-tasks/{{taskBId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pomodoro-tasks",
+                "{{taskBId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Preparar el examen final\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "07 Añadir una tarea a la sesión (H5)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con la tarea añadida al final (RF-25, RF-51, RF-64)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const { data } = pm.response.json();",
+                  "  pm.expect(data.totalTasks).to.equal(3);",
+                  "  pm.expect(data.tasks[2].title).to.equal('Llamar a Marta');",
+                  "  pm.collectionVariables.set('taskCId', data.tasks[2].id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "{{sessionCookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{sessionCsrfToken}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pomodoros/{{pomodoroId}}/tasks",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pomodoros",
+                "{{pomodoroId}}",
+                "tasks"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"newTasks\": [\n    {\n      \"title\": \"Llamar a Marta\",\n      \"date\": \"{{today}}\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "08 Quitar la tarea C de la sesión (H5)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 sin la tarea, que pasa a espera (RF-26, RF-62)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().data.totalTasks).to.equal(2);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "{{sessionCookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{sessionCsrfToken}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pomodoros/{{pomodoroId}}/tasks/{{taskCId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pomodoros",
+                "{{pomodoroId}}",
+                "tasks",
+                "{{taskCId}}"
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "09 Quitar una tarea completada → POMODORO_TASK_COMPLETED (H5)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 POMODORO_TASK_COMPLETED con el sobre de error (RF-37)', () => {",
+                  "  pm.response.to.have.status(409);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.equal(false);",
+                  "  pm.expect(body.status).to.equal(409);",
+                  "  pm.expect(body.error.code).to.equal('POMODORO_TASK_COMPLETED');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "{{sessionCookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{sessionCsrfToken}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pomodoros/{{pomodoroId}}/tasks/{{taskAId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pomodoros",
+                "{{pomodoroId}}",
+                "tasks",
+                "{{taskAId}}"
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "10 Pausar la sesión (H4)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 pausada, sin fin previsto (RF-30, RF-50)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const { data } = pm.response.json();",
+                  "  pm.expect(data.status).to.equal('paused');",
+                  "  pm.expect(data.endsAt).to.equal(null);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "{{sessionCookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{sessionCsrfToken}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pomodoros/{{pomodoroId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pomodoros",
+                "{{pomodoroId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"paused\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "11 Pausar una sesión ya pausada → INVALID_POMODORO_STATE (H4)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 INVALID_POMODORO_STATE con el sobre de error (RF-34, RF-61)', () => {",
+                  "  pm.response.to.have.status(409);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.equal(false);",
+                  "  pm.expect(body.status).to.equal(409);",
+                  "  pm.expect(body.error.code).to.equal('INVALID_POMODORO_STATE');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "{{sessionCookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{sessionCsrfToken}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pomodoros/{{pomodoroId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pomodoros",
+                "{{pomodoroId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"paused\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "12 Reanudar la sesión (H4)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 en curso con un fin previsto nuevo (RF-31)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const { data } = pm.response.json();",
+                  "  pm.expect(data.status).to.equal('running');",
+                  "  pm.expect(data.endsAt).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "{{sessionCookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{sessionCsrfToken}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pomodoros/{{pomodoroId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pomodoros",
+                "{{pomodoroId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"running\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "13 Consultar la sesión (H3)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con las tareas actuales: A completada y B pendiente (RF-17, RF-58)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const { data } = pm.response.json();",
+                  "  pm.expect(data.tasks.map((task) => [task.title, task.completed])).to.eql([['Repasar el tema 3', true], ['Preparar el examen final', false]]);",
+                  "  pm.expect(data.completedTasks).to.equal(1);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "{{sessionCookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{sessionCsrfToken}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pomodoros/{{pomodoroId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pomodoros",
+                "{{pomodoroId}}"
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "14 Terminar la sesión a mano (H4)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 terminada a mano con su foto (RF-16, RF-32, RF-33)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const { data } = pm.response.json();",
+                  "  pm.expect(data.status).to.equal('finished');",
+                  "  pm.expect(data.endReason).to.equal('manual');",
+                  "  pm.expect(data.focusedSeconds).to.be.a('number');",
+                  "  pm.expect(data.totalTasks).to.equal(2);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "{{sessionCookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{sessionCsrfToken}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pomodoros/{{pomodoroId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pomodoros",
+                "{{pomodoroId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"finished\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "15 Listar mis sesiones (H3)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 paginado con la sesión terminada (RF-18)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const { data } = pm.response.json();",
+                  "  pm.expect(data.totalItems).to.equal(1);",
+                  "  pm.expect(data.items[0].id).to.equal(pm.collectionVariables.get('pomodoroId'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "{{sessionCookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{sessionCsrfToken}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pomodoros",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pomodoros"
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "16 Tareas en espera (H5)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con la quitada y la pendiente de la sesión terminada, por fecha (RF-23, RF-24)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const { data } = pm.response.json();",
+                  "  pm.expect(data.items.map((task) => task.title)).to.eql(['Llamar a Marta', 'Preparar el examen final']);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "{{sessionCookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{sessionCsrfToken}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pomodoro-tasks",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pomodoro-tasks"
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "17 Desmarcar una tarea de una sesión terminada → INVALID_POMODORO_STATE (H3)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 INVALID_POMODORO_STATE con el sobre de error (RF-34, RF-35)', () => {",
+                  "  pm.response.to.have.status(409);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.equal(false);",
+                  "  pm.expect(body.status).to.equal(409);",
+                  "  pm.expect(body.error.code).to.equal('INVALID_POMODORO_STATE');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "{{sessionCookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{sessionCsrfToken}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pomodoro-tasks/{{taskAId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pomodoro-tasks",
+                "{{taskAId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"completed\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "18 Completar una tarea en espera → POMODORO_TASK_NOT_IN_SESSION (H3)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 POMODORO_TASK_NOT_IN_SESSION con el sobre de error (RF-36)', () => {",
+                  "  pm.response.to.have.status(409);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.equal(false);",
+                  "  pm.expect(body.status).to.equal(409);",
+                  "  pm.expect(body.error.code).to.equal('POMODORO_TASK_NOT_IN_SESSION');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "{{sessionCookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{sessionCsrfToken}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pomodoro-tasks/{{taskBId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pomodoro-tasks",
+                "{{taskBId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"completed\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "19 Empezar otra sesión con la tarea B en espera (H5)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 con la tarea en espera y su mismo id (RF-21)', () => {",
+                  "  pm.response.to.have.status(201);",
+                  "  const { data } = pm.response.json();",
+                  "  pm.expect(data.tasks.map((task) => task.id)).to.eql([pm.collectionVariables.get('taskBId')]);",
+                  "  pm.collectionVariables.set('secondPomodoroId', data.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "{{sessionCookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{sessionCsrfToken}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pomodoros",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pomodoros"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"waitingTaskIds\": [\n    \"{{taskBId}}\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "20 Borrar una tarea de la sesión activa → POMODORO_TASK_IN_SESSION (H5)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 POMODORO_TASK_IN_SESSION con el sobre de error (RF-29)', () => {",
+                  "  pm.response.to.have.status(409);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.equal(false);",
+                  "  pm.expect(body.status).to.equal(409);",
+                  "  pm.expect(body.error.code).to.equal('POMODORO_TASK_IN_SESSION');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "{{sessionCookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{sessionCsrfToken}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pomodoro-tasks/{{taskBId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pomodoro-tasks",
+                "{{taskBId}}"
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "21 Borrar la tarea C en espera (H5)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con data null (RF-22)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().data).to.equal(null);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "{{sessionCookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{sessionCsrfToken}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pomodoro-tasks/{{taskCId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pomodoro-tasks",
+                "{{taskCId}}"
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "22 Terminar la segunda sesión (H4)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 terminada (RF-32)', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "{{sessionCookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{sessionCsrfToken}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pomodoros/{{secondPomodoroId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pomodoros",
+                "{{secondPomodoroId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"finished\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "23 Las sesiones terminadas a mano no cuentan para la racha (H6)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con { current: 0, best: 0 } (RF-38)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().data).to.eql({ current: 0, best: 0 });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "{{sessionCookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{sessionCsrfToken}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pomodoro-streak",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pomodoro-streak"
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "24 Logros: una tarea completada (H6)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con TASKS_10 en 1 de 10 y sin FIRST_POMODORO (RF-44, RF-46)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const { data } = pm.response.json();",
+                  "  const byCode = Object.fromEntries(data.map((achievement) => [achievement.code, achievement]));",
+                  "  pm.expect(byCode.TASKS_10.progress).to.equal(1);",
+                  "  pm.expect(byCode.FIRST_POMODORO.unlocked).to.equal(false);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "{{sessionCookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{sessionCsrfToken}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pomodoro-achievements",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pomodoro-achievements"
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "25 Las tareas del pomodoro no están en GET /tasks (H2)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 sin tareas de la 001 (RF-02, CE-03)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().data.totalItems).to.equal(0);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "{{sessionCookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{sessionCsrfToken}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tasks",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks"
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Errores",
+      "item": [
+        {
+          "name": "POST /pomodoros sin X-CSRF-Token → INVALID_CSRF_TOKEN (RF-23 de la 002)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 INVALID_CSRF_TOKEN con el sobre de error (RF-23 de la 002)', () => {",
+                  "  pm.response.to.have.status(403);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.equal(false);",
+                  "  pm.expect(body.status).to.equal(403);",
+                  "  pm.expect(body.error.code).to.equal('INVALID_CSRF_TOKEN');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "{{sessionCookie}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pomodoros",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pomodoros"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "GET /pomodoros sin sesión → MISSING_TOKEN (RF-18 de la 002)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401 MISSING_TOKEN con el sobre de error (RF-18 de la 002)', () => {",
+                  "  pm.response.to.have.status(401);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.equal(false);",
+                  "  pm.expect(body.status).to.equal(401);",
+                  "  pm.expect(body.error.code).to.equal('MISSING_TOKEN');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pomodoros",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pomodoros"
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "POST /pomodoros sin X-Client-Time → INVALID_CLIENT_TIME (RF-03)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 INVALID_CLIENT_TIME con el sobre de error (RF-03)', () => {",
+                  "  pm.response.to.have.status(400);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.equal(false);",
+                  "  pm.expect(body.status).to.equal(400);",
+                  "  pm.expect(body.error.code).to.equal('INVALID_CLIENT_TIME');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "{{sessionCookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{sessionCsrfToken}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pomodoros",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pomodoros"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Duración de 121 minutos → VALIDATION_ERROR (RF-55)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 VALIDATION_ERROR con el sobre de error (RF-55)', () => {",
+                  "  pm.response.to.have.status(400);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.equal(false);",
+                  "  pm.expect(body.status).to.equal(400);",
+                  "  pm.expect(body.error.code).to.equal('VALIDATION_ERROR');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "{{sessionCookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{sessionCsrfToken}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pomodoros",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pomodoros"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"durationMinutes\": 121\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Tarea nueva para ayer → DAY_CLOSED (RF-05)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 DAY_CLOSED con el sobre de error (RF-05)', () => {",
+                  "  pm.response.to.have.status(409);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.equal(false);",
+                  "  pm.expect(body.status).to.equal(409);",
+                  "  pm.expect(body.error.code).to.equal('DAY_CLOSED');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "{{sessionCookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{sessionCsrfToken}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pomodoros",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pomodoros"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"newTasks\": [\n    {\n      \"title\": \"Tarde\",\n      \"date\": \"{{yesterday}}\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Sesión con id no UUID → POMODORO_NOT_FOUND (RF-20)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 POMODORO_NOT_FOUND con el sobre de error (RF-20)', () => {",
+                  "  pm.response.to.have.status(404);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.equal(false);",
+                  "  pm.expect(body.status).to.equal(404);",
+                  "  pm.expect(body.error.code).to.equal('POMODORO_NOT_FOUND');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "{{sessionCookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{sessionCsrfToken}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pomodoros/sesion-1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pomodoros",
+                "sesion-1"
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Estado desconocido → VALIDATION_ERROR (RF-50)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 VALIDATION_ERROR con el sobre de error (RF-50)', () => {",
+                  "  pm.response.to.have.status(400);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.equal(false);",
+                  "  pm.expect(body.status).to.equal(400);",
+                  "  pm.expect(body.error.code).to.equal('VALIDATION_ERROR');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "{{sessionCookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{sessionCsrfToken}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pomodoros/{{pomodoroId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pomodoros",
+                "{{pomodoroId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"cancelled\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Cambiar la fecha de una tarea → VALIDATION_ERROR (RF-54)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 VALIDATION_ERROR con el sobre de error (RF-54)', () => {",
+                  "  pm.response.to.have.status(400);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.equal(false);",
+                  "  pm.expect(body.status).to.equal(400);",
+                  "  pm.expect(body.error.code).to.equal('VALIDATION_ERROR');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "{{sessionCookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{sessionCsrfToken}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pomodoro-tasks/{{taskBId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pomodoro-tasks",
+                "{{taskBId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"{{tomorrow}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Tarea en espera inexistente → POMODORO_TASK_NOT_FOUND (RF-11)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 POMODORO_TASK_NOT_FOUND con el sobre de error (RF-11)', () => {",
+                  "  pm.response.to.have.status(404);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.equal(false);",
+                  "  pm.expect(body.status).to.equal(404);",
+                  "  pm.expect(body.error.code).to.equal('POMODORO_TASK_NOT_FOUND');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "{{sessionCookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{sessionCsrfToken}}"
+              },
+              {
+                "key": "X-Client-Time",
+                "value": "{{clientTime}}"
+              },
+              {
+                "key": "X-Timezone",
+                "value": "{{timeZone}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pomodoros",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pomodoros"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"waitingTaskIds\": [\n    \"8f1c2e4a-0000-4000-8000-0000000000ff\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. CORS",
+      "item": [
+        {
+          "name": "Petición previa de POST /pomodoros desde el frontend → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con el método permitido (RF-36 de la 002)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.headers.get('Access-Control-Allow-Methods')).to.include('POST');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "OPTIONS",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}"
+              },
+              {
+                "key": "Access-Control-Request-Method",
+                "value": "POST"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pomodoros",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pomodoros"
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Petición previa de GET /pomodoros desde el frontend → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con el método permitido (RF-36 de la 002)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.headers.get('Access-Control-Allow-Methods')).to.include('GET');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "OPTIONS",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}"
+              },
+              {
+                "key": "Access-Control-Request-Method",
+                "value": "GET"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pomodoros",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pomodoros"
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Petición previa de GET /pomodoros/8f1c2e4a-0000-4000-8000-0000000000ff desde el frontend → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con el método permitido (RF-36 de la 002)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.headers.get('Access-Control-Allow-Methods')).to.include('GET');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "OPTIONS",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}"
+              },
+              {
+                "key": "Access-Control-Request-Method",
+                "value": "GET"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pomodoros/8f1c2e4a-0000-4000-8000-0000000000ff",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pomodoros",
+                "8f1c2e4a-0000-4000-8000-0000000000ff"
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Petición previa de PATCH /pomodoros/8f1c2e4a-0000-4000-8000-0000000000ff desde el frontend → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con el método permitido (RF-36 de la 002)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.headers.get('Access-Control-Allow-Methods')).to.include('PATCH');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "OPTIONS",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}"
+              },
+              {
+                "key": "Access-Control-Request-Method",
+                "value": "PATCH"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pomodoros/8f1c2e4a-0000-4000-8000-0000000000ff",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pomodoros",
+                "8f1c2e4a-0000-4000-8000-0000000000ff"
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Petición previa de POST /pomodoros/8f1c2e4a-0000-4000-8000-0000000000ff/tasks desde el frontend → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con el método permitido (RF-36 de la 002)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.headers.get('Access-Control-Allow-Methods')).to.include('POST');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "OPTIONS",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}"
+              },
+              {
+                "key": "Access-Control-Request-Method",
+                "value": "POST"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pomodoros/8f1c2e4a-0000-4000-8000-0000000000ff/tasks",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pomodoros",
+                "8f1c2e4a-0000-4000-8000-0000000000ff",
+                "tasks"
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Petición previa de DELETE /pomodoros/8f1c2e4a-0000-4000-8000-0000000000ff/tasks/8f1c2e4a-0000-4000-8000-0000000000ff desde el frontend → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con el método permitido (RF-36 de la 002)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.headers.get('Access-Control-Allow-Methods')).to.include('DELETE');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "OPTIONS",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}"
+              },
+              {
+                "key": "Access-Control-Request-Method",
+                "value": "DELETE"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pomodoros/8f1c2e4a-0000-4000-8000-0000000000ff/tasks/8f1c2e4a-0000-4000-8000-0000000000ff",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pomodoros",
+                "8f1c2e4a-0000-4000-8000-0000000000ff",
+                "tasks",
+                "8f1c2e4a-0000-4000-8000-0000000000ff"
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Petición previa de GET /pomodoro-tasks desde el frontend → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con el método permitido (RF-36 de la 002)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.headers.get('Access-Control-Allow-Methods')).to.include('GET');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "OPTIONS",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}"
+              },
+              {
+                "key": "Access-Control-Request-Method",
+                "value": "GET"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pomodoro-tasks",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pomodoro-tasks"
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Petición previa de PATCH /pomodoro-tasks/8f1c2e4a-0000-4000-8000-0000000000ff desde el frontend → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con el método permitido (RF-36 de la 002)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.headers.get('Access-Control-Allow-Methods')).to.include('PATCH');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "OPTIONS",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}"
+              },
+              {
+                "key": "Access-Control-Request-Method",
+                "value": "PATCH"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pomodoro-tasks/8f1c2e4a-0000-4000-8000-0000000000ff",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pomodoro-tasks",
+                "8f1c2e4a-0000-4000-8000-0000000000ff"
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Petición previa de DELETE /pomodoro-tasks/8f1c2e4a-0000-4000-8000-0000000000ff desde el frontend → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con el método permitido (RF-36 de la 002)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.headers.get('Access-Control-Allow-Methods')).to.include('DELETE');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "OPTIONS",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}"
+              },
+              {
+                "key": "Access-Control-Request-Method",
+                "value": "DELETE"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pomodoro-tasks/8f1c2e4a-0000-4000-8000-0000000000ff",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pomodoro-tasks",
+                "8f1c2e4a-0000-4000-8000-0000000000ff"
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Petición previa de GET /pomodoro-streak desde el frontend → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con el método permitido (RF-36 de la 002)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.headers.get('Access-Control-Allow-Methods')).to.include('GET');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "OPTIONS",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}"
+              },
+              {
+                "key": "Access-Control-Request-Method",
+                "value": "GET"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pomodoro-streak",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pomodoro-streak"
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Petición previa de GET /pomodoro-achievements desde el frontend → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 con el método permitido (RF-36 de la 002)', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.headers.get('Access-Control-Allow-Methods')).to.include('GET');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "OPTIONS",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}"
+              },
+              {
+                "key": "Access-Control-Request-Method",
+                "value": "GET"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pomodoro-achievements",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pomodoro-achievements"
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "frontendOrigin",
+      "value": "http://localhost:5173"
+    },
+    {
+      "key": "timeZone",
+      "value": "Europe/Madrid"
+    },
+    {
+      "key": "password",
+      "value": "correct horse battery"
+    },
+    {
+      "key": "email",
+      "value": ""
+    },
+    {
+      "key": "presessionCsrfToken",
+      "value": ""
+    },
+    {
+      "key": "sessionCookie",
+      "value": ""
+    },
+    {
+      "key": "sessionCsrfToken",
+      "value": ""
+    },
+    {
+      "key": "pomodoroId",
+      "value": ""
+    },
+    {
+      "key": "secondPomodoroId",
+      "value": ""
+    },
+    {
+      "key": "taskAId",
+      "value": ""
+    },
+    {
+      "key": "taskBId",
+      "value": ""
+    },
+    {
+      "key": "taskCId",
+      "value": ""
+    }
+  ]
+}

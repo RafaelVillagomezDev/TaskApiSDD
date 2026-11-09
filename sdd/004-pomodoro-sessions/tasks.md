@@ -268,18 +268,24 @@ Spec: `sdd/004-pomodoro-sessions/spec.md` (Aprobada) · Plan: `sdd/004-pomodoro-
 
 ## Fase de robustez
 
-- [ ] T056 [Rob] Batería de precedencia por pares de RF-63 en las rutas del pomodoro: sesión terminada con 18 + 5 → `INVALID_POMODORO_STATE`; 19 + 2 con una de ayer → `POMODORO_TASK_LIMIT`; sesión inexistente y cuerpo inválido → `VALIDATION_ERROR`; CSRF y sesión antes que todo (RF-63; RF-34 de la 002) — `pomodoros/infrastructure/tests/pomodoro.routes.test.ts`
+- [x] T056 [Rob] Batería de precedencia por pares de RF-63 en las rutas del pomodoro: sesión terminada con 18 + 5 → `INVALID_POMODORO_STATE`; 19 + 2 con una de ayer → `POMODORO_TASK_LIMIT`; sesión inexistente y cuerpo inválido → `VALIDATION_ERROR`; CSRF y sesión antes que todo (RF-63; RF-34 de la 002) — `pomodoros/infrastructure/tests/pomodoro.routes.test.ts`
   - Verifica: `dce pnpm test pomodoros/infrastructure/tests/pomodoro.routes` pasa.
-- [ ] T057 [Rob] Rendimiento: p95 < 300 ms en los endpoints del pomodoro con 10 000 tareas del pomodoro y 1 000 sesiones, y una pasada del barrido (RNF-01, R-5) — `tests/performance/api.perf.test.ts`
+  - Hecho (2026-11-09): 10 pares, de `INVALID_CSRF_TOKEN` a `INVALID_POMODORO_STATE` frente a `POMODORO_TASK_IN_SESSION`; pasaron sin cambiar código, porque los casos de uso ya comprobaban en el orden de RF-63. `pomodoro.routes.test.ts` → 60 tests en verde.
+- [x] T057 [Rob] Rendimiento: p95 < 300 ms en los endpoints del pomodoro con 10 000 tareas del pomodoro y 1 000 sesiones, y una pasada del barrido (RNF-01, R-5) — `tests/performance/api.perf.test.ts`
   - Verifica: `dce pnpm test:perf` pasa.
-- [ ] T058 [P] [Rob] Guía manual con `curl` QS-01… (empezar, completar, pausar, terminar, tareas en espera, racha y logros) — `sdd/004-pomodoro-sessions/quickstart.md`
+  - Hecho (2026-11-09): datos de prueba de 1 000 sesiones terminadas (con su foto) y 10 000 tareas del pomodoro (5 000 completadas en esas sesiones y 5 000 en espera). p95 de 2,2 a 8,1 ms en los 11 endpoints (el más lento, `PATCH /pomodoro-tasks/{id}`, por el cálculo de logros al completar); pasada del barrido con 1 000 sesiones vencidas de usuarios distintos en 4,6 s (límite: su intervalo de 60 s). `dce pnpm test:perf` → 27 tests en verde, también los de la 001 a la 003.
+- [x] T058 [P] [Rob] Guía manual con `curl` QS-01… (empezar, completar, pausar, terminar, tareas en espera, racha y logros) — `sdd/004-pomodoro-sessions/quickstart.md`
   - Verifica: ejecutar la guía a mano contra desarrollo.
-- [ ] T059 [P] [Rob] Colección de Postman de los 11 endpoints con sus comprobaciones, como las de la 001 y la 002 — `sdd/004-pomodoro-sessions/pomodoro-sessions.postman-collection.json`
+  - Hecho (2026-11-09): QS-01 a QS-07 y QS-R. Ejecutada entera con zsh contra desarrollo (salvo QS-R): cada paso responde lo que dice la guía, también la sesión de 1 minuto que termina sola (QS-06) y la racha y los logros que deja (QS-07). La función `api` usa un array para el cuerpo, porque `${3:+-d "$3"}` no se trocea igual en zsh que en bash.
+- [x] T059 [P] [Rob] Colección de Postman de los 11 endpoints con sus comprobaciones, como las de la 001 y la 002 — `sdd/004-pomodoro-sessions/pomodoro-sessions.postman-collection.json`
   - Verifica: la colección se ejecuta entera contra desarrollo sin fallos.
-- [ ] T060 [P] [Rob] AGENTS.md §2: módulo `pomodoros` (004) en la lista de módulos — `AGENTS.md`
+  - Hecho (2026-11-09): carpetas «1. Flujo» (28 peticiones), «2. Errores» (9) y «3. CORS» (11). `docker run --rm -e TZ=Europe/Madrid -v "$PWD/sdd/004-pomodoro-sessions":/etc/newman postman/newman:6-alpine run pomodoro-sessions.postman-collection.json --env-var baseUrl=http://host.docker.internal:3000` → 48 peticiones y 48 comprobaciones sin fallos. No espera a que una sesión termine por tiempo (lo cubren QS-06 y QS-07).
+- [x] T060 [P] [Rob] AGENTS.md §2: módulo `pomodoros` (004) en la lista de módulos — `AGENTS.md`
   - Verifica: `grep -n "pomodoros" AGENTS.md`.
-- [ ] T061 [Rob] README: estado de la 004, endpoints, reglas de negocio del pomodoro, modelo de datos y estructura de `sdd/004-…` con `tasks.md`, `quickstart.md` y la colección (Gobierno 7) — `README.md`
+  - Hecho (2026-11-09).
+- [x] T061 [Rob] README: estado de la 004, endpoints, reglas de negocio del pomodoro, modelo de datos y estructura de `sdd/004-…` con `tasks.md`, `quickstart.md` y la colección (Gobierno 7) — `README.md`
   - Verifica: `git diff --stat README.md` muestra cambios en el mismo commit que AGENTS.md y `sdd/004-…`.
+  - Hecho (2026-11-09): estado del proyecto (resumen de cabecera y sección de la 004), qué hace la API, endpoints, Probar con Postman, tipos de test (rendimiento), modelo de datos y estructura. Checkpoint de robustez: `dce pnpm test:coverage` → 86 suites y 1 060 tests en verde, cobertura del 97,93 % de líneas y del 92,88 % de ramas; `dce pnpm test:perf` en verde; `./scripts/sonar-scan.sh` → quality gate PASSED; principio V sin resultados.
 
 ### Checkpoint Robustez
 - `dce pnpm test`, `dce pnpm test:coverage` y `dce pnpm test:perf` pasan; `./scripts/sonar-scan.sh` → quality gate en verde.

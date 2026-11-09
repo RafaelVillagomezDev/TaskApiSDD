@@ -49,7 +49,7 @@ El código fuente se organiza en módulos de negocio independientes bajo `src/mo
 └── src/
     ├── shared/                   # Infraestructura global, errores base (AppError) y utilidades
     └── modules/
-        └── [nombre-del-modulo]/  # tasks, streaks, alerts (001) y users (002: cuentas, sesiones y CSRF)
+        └── [nombre-del-modulo]/  # tasks, streaks, alerts (001), users (002: cuentas, sesiones y CSRF) y pomodoros (004: sesiones pomodoro, tareas propias, racha y logros)
             ├── domain/           # Modelos, Value Objects e interfaces de puertos (Salida)
             │   └── tests/        # Tests de los ficheros de domain/
             ├── application/      # Casos de uso / Comandos y Consultas
