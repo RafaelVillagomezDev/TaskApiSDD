@@ -7,6 +7,7 @@ import type { PomodoroRepository, PomodoroUnitOfWork } from '../domain/pomodoro.
 import { moveUnfinishedToWaiting } from './close-pomodoro.helper.js';
 import { buildPomodoroDetail, type PomodoroDetail } from './pomodoro-detail.helper.js';
 import type { SettleDuePomodoroUseCase } from './settle-due-pomodoro.use-case.js';
+import { UnlockPomodoroAchievementUseCase } from './unlock-pomodoro-achievement.use-case.js';
 
 // Pausa, reanuda o termina a mano una sesión (RF-30 a RF-32, RF-50). La entidad rechaza con
 // INVALID_POMODORO_STATE lo que el estado no permite, también pedir el estado que ya tiene (RF-34, RF-61)
@@ -16,6 +17,7 @@ export class ChangePomodoroStatusUseCase {
     private readonly settle: SettleDuePomodoroUseCase,
     private readonly timeZones: TimeZoneService,
     private readonly clock: Clock,
+    private readonly unlockAchievements = new UnlockPomodoroAchievementUseCase(),
   ) {}
 
   async execute(context: RequestContext, pomodoroId: string, status: PomodoroStatus): Promise<PomodoroDetail> {
@@ -31,6 +33,8 @@ export class ChangePomodoroStatusUseCase {
       if (status === 'running') pomodoro.resume(now);
       if (status === 'finished') await this.finish(unit, pomodoro, context, now);
       await unit.savePomodoro(pomodoro);
+      // Terminar a mano suma concentración: puede alcanzar FOCUS_10H (RF-44, RF-47)
+      if (status === 'finished') await this.unlockAchievements.execute(unit, context.userId, now);
 
       const tasks = pomodoro.isActive() ? await unit.tasksOf(pomodoro.id) : [];
       return buildPomodoroDetail(pomodoro, tasks, now);

@@ -2,12 +2,14 @@ import { type RequestHandler, Router } from 'express';
 
 import { allowPreflight } from '../../../shared/infrastructure/http/cors.middleware.js';
 import { jsonBodyMiddleware } from '../../../shared/infrastructure/http/json-body.middleware.js';
+import type { PomodoroProgressController } from './pomodoro-progress.controller.js';
 import type { PomodoroTaskController } from './pomodoro-task.controller.js';
 import type { PomodoroController } from './pomodoro.controller.js';
 
 export interface PomodoroRouterDependencies {
   pomodoros: PomodoroController;
   pomodoroTasks: PomodoroTaskController;
+  pomodoroProgress: PomodoroProgressController;
   // Middleware de sesión del módulo users, inyectado por el contenedor (principio V): exige X-CSRF-Token
   // en POST, PATCH y DELETE
   session: RequestHandler;
@@ -20,6 +22,7 @@ export interface PomodoroRouterDependencies {
 export function createPomodoroRouter({
   pomodoros,
   pomodoroTasks,
+  pomodoroProgress,
   session,
   requestContext,
 }: PomodoroRouterDependencies): Router {
@@ -33,11 +36,15 @@ export function createPomodoroRouter({
   router.get('/pomodoro-tasks', session, requestContext, pomodoroTasks.listWaiting);
   router.patch('/pomodoro-tasks/:id', session, requestContext, jsonBodyMiddleware, pomodoroTasks.update);
   router.delete('/pomodoro-tasks/:id', session, requestContext, pomodoroTasks.remove);
+  router.get('/pomodoro-streak', session, requestContext, pomodoroProgress.streak);
+  router.get('/pomodoro-achievements', session, requestContext, pomodoroProgress.achievements);
   allowPreflight(router, '/pomodoros', ['GET', 'POST']);
   allowPreflight(router, '/pomodoros/:id', ['GET', 'PATCH']);
   allowPreflight(router, '/pomodoros/:id/tasks', ['POST']);
   allowPreflight(router, '/pomodoros/:id/tasks/:taskId', ['DELETE']);
   allowPreflight(router, '/pomodoro-tasks', ['GET']);
   allowPreflight(router, '/pomodoro-tasks/:id', ['PATCH', 'DELETE']);
+  allowPreflight(router, '/pomodoro-streak', ['GET']);
+  allowPreflight(router, '/pomodoro-achievements', ['GET']);
   return router;
 }

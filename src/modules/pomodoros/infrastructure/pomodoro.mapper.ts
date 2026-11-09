@@ -6,6 +6,7 @@ import {
 import { z } from 'zod';
 
 import { LocalDate } from '../../../shared/domain/local-date.value-object.js';
+import type { AchievementStatus } from '../application/list-pomodoro-achievement.use-case.js';
 import type { PomodoroDetail } from '../application/pomodoro-detail.helper.js';
 import { PomodoroTask } from '../domain/pomodoro-task.entity.js';
 import { Pomodoro, type PomodoroTaskSnapshot } from '../domain/pomodoro.entity.js';
@@ -162,5 +163,28 @@ export function toPomodoroResponse({ pomodoro, tasks, remainingSeconds }: Pomodo
     completedTasks: tasks.filter((task) => task.completed).length,
     totalTasks: tasks.length,
     createdAt: pomodoro.createdAt.toISOString(),
+  };
+}
+
+// Recurso Achievement del contrato de la API (spec, Contrato de la API)
+export interface AchievementResponse {
+  code: string;
+  name: string;
+  description: string;
+  target: number;
+  progress: number;
+  unlocked: boolean;
+  unlockedAt: string | null;
+}
+
+export function toAchievementResponse({ definition, progress, unlocked, unlockedAt }: AchievementStatus): AchievementResponse {
+  return {
+    code: definition.code,
+    name: definition.name,
+    description: definition.description,
+    target: definition.target,
+    progress,
+    unlocked,
+    unlockedAt: unlockedAt?.toISOString() ?? null,
   };
 }

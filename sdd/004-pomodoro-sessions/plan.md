@@ -230,7 +230,7 @@ Asentar → `SELECT DISTINCT finished_on … WHERE user_id = $1 AND end_reason =
 
 - **Estadísticas** (`AchievementRepository.stats`), cada una con un agregado SQL sobre índices: sesiones terminadas por tiempo; mayor número de sesiones por tiempo en un mismo `finished_on` (`MARATHON`); tareas con `completed = true` (cada tarea cuenta una vez, RF-46); suma de `focused_seconds` de todas las terminadas (RF-47); días productivos para la mejor racha (RF-45).
 - **Desbloquear** (`UnlockPomodoroAchievementUseCase`): tras asentar, terminar o completar, calcula las estadísticas dentro de la misma transacción, pide al catálogo los códigos alcanzados e inserta los que falten con `createMany({ skipDuplicates: true })` y `unlocked_at` = instante del evento. Un logro ya guardado nunca se toca (RF-44).
-- **Consultar:** asentar → estadísticas + logros guardados → los 11 del catálogo en orden, con `progress = min(valor, meta)` y `unlocked`/`unlockedAt` de lo guardado (un logro guardado sale conseguido aunque el progreso haya bajado, RF-44).
+- **Consultar:** asentar → estadísticas + logros guardados → los 11 del catálogo en orden, con `progress = min(valor, meta)` (en `FOCUS_10H`, minutos enteros de concentración, meta 600, RF-65) y `unlocked`/`unlockedAt` de lo guardado (un logro guardado sale conseguido aunque el progreso haya bajado, RF-44).
 
 ## 6. Interfaz
 

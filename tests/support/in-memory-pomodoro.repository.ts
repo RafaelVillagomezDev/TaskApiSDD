@@ -7,6 +7,11 @@ import {
 } from '../../src/modules/pomodoros/domain/pomodoro-task.entity.js';
 import { type NewPomodoro, Pomodoro, type PomodoroProps } from '../../src/modules/pomodoros/domain/pomodoro.entity.js';
 import type {
+  AchievementRepository,
+  AchievementStats,
+  UnlockedAchievement,
+} from '../../src/modules/pomodoros/domain/achievement.repository.js';
+import type {
   DuePomodoro,
   PageResult,
   PomodoroRepository,
@@ -28,16 +33,27 @@ interface StoredTask {
 export class InMemoryPomodoroRepository implements PomodoroRepository {
   private pomodoros = new Map<string, PomodoroProps>();
   private tasks = new Map<string, StoredTask>();
+  // Logros conseguidos por usuario: código → instante
+  private unlocked = new Map<string, Map<string, Date>>();
   private sequence = 0;
+
+  // Logros calculados con las sesiones y tareas de este repositorio, como hace la base de datos (plan, 5.9)
+  readonly achievements: AchievementRepository = {
+    stats: async (userId) => this.stats(userId),
+    listUnlocked: async (userId) => this.listUnlocked(userId),
+    unlock: async (userId, codes, at) => this.unlock(userId, codes, at),
+  };
 
   async transaction<T>(work: (unit: PomodoroUnitOfWork) => Promise<T>): Promise<T> {
     const pomodoros = new Map([...this.pomodoros].map(([id, props]) => [id, { ...props }]));
     const tasks = new Map([...this.tasks].map(([id, task]) => [id, { ...task, props: { ...task.props } }]));
+    const unlocked = new Map([...this.unlocked].map(([userId, codes]) => [userId, new Map(codes)]));
     try {
       return await work(this.unitOfWork());
     } catch (error) {
       this.pomodoros = pomodoros;
       this.tasks = tasks;
+      this.unlocked = unlocked;
       throw error;
     }
   }
@@ -93,6 +109,7 @@ export class InMemoryPomodoroRepository implements PomodoroRepository {
 
   private unitOfWork(): PomodoroUnitOfWork {
     return {
+      achievements: this.achievements,
       lockPomodoro: (userId, pomodoroId) => this.findById(userId, pomodoroId),
       lockActivePomodoro: async (userId) => {
         const props = [...this.pomodoros.values()].find((row) => row.userId === userId && row.status !== 'finished');
@@ -164,6 +181,35 @@ export class InMemoryPomodoroRepository implements PomodoroRepository {
     return [...this.pomodoros.values()]
       .filter((props) => props.status === 'running' && props.endsAt !== null && props.endsAt <= now)
       .sort((a, b) => (a.endsAt?.getTime() ?? 0) - (b.endsAt?.getTime() ?? 0));
+  }
+
+  private stats(userId: string): AchievementStats {
+    const finished = [...this.pomodoros.values()].filter((props) => props.userId === userId && props.status === 'finished');
+    const timed = finished.filter((props) => props.endReason === 'time');
+    const perDay = new Map<string, number>();
+    for (const props of timed) {
+      const key = props.finishedOn?.toString() ?? '';
+      perDay.set(key, (perDay.get(key) ?? 0) + 1);
+    }
+    const days = new Map(timed.flatMap((props) => (props.finishedOn ? [[props.finishedOn.toString(), props.finishedOn]] : [])));
+    return {
+      timedSessions: timed.length,
+      bestDaySessions: Math.max(0, ...perDay.values()),
+      completedTasks: [...this.tasks.values()].filter(({ props }) => props.userId === userId && props.completed).length,
+      focusedSeconds: finished.reduce((total, props) => total + (props.focusedSeconds ?? 0), 0),
+      productiveDates: [...days.values()].sort((a, b) => a.compare(b)),
+    };
+  }
+
+  private listUnlocked(userId: string): UnlockedAchievement[] {
+    return [...(this.unlocked.get(userId) ?? new Map<string, Date>())].map(([code, unlockedAt]) => ({ code, unlockedAt }));
+  }
+
+  // Como skipDuplicates: un logro ya guardado conserva su instante
+  private unlock(userId: string, codes: readonly string[], at: Date): void {
+    const userCodes = this.unlocked.get(userId) ?? new Map<string, Date>();
+    for (const code of codes) if (!userCodes.has(code)) userCodes.set(code, at);
+    this.unlocked.set(userId, userCodes);
   }
 
   private restoreTask(task: StoredTask): PomodoroTask {

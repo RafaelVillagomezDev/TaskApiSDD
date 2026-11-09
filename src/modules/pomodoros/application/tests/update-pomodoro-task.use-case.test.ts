@@ -156,4 +156,24 @@ describe('UpdatePomodoroTaskUseCase', () => {
       );
     });
   });
+  it('completar la décima tarea desbloquea TASKS_10 con el instante en que se completó (RF-44, RF-46)', async () => {
+    const { tasks } = await start.execute(context, {
+      durationMinutes: 25,
+      newTasks: Array.from({ length: 10 }, (_, index) => ({ title: `Tarea ${index}`, description: null, date: day('2026-11-08') })),
+      waitingTaskIds: [],
+    });
+    for (const task of tasks) {
+      clock.advance(MINUTE);
+      await useCase.execute(context, task.id, { completed: true });
+    }
+    const unlocked = await repository.achievements.listUnlocked('user-1');
+    expect(unlocked).toEqual([{ code: 'TASKS_10', unlockedAt: clock.now() }]);
+  });
+
+  it('editar o desmarcar no desbloquea logros (RF-44)', async () => {
+    const { taskId } = await sessionWithTask();
+    await useCase.execute(context, taskId, { title: 'Otro título' });
+    await useCase.execute(context, taskId, { completed: false });
+    expect(await repository.achievements.listUnlocked('user-1')).toEqual([]);
+  });
 });

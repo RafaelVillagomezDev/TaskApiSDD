@@ -566,4 +566,81 @@ describe('rutas del pomodoro', () => {
       expect((await preflight(`/pomodoro-tasks/${id}`, 'DELETE')).status).toBe(200);
     });
   });
+  describe('GET /pomodoro-streak y GET /pomodoro-achievements', () => {
+    interface AchievementBody {
+      code: string;
+      name: string;
+      description: string;
+      target: number;
+      progress: number;
+      unlocked: boolean;
+      unlockedAt: string | null;
+    }
+
+    // Sesión de 1 minuto con una tarea completada, terminada por tiempo
+    const timedSession = async () => {
+      const started = await startPomodoro({ durationMinutes: 1, newTasks: [{ title: 'Hecha', date: TODAY }] });
+      const taskId = started.body.data?.tasks[0]?.id ?? '';
+      await call(`/pomodoro-tasks/${taskId}`, { method: 'PATCH', body: JSON.stringify({ completed: true }) });
+      container.clock.advance(MINUTE);
+      return started.body.data;
+    };
+
+    it('GET /pomodoro-streak sin sesiones → { current: 0, best: 0 }, la forma de GET /streak (RF-41)', async () => {
+      const { status, body } = await call<{ current: number; best: number }>('/pomodoro-streak');
+      expect(status).toBe(200);
+      expect(body).toEqual({ success: true, status: 200, message: 'Operación realizada con éxito', data: { current: 0, best: 0 } });
+    });
+
+    it('GET /pomodoro-streak cuenta hoy una sesión terminada por tiempo (RF-38, RF-41)', async () => {
+      await timedSession();
+      expect((await call<{ current: number; best: number }>('/pomodoro-streak')).body.data).toEqual({ current: 1, best: 1 });
+    });
+
+    it('GET /pomodoro-achievements sin actividad → los 11, sin conseguir (RF-19)', async () => {
+      const { status, body } = await call<AchievementBody[]>('/pomodoro-achievements');
+      expect(status).toBe(200);
+      expect(body.data).toHaveLength(11);
+      expect(body.data?.[0]).toEqual({
+        code: 'FIRST_POMODORO',
+        name: 'Primer pomodoro',
+        description: expect.any(String),
+        target: 1,
+        progress: 0,
+        unlocked: false,
+        unlockedAt: null,
+      });
+      expect(body.data?.find((achievement) => achievement.code === 'FOCUS_10H')?.target).toBe(600);
+    });
+
+    it('tras una sesión por tiempo, FIRST_POMODORO conseguido con el fin de la sesión (RF-44)', async () => {
+      const session = await timedSession();
+      const { body } = await call<AchievementBody[]>('/pomodoro-achievements');
+      expect(body.data?.find((achievement) => achievement.code === 'FIRST_POMODORO')).toMatchObject({
+        progress: 1,
+        unlocked: true,
+        unlockedAt: session?.endsAt,
+      });
+      expect(body.data?.find((achievement) => achievement.code === 'TASKS_10')).toMatchObject({ progress: 1, unlocked: false });
+    });
+
+    it('la actividad del pomodoro no cambia GET /streak ni GET /alerts (RF-02, RF-42, CE-03)', async () => {
+      await timedSession();
+      expect((await call<{ current: number; best: number }>('/streak')).body.data).toEqual({ current: 0, best: 0 });
+      container.clock.set('2026-10-24T20:00:30Z');
+      session = await signIn(server);
+      await container.generateAlerts.execute();
+      expect((await call<{ totalItems: number }>('/alerts')).body.data?.totalItems).toBe(0);
+    });
+
+    it('la petición previa de CORS admite GET en las dos rutas', async () => {
+      for (const path of ['/pomodoro-streak', '/pomodoro-achievements']) {
+        const response = await server.request(path, {
+          method: 'OPTIONS',
+          headers: { Origin: FRONTEND_ORIGIN, 'Access-Control-Request-Method': 'GET' },
+        });
+        expect(response.status).toBe(200);
+      }
+    });
+  });
 });

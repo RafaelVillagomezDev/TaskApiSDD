@@ -15,13 +15,16 @@ import { PendingTaskAdapter } from '../../src/modules/alerts/infrastructure/pend
 import { AddPomodoroTaskUseCase } from '../../src/modules/pomodoros/application/add-pomodoro-task.use-case.js';
 import { ChangePomodoroStatusUseCase } from '../../src/modules/pomodoros/application/change-pomodoro-status.use-case.js';
 import { DeletePomodoroTaskUseCase } from '../../src/modules/pomodoros/application/delete-pomodoro-task.use-case.js';
+import { GetPomodoroStreakUseCase } from '../../src/modules/pomodoros/application/get-pomodoro-streak.use-case.js';
 import { GetPomodoroUseCase } from '../../src/modules/pomodoros/application/get-pomodoro.use-case.js';
+import { ListPomodoroAchievementsUseCase } from '../../src/modules/pomodoros/application/list-pomodoro-achievement.use-case.js';
 import { ListPomodorosUseCase } from '../../src/modules/pomodoros/application/list-pomodoro.use-case.js';
 import { ListWaitingPomodoroTasksUseCase } from '../../src/modules/pomodoros/application/list-waiting-pomodoro-task.use-case.js';
 import { RemovePomodoroTaskUseCase } from '../../src/modules/pomodoros/application/remove-pomodoro-task.use-case.js';
 import { SettleDuePomodoroUseCase } from '../../src/modules/pomodoros/application/settle-due-pomodoro.use-case.js';
 import { StartPomodoroUseCase } from '../../src/modules/pomodoros/application/start-pomodoro.use-case.js';
 import { UpdatePomodoroTaskUseCase } from '../../src/modules/pomodoros/application/update-pomodoro-task.use-case.js';
+import { PomodoroProgressController } from '../../src/modules/pomodoros/infrastructure/pomodoro-progress.controller.js';
 import { PomodoroTaskController } from '../../src/modules/pomodoros/infrastructure/pomodoro-task.controller.js';
 import { PomodoroController } from '../../src/modules/pomodoros/infrastructure/pomodoro.controller.js';
 import { createPomodoroRouter } from '../../src/modules/pomodoros/infrastructure/pomodoro.routes.js';
@@ -196,6 +199,10 @@ export function createTestContainer(): TestContainer {
       new UpdatePomodoroTaskUseCase(pomodoros, settlePomodoros, clock),
       new ListWaitingPomodoroTasksUseCase(pomodoros, settlePomodoros),
       new DeletePomodoroTaskUseCase(pomodoros, settlePomodoros),
+    ),
+    pomodoroProgress: new PomodoroProgressController(
+      new GetPomodoroStreakUseCase(pomodoros, settlePomodoros),
+      new ListPomodoroAchievementsUseCase(pomodoros.achievements, settlePomodoros),
     ),
     session,
     requestContext,

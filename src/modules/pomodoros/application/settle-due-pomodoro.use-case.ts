@@ -3,6 +3,7 @@ import type { TimeZoneService } from '../../../shared/domain/time-zone.port.js';
 import type { PomodoroRepository } from '../domain/pomodoro.repository.js';
 import type { UserTimeZoneSource } from '../domain/user-time-zone.port.js';
 import { moveUnfinishedToWaiting } from './close-pomodoro.helper.js';
+import { UnlockPomodoroAchievementUseCase } from './unlock-pomodoro-achievement.use-case.js';
 
 // Sesiones vencidas que asienta el barrido en cada consulta (plan, 5.3)
 export const SETTLE_BATCH_SIZE = 100;
@@ -20,6 +21,7 @@ export class SettleDuePomodoroUseCase {
     private readonly timeZones: TimeZoneService,
     private readonly clock: Clock,
     private readonly batchSize = SETTLE_BATCH_SIZE,
+    private readonly unlockAchievements = new UnlockPomodoroAchievementUseCase(),
   ) {}
 
   // La sesión vencida del usuario de la petición, si la tiene
@@ -64,6 +66,8 @@ export class SettleDuePomodoroUseCase {
       });
       await moveUnfinishedToWaiting(unit, tasks);
       await unit.savePomodoro(pomodoro);
+      // Una sesión por tiempo puede alcanzar logros de sesiones, racha, maratón y concentración (RF-44)
+      await this.unlockAchievements.execute(unit, userId, endsAt);
       return true;
     });
   }

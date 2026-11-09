@@ -15,17 +15,21 @@ import { PrismaUserTimeZoneRepository } from './modules/alerts/infrastructure/pr
 import { AddPomodoroTaskUseCase } from './modules/pomodoros/application/add-pomodoro-task.use-case.js';
 import { ChangePomodoroStatusUseCase } from './modules/pomodoros/application/change-pomodoro-status.use-case.js';
 import { DeletePomodoroTaskUseCase } from './modules/pomodoros/application/delete-pomodoro-task.use-case.js';
+import { GetPomodoroStreakUseCase } from './modules/pomodoros/application/get-pomodoro-streak.use-case.js';
 import { GetPomodoroUseCase } from './modules/pomodoros/application/get-pomodoro.use-case.js';
+import { ListPomodoroAchievementsUseCase } from './modules/pomodoros/application/list-pomodoro-achievement.use-case.js';
 import { ListPomodorosUseCase } from './modules/pomodoros/application/list-pomodoro.use-case.js';
 import { ListWaitingPomodoroTasksUseCase } from './modules/pomodoros/application/list-waiting-pomodoro-task.use-case.js';
 import { RemovePomodoroTaskUseCase } from './modules/pomodoros/application/remove-pomodoro-task.use-case.js';
 import { SettleDuePomodoroUseCase } from './modules/pomodoros/application/settle-due-pomodoro.use-case.js';
 import { StartPomodoroUseCase } from './modules/pomodoros/application/start-pomodoro.use-case.js';
 import { UpdatePomodoroTaskUseCase } from './modules/pomodoros/application/update-pomodoro-task.use-case.js';
+import { PomodoroProgressController } from './modules/pomodoros/infrastructure/pomodoro-progress.controller.js';
 import { PomodoroTaskController } from './modules/pomodoros/infrastructure/pomodoro-task.controller.js';
 import { PomodoroController } from './modules/pomodoros/infrastructure/pomodoro.controller.js';
 import { createPomodoroRouter } from './modules/pomodoros/infrastructure/pomodoro.routes.js';
 import { PomodoroScheduler } from './modules/pomodoros/infrastructure/pomodoro.scheduler.js';
+import { PrismaAchievementRepository } from './modules/pomodoros/infrastructure/prisma-achievement.repository.js';
 import { PrismaPomodoroRepository } from './modules/pomodoros/infrastructure/prisma-pomodoro.repository.js';
 import { UserTimeZoneAdapter } from './modules/pomodoros/infrastructure/user-time-zone.adapter.js';
 import { GetStreakUseCase } from './modules/streaks/application/get-streak.use-case.js';
@@ -165,6 +169,10 @@ export function createContainer(): Container {
       new UpdatePomodoroTaskUseCase(pomodoroRepository, settlePomodoros, clock),
       new ListWaitingPomodoroTasksUseCase(pomodoroRepository, settlePomodoros),
       new DeletePomodoroTaskUseCase(pomodoroRepository, settlePomodoros),
+    ),
+    pomodoroProgress: new PomodoroProgressController(
+      new GetPomodoroStreakUseCase(pomodoroRepository, settlePomodoros),
+      new ListPomodoroAchievementsUseCase(new PrismaAchievementRepository(prisma), settlePomodoros),
     ),
     session,
     requestContext,

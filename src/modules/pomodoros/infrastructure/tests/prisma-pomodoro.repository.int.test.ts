@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 
-import { createTestUser, truncateTables } from '../../../../../tests/integration/test-database.helper.js';
+import { createTestUser } from '../../../../../tests/integration/test-database.helper.js';
 import { AppError } from '../../../../shared/domain/app.error.js';
 import { LocalDate } from '../../../../shared/domain/local-date.value-object.js';
 import { Pagination } from '../../../../shared/domain/pagination.value-object.js';
@@ -18,9 +18,10 @@ const day = (value: string) => LocalDate.parse(value);
 describe('PrismaPomodoroRepository', () => {
   let userId: string;
 
+  // Sin vaciar tablas: pomodoros y pomodoro_tasks las usa también prisma-achievement.repository.int.test.ts, que se
+  // ejecuta en paralelo. Cada test crea sus propios usuarios y solo mira sus datos; global.setup vacía las cuentas,
+  // con sus sesiones en cascada, una vez por ejecución
   beforeEach(async () => {
-    // Solo sus tablas: los ficheros de integración se ejecutan en paralelo
-    await truncateTables(prisma, ['pomodoros', 'pomodoro_tasks']);
     userId = await createTestUser(prisma, 'pomodoro');
   });
   afterAll(() => prisma.$disconnect());
@@ -190,7 +191,9 @@ describe('PrismaPomodoroRepository', () => {
     const due = await start(userId, 1);
     const other = await createTestUser(prisma, 'otro');
     await start(other, 25);
-    expect(await repository.findDue(at(2), 100)).toEqual([{ id: due.id, userId }]);
+    // findDue recorre todos los usuarios: se miran solo los dos de este test
+    const mine = (await repository.findDue(at(2), 1000)).filter((row) => row.userId === userId || row.userId === other);
+    expect(mine).toEqual([{ id: due.id, userId }]);
     expect(await repository.findDueId(userId, at(2))).toBe(due.id);
     expect(await repository.findDueId(other, at(2))).toBeNull();
   });

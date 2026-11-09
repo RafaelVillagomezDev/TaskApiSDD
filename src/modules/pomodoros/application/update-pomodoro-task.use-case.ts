@@ -4,6 +4,7 @@ import type { Clock } from '../../../shared/domain/clock.port.js';
 import type { PomodoroTask, PomodoroTaskEdit } from '../domain/pomodoro-task.entity.js';
 import type { PomodoroRepository } from '../domain/pomodoro.repository.js';
 import { lockTaskWithSession } from './pomodoro-task.helper.js';
+import { UnlockPomodoroAchievementUseCase } from './unlock-pomodoro-achievement.use-case.js';
 import type { SettleDuePomodoroUseCase } from './settle-due-pomodoro.use-case.js';
 
 // Cuerpo de PATCH /pomodoro-tasks/{id} ya validado: al menos un campo (RF-54)
@@ -19,6 +20,7 @@ export class UpdatePomodoroTaskUseCase {
     private readonly pomodoros: PomodoroRepository,
     private readonly settle: SettleDuePomodoroUseCase,
     private readonly clock: Clock,
+    private readonly unlockAchievements = new UnlockPomodoroAchievementUseCase(),
   ) {}
 
   async execute(context: RequestContext, taskId: string, input: UpdatePomodoroTaskInput): Promise<PomodoroTask> {
@@ -38,6 +40,8 @@ export class UpdatePomodoroTaskUseCase {
       if (input.completed === true) task.complete(now);
       if (input.completed === false) task.uncomplete();
       await unit.saveTasks([task]);
+      // Completar puede alcanzar los logros de tareas, con el instante en que se completó (RF-44, RF-46)
+      if (input.completed === true) await this.unlockAchievements.execute(unit, context.userId, task.completedAt ?? now);
       return task;
     });
   }

@@ -225,30 +225,41 @@ Spec: `sdd/004-pomodoro-sessions/spec.md` (Aprobada) · Plan: `sdd/004-pomodoro-
 ## Fase H6 — Racha y logros del pomodoro (HU-06, P2)
 
 ### Tests (deben fallar)
-- [ ] T045 [P] [H6] Test del catálogo: 11 logros en orden; metas exactas (9 → no, 10 → sí); `MARATHON` con 4 el mismo día y no en dos; `FOCUS_10H` con 36 000 s (RF-43, RF-45 a RF-47) — `pomodoros/domain/tests/achievement.value-object.test.ts`
+- [x] T045 [P] [H6] Test del catálogo: 11 logros en orden; metas exactas (9 → no, 10 → sí); `MARATHON` con 4 el mismo día y no en dos; `FOCUS_10H` en minutos, meta 600 (RF-43, RF-45 a RF-47, RF-65) — `pomodoros/domain/tests/achievement.value-object.test.ts`
   - Verifica: `dce pnpm test pomodoros/domain/tests/achievement` **falla**.
-- [ ] T046 [P] [H6] Test de `GetPomodoroStreakUseCase` (devuelve `{ current, best }`, como `GET /streak`): solo cuentan las terminadas por tiempo; hoy aún no productivo; ayer y anteayer → 2; días según `finished_on` (RF-38 a RF-41) — `pomodoros/application/tests/get-pomodoro-streak.use-case.test.ts`
+  - Hecho (2026-11-09): 9 casos; falló porque el catálogo no existía. Antes de escribirlo se detectó que la spec no decía la unidad de `FOCUS_10H`: el responsable del proyecto eligió minutos (meta 600) y se añadió RF-65.
+- [x] T046 [P] [H6] Test de `GetPomodoroStreakUseCase` (devuelve `{ current, best }`, como `GET /streak`): solo cuentan las terminadas por tiempo; hoy aún no productivo; ayer y anteayer → 2; días según `finished_on` (RF-38 a RF-41) — `pomodoros/application/tests/get-pomodoro-streak.use-case.test.ts`
   - Verifica: `dce pnpm test pomodoros/application/tests/get-pomodoro-streak` **falla**.
-- [ ] T047 [P] [H6] Test de `UnlockPomodoroAchievementUseCase`: desbloquea con el instante del evento; no sobrescribe; `STREAK_3` con la mejor racha (RF-44, RF-45) — `pomodoros/application/tests/unlock-pomodoro-achievement.use-case.test.ts`
+  - Hecho (2026-11-09): 8 casos, entre ellos que una sesión asentada pasada la medianoche cuenta para el día local de su fin; falló porque el caso de uso no existía.
+- [x] T047 [P] [H6] Test de `UnlockPomodoroAchievementUseCase`: desbloquea con el instante del evento; no sobrescribe; `STREAK_3` con la mejor racha (RF-44, RF-45) — `pomodoros/application/tests/unlock-pomodoro-achievement.use-case.test.ts`
   - Verifica: `dce pnpm test pomodoros/application/tests/unlock` **falla**.
-- [ ] T048 [P] [H6] Test de `ListPomodoroAchievementsUseCase`: sin actividad, 11 con `progress: 0`; progreso limitado a la meta; un logro guardado sigue conseguido aunque el progreso baje (RF-19, RF-44) — `pomodoros/application/tests/list-pomodoro-achievement.use-case.test.ts`
+  - Hecho (2026-11-09): 4 casos; falló porque el caso de uso no existía.
+- [x] T048 [P] [H6] Test de `ListPomodoroAchievementsUseCase`: sin actividad, 11 con `progress: 0`; progreso limitado a la meta; un logro guardado sigue conseguido aunque el progreso baje (RF-19, RF-44) — `pomodoros/application/tests/list-pomodoro-achievement.use-case.test.ts`
   - Verifica: `dce pnpm test pomodoros/application/tests/list-pomodoro-achievement` **falla**.
-- [ ] T049 [P] [H6] Test de integración del repositorio de logros: agregados correctos; `skipDuplicates` no cambia `unlocked_at` (RF-44 a RF-47) — `pomodoros/infrastructure/tests/prisma-achievement.repository.int.test.ts`
+  - Hecho (2026-11-09): 4 casos, también que completar y desmarcar la misma tarea varias veces cuenta una sola (RF-46); falló porque el caso de uso no existía.
+- [x] T049 [P] [H6] Test de integración del repositorio de logros: agregados correctos; `skipDuplicates` no cambia `unlocked_at` (RF-44 a RF-47) — `pomodoros/infrastructure/tests/prisma-achievement.repository.int.test.ts`
   - Verifica: `dce pnpm test pomodoros/infrastructure/tests/prisma-achievement` **falla**.
-- [ ] T050 [P] [H6] Test HTTP de `GET /pomodoro-streak` y `GET /pomodoro-achievements`; tras sesiones del pomodoro, `GET /streak` y `GET /alerts` no cambian (RF-19, RF-41, RF-42, CE-03) — `pomodoros/infrastructure/tests/pomodoro.routes.test.ts`
+  - Hecho (2026-11-09): 7 casos; falló porque el repositorio no existía. En la suite completa chocó con `prisma-pomodoro.repository.int.test.ts`, porque los dos vaciaban `pomodoros` y `pomodoro_tasks` y se ejecutan en paralelo: con permiso del responsable del proyecto, este fichero solo vacía `pomodoro_achievements`, y el de sesiones deja de vaciar tablas y su caso de `findDue` (que recorre todos los usuarios) mira solo sus dos usuarios.
+- [x] T050 [P] [H6] Test HTTP de `GET /pomodoro-streak` y `GET /pomodoro-achievements`; tras sesiones del pomodoro, `GET /streak` y `GET /alerts` no cambian (RF-19, RF-41, RF-42, CE-03) — `pomodoros/infrastructure/tests/pomodoro.routes.test.ts`
   - Verifica: `dce pnpm test pomodoros/infrastructure/tests/pomodoro.routes` **falla**.
+  - Hecho (2026-11-09): 6 casos HTTP, también que `GET /streak` y `GET /alerts` no cambian tras una sesión con una tarea completada; fallaron con 404 porque las rutas no existían.
 
 ### Implementación
-- [ ] T051 [H6] Catálogo `Achievement` y puerto `AchievementRepository` — `pomodoros/domain/achievement.value-object.ts`, `pomodoros/domain/achievement.repository.ts`
+- [x] T051 [H6] Catálogo `Achievement` y puerto `AchievementRepository` — `pomodoros/domain/achievement.value-object.ts`, `pomodoros/domain/achievement.repository.ts`
   - Verifica: `dce pnpm test pomodoros/domain/tests/achievement` pasa.
-- [ ] T052 [H6] `PrismaAchievementRepository` con agregados SQL y su fake en memoria (D-5) — `pomodoros/infrastructure/prisma-achievement.repository.ts`, `tests/support/in-memory-achievement.repository.ts`
+  - Hecho (2026-11-09): `achievement.value-object.ts` con el catálogo, `achievementProgress`, `reachedAchievements` y `metricsFromStats` (mejor racha con `Streak` de `src/shared`, concentración en minutos enteros, RF-65). La unidad de trabajo del repositorio del pomodoro expone `achievements` para desbloquear dentro de la misma transacción.
+- [x] T052 [H6] `PrismaAchievementRepository` con agregados SQL y su fake en memoria (D-5) — `pomodoros/infrastructure/prisma-achievement.repository.ts`, `tests/support/in-memory-achievement.repository.ts`
   - Verifica: `dce pnpm test pomodoros/infrastructure/tests/prisma-achievement` pasa.
-- [ ] T053 [H6] `UnlockPomodoroAchievementUseCase` — `pomodoros/application/unlock-pomodoro-achievement.use-case.ts`
+  - Hecho (2026-11-09): funciona con el cliente de Prisma o con una transacción. El fake en memoria no es un fichero aparte (`in-memory-achievement.repository.ts` del plan): lo da `InMemoryPomodoroRepository.achievements`, porque las estadísticas salen de sus sesiones y tareas. 7 tests de integración en verde.
+- [x] T053 [H6] `UnlockPomodoroAchievementUseCase` — `pomodoros/application/unlock-pomodoro-achievement.use-case.ts`
   - Verifica: `dce pnpm test pomodoros/application/tests/unlock` pasa.
-- [ ] T054 [H6] Desbloqueo dentro de la transacción al asentar (`at = finished_at`), al terminar a mano y al completar una tarea (`at = completed_at`); los tests de T017, T028 y T035 ganan un caso de logro cada uno (RF-44, plan §5.9) — `pomodoros/application/settle-due-pomodoro.use-case.ts`, `pomodoros/application/change-pomodoro-status.use-case.ts`, `pomodoros/application/update-pomodoro-task.use-case.ts`, sus tests, contenedores
+  - Hecho (2026-11-09): sin dependencias propias; recibe la unidad de trabajo de la transacción del evento.
+- [x] T054 [H6] Desbloqueo dentro de la transacción al asentar (`at = finished_at`), al terminar a mano y al completar una tarea (`at = completed_at`); los tests de T017, T028 y T035 ganan un caso de logro cada uno (RF-44, plan §5.9) — `pomodoros/application/settle-due-pomodoro.use-case.ts`, `pomodoros/application/change-pomodoro-status.use-case.ts`, `pomodoros/application/update-pomodoro-task.use-case.ts`, sus tests, contenedores
   - Verifica: `dce pnpm test pomodoros/application` pasa.
-- [ ] T055 [H6] `GetPomodoroStreakUseCase` con `Streak.calculate` (D-6), `ListPomodoroAchievementsUseCase`, `PomodoroProgressController` y sus rutas (D-11) — `pomodoros/application/get-pomodoro-streak.use-case.ts`, `pomodoros/application/list-pomodoro-achievement.use-case.ts`, `pomodoros/infrastructure/pomodoro-progress.controller.ts`, `pomodoros/infrastructure/pomodoro.routes.ts`, contenedores
+  - Hecho (2026-11-09): los tres casos de uso reciben `UnlockPomodoroAchievementUseCase` por defecto en el constructor. Los casos de logro de los tests de asentar (1), completar (2) y terminar a mano (2) se añadieron después de integrar el desbloqueo y pasaron a la primera, sin ver antes el rojo.
+- [x] T055 [H6] `GetPomodoroStreakUseCase` con `Streak.calculate` (D-6), `ListPomodoroAchievementsUseCase`, `PomodoroProgressController` y sus rutas (D-11) — `pomodoros/application/get-pomodoro-streak.use-case.ts`, `pomodoros/application/list-pomodoro-achievement.use-case.ts`, `pomodoros/infrastructure/pomodoro-progress.controller.ts`, `pomodoros/infrastructure/pomodoro.routes.ts`, contenedores
   - Verifica: `dce pnpm test pomodoros` pasa.
+  - Hecho (2026-11-09): `GET /pomodoro-streak` responde `{ current, best }`, como `GET /streak`, y `GET /pomodoro-achievements` los 11 logros sin paginar. `dce pnpm test pomodoros` → 21 suites y 276 tests; suite completa → 86 suites y 1050 tests en verde; `tsc --noEmit` sin errores; las búsquedas del principio V, sin resultados.
 
 ### Checkpoint H6
 - `dce pnpm test` pasa entero. Los 11 endpoints responden según el contrato.

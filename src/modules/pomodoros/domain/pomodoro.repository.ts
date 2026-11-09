@@ -1,5 +1,6 @@
 import type { LocalDate } from '../../../shared/domain/local-date.value-object.js';
 import type { Pagination } from '../../../shared/domain/pagination.value-object.js';
+import type { AchievementRepository } from './achievement.repository.js';
 import type { NewPomodoroTask, PomodoroTask } from './pomodoro-task.entity.js';
 import type { NewPomodoro, Pomodoro } from './pomodoro.entity.js';
 
@@ -17,6 +18,8 @@ export interface DuePomodoro {
 // Operaciones dentro de una transacción. Las sesiones se leen bloqueadas hasta el final de la transacción,
 // para que el barrido, las pestañas y las peticiones del mismo usuario no se pisen (plan, D-4)
 export interface PomodoroUnitOfWork {
+  // Logros dentro de la misma transacción: sus estadísticas ven los cambios aún sin confirmar (plan, 5.9)
+  readonly achievements: AchievementRepository;
   // null si no existe o es de otro usuario
   lockPomodoro(userId: string, pomodoroId: string): Promise<Pomodoro | null>;
   lockActivePomodoro(userId: string): Promise<Pomodoro | null>;

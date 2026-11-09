@@ -138,4 +138,26 @@ describe('ChangePomodoroStatusUseCase', () => {
     const { pomodoro } = await startSession();
     await expectError(useCase.execute({ ...context, userId: 'user-2' }, pomodoro.id, 'paused'), 'POMODORO_NOT_FOUND');
   });
+  it('terminar a mano no cuenta para FIRST_POMODORO pero sí suma concentración (RF-38, RF-44, RF-47)', async () => {
+    const { pomodoro } = await startSession();
+    clock.advance(10 * MINUTE);
+    await useCase.execute(context, pomodoro.id, 'finished');
+    expect(await repository.achievements.listUnlocked('user-1')).toEqual([]);
+    expect((await repository.achievements.stats('user-1')).focusedSeconds).toBe(600);
+  });
+
+  it('terminar a mano al llegar a 600 minutos desbloquea FOCUS_10H con ese instante (RF-44, RF-65)', async () => {
+    for (let session = 0; session < 5; session++) {
+      const { pomodoro } = await start.execute(context, { durationMinutes: 120, newTasks: [], waitingTaskIds: [] });
+      clock.advance(120 * MINUTE - 1000);
+      await useCase.execute(context, pomodoro.id, 'finished');
+      clock.advance(1000);
+    }
+    const unlocked = await repository.achievements.listUnlocked('user-1');
+    expect(unlocked.map((achievement) => achievement.code)).toEqual([]);
+    const { pomodoro } = await start.execute(context, { durationMinutes: 1, newTasks: [], waitingTaskIds: [] });
+    clock.advance(30_000);
+    await useCase.execute(context, pomodoro.id, 'finished');
+    expect((await repository.achievements.listUnlocked('user-1')).map((achievement) => achievement.code)).toEqual(['FOCUS_10H']);
+  });
 });

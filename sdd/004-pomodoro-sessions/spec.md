@@ -93,7 +93,7 @@ Como usuario, quiero ver una racha y unos logros calculados solo con mis tareas 
   - Dada la primera sesión terminada por tiempo, cuando el usuario consulta sus logros, entonces `FIRST_POMODORO` está conseguido con el instante de fin de esa sesión.
   - Dada una racha del pomodoro de 3 días que luego se rompe, cuando el usuario consulta sus logros, entonces `STREAK_3` sigue conseguido.
   - Dadas 7 de 10 sesiones terminadas por tiempo, cuando el usuario consulta sus logros, entonces `SESSIONS_10` aparece sin conseguir con progreso 7 de 10.
-- **RF:** RF-19, RF-38 a RF-42, RF-43 a RF-47.
+- **RF:** RF-19, RF-38 a RF-42, RF-43 a RF-47, RF-65.
 
 ### HU-07 — Pasar a otra sesión o borrar las tareas no realizadas (P1)
 Como usuario, quiero decidir qué hago con las tareas que no terminé en una sesión: pasarlas a otra sesión o borrarlas, para no volver a escribirlas ni acumular tareas que ya no quiero.
@@ -116,7 +116,7 @@ Como usuario, quiero decidir qué hago con las tareas que no terminé en una ses
 
 ## Requisitos funcionales (EARS, con ID RF-xx)
 
-Los RF de esta spec se numeran desde RF-01 dentro de la funcionalidad 004. Cuando se cita un requisito de otra funcionalidad se indica («RF-21 de la 002»). Los RF-52 a RF-63 salen de separar requisitos compuestos en la revisión de EARS, y RF-64 de una clarificación al planificar; los números anteriores no cambian para no romper las referencias.
+Los RF de esta spec se numeran desde RF-01 dentro de la funcionalidad 004. Cuando se cita un requisito de otra funcionalidad se indica («RF-21 de la 002»). Los RF-52 a RF-63 salen de separar requisitos compuestos en la revisión de EARS, RF-64 de una clarificación al planificar y RF-65 de una al implementar; los números anteriores no cambian para no romper las referencias.
 
 ### Propiedad, acceso y relación con la 001
 - **RF-01** — El sistema deberá limitar cada operación sobre sesiones, tareas, racha y logros del pomodoro a los del usuario de la sesión (amplía RF-21 de la 002).
@@ -205,12 +205,13 @@ Los RF de esta spec se numeran desde RF-01 dentro de la funcionalidad 004. Cuand
   | `MARATHON` | Maratón | 4 sesiones terminadas por tiempo el mismo día local (RF-40) |
   | `TASKS_10` | Cumplidor | 10 tareas del pomodoro completadas |
   | `TASKS_100` | Productivo | 100 tareas del pomodoro completadas |
-  | `FOCUS_10H` | Diez horas | 10 horas de concentración acumulada |
+  | `FOCUS_10H` | Diez horas | 600 minutos (10 horas) de concentración acumulada (RF-65) |
 
 - **RF-44** — Cuando un usuario cumple por primera vez la meta de un logro, el sistema deberá considerarlo conseguido con el instante en que se cumplió (el fin de la sesión o el momento de completar la tarea que la cumplió), y mantenerlo conseguido para siempre, aunque después el progreso baje.
 - **RF-45** — El sistema deberá calcular el progreso de los logros de racha con la mejor racha del pomodoro (RF-41).
 - **RF-46** — El sistema deberá calcular el progreso de los logros de tareas con las tareas del pomodoro completadas en ese momento, contando cada tarea una sola vez, aunque se complete y se desmarque varias veces.
 - **RF-47** — El sistema deberá calcular la concentración acumulada como la suma del tiempo de concentración (RF-33) de todas las sesiones terminadas, por tiempo o a mano.
+- **RF-65** — El sistema deberá expresar la meta y el progreso de `FOCUS_10H` en minutos enteros de concentración acumulada, redondeados hacia abajo: meta 600 y, por ejemplo, 7 h 30 min → progreso 450.
 
 ### Peticiones
 - **RF-49** — Cuando un usuario empieza una sesión, el sistema deberá aceptar en `POST /pomodoros` un cuerpo con `durationMinutes`, `newTasks` y `waitingTaskIds`, todos opcionales, y responder `201` con la sesión creada.
@@ -244,7 +245,7 @@ Todas las rutas usan la cookie de sesión, `X-CSRF-Token` en `POST`/`PATCH`/`DEL
 | PATCH | `/pomodoro-tasks/{id}` | Editar el título y la descripción de una tarea; completarla o desmarcarla en la sesión activa | RF-06, RF-07, RF-13, RF-34, RF-36, RF-48, RF-53, RF-54, RF-57 |
 | DELETE | `/pomodoro-tasks/{id}` | Borrar una tarea en espera | RF-07, RF-22, RF-29 |
 | GET | `/pomodoro-streak` | Racha actual y mejor racha del pomodoro | RF-38 a RF-41 |
-| GET | `/pomodoro-achievements` | Los 11 logros del catálogo, con su progreso | RF-19, RF-43 a RF-47 |
+| GET | `/pomodoro-achievements` | Los 11 logros del catálogo, con su progreso | RF-19, RF-43 a RF-47, RF-65 |
 
 ### Recurso `Pomodoro`
 
@@ -299,6 +300,8 @@ Todas las rutas usan la cookie de sesión, `X-CSRF-Token` en `POST`/`PATCH`/`DEL
   "unlockedAt": null
 }
 ```
+
+- `target` y `progress`: en sesiones, días o tareas según el logro; en `FOCUS_10H`, minutos de concentración acumulada (`target: 600`, RF-65). `progress` nunca supera `target` (RF-19).
 
 ### POST `/pomodoros`
 
@@ -571,6 +574,7 @@ Ninguna. Todas están resueltas en *Clarificaciones*.
 - **2026-11-08** — Cuerpo de las peticiones (QA-01) → `POST /pomodoros` con `durationMinutes`, `newTasks` y `waitingTaskIds`, todos opcionales (RF-49); el estado se cambia con `PATCH /pomodoros/{id}` y un único campo `status` (RF-50); las tareas de la sesión son un subrecurso: `POST /pomodoros/{id}/tasks` para añadir y `DELETE /pomodoros/{id}/tasks/{taskId}` para quitar (RF-51). Se descartan un `PATCH` con un campo `action` y un `PATCH` con varios cambios a la vez.
 - **2026-11-08** — ¿Qué responde borrar una tarea completada de una sesión terminada? (QA-02) → No se puede: `INVALID_POMODORO_STATE` (RF-22, RF-34), porque forma parte del historial de la sesión (RF-16) y del progreso de los logros (RF-46). Solo se borran tareas en espera. Se descarta permitir borrarla.
 - **2026-11-08** — ¿Se puede editar una tarea del pomodoro? (QA-03) → Título y descripción, nunca la fecha, mientras la tarea está en espera o en la sesión activa, también si está completada (RF-48); en una sesión terminada, `INVALID_POMODORO_STATE`. `PATCH /pomodoro-tasks/{id}` acepta `title`, `description` y `completed`. Se descartan editar también la fecha y no permitir ninguna edición.
+- **2026-11-09** — ¿En qué unidad van `target` y `progress` de `FOCUS_10H`? (detectada al implementar la H6) → En minutos enteros de concentración, redondeados hacia abajo: `target: 600` (RF-65). Es lo bastante fino para una barra de progreso y la misma unidad que `durationMinutes`. Se descartan las horas (la barra avanzaría a saltos) y los segundos (cifras poco legibles).
 - **2026-11-08** — ¿Qué forma tiene `data` en `GET /pomodoro-streak`? (detectada al implementar la H1: el contrato decía `{ currentStreak, bestStreak }` y a la vez «la misma forma que `GET /streak`», que en la 001 es `{ current, best }`) → `{ current, best }`, la misma que `GET /streak`, para que el frontend reutilice su componente de racha. Se descarta mantener `{ currentStreak, bestStreak }`.
 - **2026-11-08** — ¿En qué orden van las tareas dentro de una sesión? (R-1 del plan, detectada al planificar) → En el orden en que se añadieron a la sesión; en una misma petición, primero `newTasks` y después `waitingTaskIds`, cada lista en el orden del cuerpo (RF-64). Se descarta ordenarlas por fecha y creación como las tareas en espera (una tarea traída de espera aparecería arriba aunque se añadiera la última).
 - **2026-11-08** — ¿Qué responde añadir tareas a una sesión si pasaría de 20? (QA-04, detectada en la revisión de EARS y constitución) → `POMODORO_TASK_LIMIT` (`409`, RF-59), comprobado después de que la sesión exista y esté activa (RF-63): una sesión terminada responde siempre `INVALID_POMODORO_STATE`. Al empezar una sesión, más de 20 tareas en el cuerpo sigue siendo `VALIDATION_ERROR` (RF-56). Se descarta mantener `VALIDATION_ERROR` como excepción en la precedencia.
@@ -598,3 +602,4 @@ Ninguna. Todas están resueltas en *Clarificaciones*.
 - **2026-11-08** — Aprobada por el responsable del proyecto. Estado → *Aprobada*.
 - **2026-11-08** — Ampliación aprobada por el responsable del proyecto: RF-64 (orden de las tareas dentro de una sesión), detectado al planificar (R-1 del plan). Se añaden tres casos límite y la nota del recurso `Pomodoro`. Estado → *Aprobada*.
 - **2026-11-08** — Corrección aprobada por el responsable del proyecto: el contrato de `GET /pomodoro-streak` devuelve `{ current, best }`, la forma de `GET /streak` de la 001; el ejemplo anterior (`{ currentStreak, bestStreak }`) contradecía la frase «la misma forma que `GET /streak`». Estado → *Aprobada*.
+- **2026-11-09** — Ampliación aprobada por el responsable del proyecto: RF-65 (`FOCUS_10H` en minutos, meta 600), detectada al implementar la H6. Se actualizan la meta de RF-43, la nota del recurso `Achievement`, HU-06 y el resumen de endpoints. Estado → *Aprobada*.

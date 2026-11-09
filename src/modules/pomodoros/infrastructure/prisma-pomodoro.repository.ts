@@ -11,6 +11,7 @@ import type {
   PomodoroRepository,
   PomodoroUnitOfWork,
 } from '../domain/pomodoro.repository.js';
+import { PrismaAchievementRepository } from './prisma-achievement.repository.js';
 import { toPomodoroDomain, toPomodoroTaskDomain, toPomodoroTaskUpdate, toPomodoroUpdate } from './pomodoro.mapper.js';
 
 const UNIQUE_VIOLATION = 'P2002';
@@ -23,7 +24,11 @@ const WAITING_TASK_ORDER: Prisma.PomodoroTaskOrderByWithRelationInput[] = [{ dat
 
 // Operaciones de una transacción: cada sesión se bloquea con SELECT … FOR UPDATE antes de leerla (plan, D-4)
 class PrismaPomodoroUnitOfWork implements PomodoroUnitOfWork {
-  constructor(private readonly tx: Prisma.TransactionClient) {}
+  readonly achievements: PrismaAchievementRepository;
+
+  constructor(private readonly tx: Prisma.TransactionClient) {
+    this.achievements = new PrismaAchievementRepository(tx);
+  }
 
   async lockPomodoro(userId: string, pomodoroId: string): Promise<Pomodoro | null> {
     if (!Pomodoro.isValidId(pomodoroId)) return null;

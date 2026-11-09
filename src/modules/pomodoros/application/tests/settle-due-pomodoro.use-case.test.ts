@@ -146,4 +146,11 @@ describe('SettleDuePomodoroUseCase', () => {
     await useCase.forUser('user-sin-zona');
     expect((await repository.findById('user-sin-zona', pomodoro.id))?.finishedOn).toEqual(day('2026-11-08'));
   });
+  it('al asentar desbloquea los logros alcanzados con el fin de la sesión (RF-44)', async () => {
+    const pomodoro = await startSession('user-1', 25);
+    clock.advance(40 * MINUTE);
+    await useCase.forUser('user-1');
+    const unlocked = await repository.achievements.listUnlocked('user-1');
+    expect(unlocked).toEqual([{ code: 'FIRST_POMODORO', unlockedAt: pomodoro.endsAt }]);
+  });
 });
