@@ -1,4 +1,4 @@
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 
 import type { TokenService } from '../domain/token.port.js';
 
@@ -8,6 +8,10 @@ const TOKEN_BYTES = 32;
 export class CryptoTokenService implements TokenService {
   randomToken(): string {
     return randomBytes(TOKEN_BYTES).toString('base64url');
+  }
+
+  randomUuid(): string {
+    return randomUUID();
   }
 
   // En la base de datos solo se guarda esta huella (RNF-06)

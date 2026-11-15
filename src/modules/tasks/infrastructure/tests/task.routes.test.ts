@@ -8,6 +8,7 @@ import {
   type TestContainer,
   type TestServer,
   userIdOf,
+  withTurnstileToken,
 } from '../../../../../tests/support/test.container.js';
 import { createApp } from '../../../../app.factory.js';
 import { ERROR_CODES } from '../../../../shared/domain/error-code.constant.js';
@@ -435,9 +436,11 @@ describe('rutas de tareas', () => {
     it('CE-01 de la 002: cuatro peticiones hasta la primera tarea (token previo, registro, login y POST /tasks)', async () => {
       const presession = (await (await server.request('/auth/csrf')).json()) as { data: { csrfToken: string } };
       const auth = { 'Content-Type': 'application/json', 'X-CSRF-Token': presession.data.csrfToken };
-      const credentials = JSON.stringify({ email: 'cris@example.com', password: 'correct horse battery' });
-      await server.request('/auth/register', { method: 'POST', headers: auth, body: credentials });
-      const login = await server.request('/auth/login', { method: 'POST', headers: auth, body: credentials });
+      // Con un token de Turnstile en cada petición (spec 005): siguen siendo cuatro peticiones
+      const credentials = { email: 'cris@example.com', password: 'correct horse battery' };
+      const body = (action: 'login' | 'register') => JSON.stringify(withTurnstileToken(credentials, action));
+      await server.request('/auth/register', { method: 'POST', headers: auth, body: body('register') });
+      const login = await server.request('/auth/login', { method: 'POST', headers: auth, body: body('login') });
       const { data } = (await login.json()) as { data: { csrfToken: string } };
       const cookie = login.headers
         .getSetCookie()

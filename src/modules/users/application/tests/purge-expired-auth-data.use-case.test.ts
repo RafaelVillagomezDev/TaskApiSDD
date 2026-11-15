@@ -2,6 +2,7 @@ import { FakeClock } from '../../../../../tests/support/fake-clock.adapter.js';
 import { InMemoryCsrfTokenRepository } from '../../../../../tests/support/in-memory-csrf-token.repository.js';
 import { InMemoryLoginAttemptRepository } from '../../../../../tests/support/in-memory-login-attempt.repository.js';
 import { InMemorySessionRepository } from '../../../../../tests/support/in-memory-session.repository.js';
+import { InMemoryTurnstileTokenRepository } from '../../../../../tests/support/in-memory-turnstile-token.repository.js';
 import { LoginThrottle } from '../../domain/login-throttle.value-object.js';
 import { Session } from '../../domain/session.entity.js';
 import { PurgeExpiredAuthDataUseCase } from '../purge-expired-auth-data.use-case.js';
@@ -15,6 +16,7 @@ describe('PurgeExpiredAuthDataUseCase', () => {
   let sessions: InMemorySessionRepository;
   let csrfTokens: InMemoryCsrfTokenRepository;
   let loginAttempts: InMemoryLoginAttemptRepository;
+  let turnstileTokens: InMemoryTurnstileTokenRepository;
   let useCase: PurgeExpiredAuthDataUseCase;
 
   // Sesión abierta en `openedAt`, con huellas que identifican a cada una
@@ -46,7 +48,8 @@ describe('PurgeExpiredAuthDataUseCase', () => {
     sessions = new InMemorySessionRepository();
     csrfTokens = new InMemoryCsrfTokenRepository();
     loginAttempts = new InMemoryLoginAttemptRepository();
-    useCase = new PurgeExpiredAuthDataUseCase(sessions, csrfTokens, loginAttempts, clock);
+    turnstileTokens = new InMemoryTurnstileTokenRepository();
+    useCase = new PurgeExpiredAuthDataUseCase(sessions, csrfTokens, loginAttempts, turnstileTokens, clock);
   });
 
   it('borra las sesiones de 7 días sin renovar y deja las vigentes con sus refresh tokens (D-12)', async () => {
@@ -83,5 +86,13 @@ describe('PurgeExpiredAuthDataUseCase', () => {
     expect(loginAttempts.has('vencido@example.com')).toBe(false);
     expect(loginAttempts.has('bloqueado@example.com')).toBe(true);
     expect(loginAttempts.has('reciente@example.com')).toBe(true);
+  });
+
+  it('borra las huellas de Turnstile caducadas y deja las vigentes (RF-31 de la 005, D-6)', async () => {
+    const now = clock.now();
+    await turnstileTokens.reserve('caducada', new Date(now.getTime() - 5 * MINUTE), now);
+    await turnstileTokens.reserve('vigente', now, new Date(now.getTime() + MINUTE));
+    await useCase.execute();
+    expect(turnstileTokens.hashes()).toEqual(['vigente']);
   });
 });

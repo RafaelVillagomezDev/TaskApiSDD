@@ -22,4 +22,12 @@ describe('CryptoTokenService (RNF-06, D-1)', () => {
     expect(tokens.equals(a, tokens.fingerprint('dos'))).toBe(false);
     expect(tokens.equals(a, 'corta')).toBe(false);
   });
+
+  it('randomUuid devuelve UUID v4 distintos: clave de idempotencia de Turnstile (RF-24 y RNF-06 de la 005)', () => {
+    const keys = new Set(Array.from({ length: 50 }, () => tokens.randomUuid()));
+    expect(keys.size).toBe(50);
+    for (const key of keys) {
+      expect(key).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    }
+  });
 });

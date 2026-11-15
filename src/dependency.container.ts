@@ -59,12 +59,14 @@ import { RefreshSessionUseCase } from './modules/users/application/refresh-sessi
 import { UpdateProfileUseCase } from './modules/users/application/update-profile.use-case.js';
 import { RegisterUserUseCase } from './modules/users/application/register-user.use-case.js';
 import { VerifySessionCsrfUseCase } from './modules/users/application/verify-session-csrf.use-case.js';
+import { VerifyTurnstileUseCase } from './modules/users/application/verify-turnstile.use-case.js';
 import { AesGcmGraceCipher } from './modules/users/infrastructure/aes-gcm-grace-cipher.adapter.js';
 import { AesGcmSecretCipher } from './modules/users/infrastructure/aes-gcm-secret-cipher.adapter.js';
 import { Argon2PasswordHasher } from './modules/users/infrastructure/argon2-password-hasher.adapter.js';
 import { AuthCleanupScheduler } from './modules/users/infrastructure/auth-cleanup.scheduler.js';
 import { AuthController } from './modules/users/infrastructure/auth.controller.js';
 import { createAuthRouter } from './modules/users/infrastructure/auth.routes.js';
+import { CloudflareTurnstileVerifier } from './modules/users/infrastructure/cloudflare-turnstile-verifier.adapter.js';
 import { CryptoTokenService } from './modules/users/infrastructure/crypto-token.adapter.js';
 import { MeController } from './modules/users/infrastructure/me.controller.js';
 import { createMeRouter } from './modules/users/infrastructure/me.routes.js';
@@ -72,8 +74,10 @@ import { createPresessionCsrfMiddleware } from './modules/users/infrastructure/p
 import { PrismaCsrfTokenRepository } from './modules/users/infrastructure/prisma-csrf-token.repository.js';
 import { PrismaLoginAttemptRepository } from './modules/users/infrastructure/prisma-login-attempt.repository.js';
 import { PrismaSessionRepository } from './modules/users/infrastructure/prisma-session.repository.js';
+import { PrismaTurnstileTokenRepository } from './modules/users/infrastructure/prisma-turnstile-token.repository.js';
 import { PrismaUserRepository } from './modules/users/infrastructure/prisma-user.repository.js';
 import { createSessionMiddleware } from './modules/users/infrastructure/session.middleware.js';
+import { createAuthBodySchemas } from './modules/users/infrastructure/user.schema.js';
 import type { Clock } from './shared/domain/clock.port.js';
 import type { TimeZoneService } from './shared/domain/time-zone.port.js';
 import { createRequestContextMiddleware } from './shared/infrastructure/http/request-context.middleware.js';
@@ -184,13 +188,29 @@ export function createContainer(): Container {
   const users = new PrismaUserRepository(prisma);
   const loginAttempts = new PrismaLoginAttemptRepository(prisma);
   const passwordHasher = new Argon2PasswordHasher();
+  // Huellas de los tokens de Turnstile recibidos: un solo uso (RF-20 a RF-23 de la 005)
+  const turnstileTokens = new PrismaTurnstileTokenRepository(prisma);
+  // Verificación con Cloudflare antes del login y el registro. Con una clave de prueba ni se reserva el token ni
+  // se comprueba la acción (RF-06b, RF-33); producción no arranca con una (RF-19)
+  const verifyTurnstile = new VerifyTurnstileUseCase(
+    new CloudflareTurnstileVerifier(config.turnstile.secret),
+    turnstileTokens,
+    tokens,
+    clock,
+    {
+      allowedHostnames: config.turnstile.allowedHostnames,
+      checkReplayAndAction: !config.turnstile.usesTestSecret,
+    },
+  );
   const authRouter = createAuthRouter({
     controller: new AuthController(
       new IssueCsrfTokenUseCase(tokens, csrfTokens, clock),
       new RegisterUserUseCase(users, passwordHasher),
-      new LoginUseCase(users, sessions, loginAttempts, passwordHasher, tokens, secretCipher, clock),
+      new LoginUseCase(users, sessions, loginAttempts, passwordHasher, tokens, secretCipher, clock, verifyTurnstile),
       new LogoutUseCase(sessions, tokens, verifyCsrf),
       new RefreshSessionUseCase(sessions, tokens, new AesGcmGraceCipher(secretCipher), verifyCsrf, clock),
+      // Token de Turnstile obligatorio u opcional según TURNSTILE_ENFORCE (RF-15 a RF-17 de la 005)
+      createAuthBodySchemas({ turnstileRequired: config.turnstile.enforce }),
     ),
     presessionCsrf: createPresessionCsrfMiddleware({ tokens, csrfTokens, clock }),
   });
@@ -208,7 +228,7 @@ export function createContainer(): Container {
   });
   // Limpieza de copias cifradas, tokens previos, sesiones y bloqueos caducados (D-12)
   const authCleanupScheduler = new AuthCleanupScheduler(
-    new PurgeExpiredAuthDataUseCase(sessions, csrfTokens, loginAttempts, clock),
+    new PurgeExpiredAuthDataUseCase(sessions, csrfTokens, loginAttempts, turnstileTokens, clock),
   );
 
   return {

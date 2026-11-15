@@ -54,11 +54,13 @@ import { RefreshSessionUseCase } from '../../src/modules/users/application/refre
 import { UpdateProfileUseCase } from '../../src/modules/users/application/update-profile.use-case.js';
 import { RegisterUserUseCase } from '../../src/modules/users/application/register-user.use-case.js';
 import { VerifySessionCsrfUseCase } from '../../src/modules/users/application/verify-session-csrf.use-case.js';
+import { VerifyTurnstileUseCase } from '../../src/modules/users/application/verify-turnstile.use-case.js';
 import { AesGcmGraceCipher } from '../../src/modules/users/infrastructure/aes-gcm-grace-cipher.adapter.js';
 import { AesGcmSecretCipher } from '../../src/modules/users/infrastructure/aes-gcm-secret-cipher.adapter.js';
 import { AuthController } from '../../src/modules/users/infrastructure/auth.controller.js';
 import { createAuthRouter } from '../../src/modules/users/infrastructure/auth.routes.js';
 import { CryptoTokenService } from '../../src/modules/users/infrastructure/crypto-token.adapter.js';
+import { createAuthBodySchemas } from '../../src/modules/users/infrastructure/user.schema.js';
 import { MeController } from '../../src/modules/users/infrastructure/me.controller.js';
 import { createMeRouter } from '../../src/modules/users/infrastructure/me.routes.js';
 import { createPresessionCsrfMiddleware } from '../../src/modules/users/infrastructure/presession-csrf.middleware.js';
@@ -67,12 +69,14 @@ import { createRequestContextMiddleware } from '../../src/shared/infrastructure/
 import { IntlTimeZoneAdapter } from '../../src/shared/infrastructure/time/intl-time-zone.adapter.js';
 import { FakeClock } from './fake-clock.adapter.js';
 import { FakePasswordHasher } from './fake-password-hasher.adapter.js';
+import { FAKE_TURNSTILE_HOSTNAME, FakeTurnstileVerifier, turnstileTokenFor } from './fake-turnstile-verifier.adapter.js';
 import { InMemoryAlertRepository } from './in-memory-alert.repository.js';
 import { InMemoryCsrfTokenRepository } from './in-memory-csrf-token.repository.js';
 import { InMemoryLoginAttemptRepository } from './in-memory-login-attempt.repository.js';
 import { InMemoryPomodoroRepository } from './in-memory-pomodoro.repository.js';
 import { InMemorySessionRepository } from './in-memory-session.repository.js';
 import { InMemoryTaskRepository } from './in-memory-task.repository.js';
+import { InMemoryTurnstileTokenRepository } from './in-memory-turnstile-token.repository.js';
 import { InMemoryUserTimeZoneRepository } from './in-memory-user-time-zone.repository.js';
 import { InMemoryUserRepository } from './in-memory-user.repository.js';
 
@@ -98,9 +102,23 @@ export interface TestContainer extends AppContainer {
   pomodoros: InMemoryPomodoroRepository;
   // Una pasada del barrido de sesiones pomodoro, para ejecutarla a mano tras mover el reloj (D-2 de la 004)
   settlePomodoros: SettleDuePomodoroUseCase;
+  // Cloudflare simulado y huellas de los tokens recibidos (RNF-04 de la 005)
+  turnstileVerifier: FakeTurnstileVerifier;
+  turnstileTokens: InMemoryTurnstileTokenRepository;
 }
 
-export function createTestContainer(): TestContainer {
+export interface TestContainerOptions {
+  turnstile?: {
+    // Modo obligatorio (true, por defecto) u opcional (RF-15 a RF-17 de la 005)
+    enforce?: boolean;
+    // Clave secreta de prueba: ni se reserva el token ni se comprueba la acción (RF-06b, RF-33). Por defecto, false
+    testSecret?: boolean;
+  };
+}
+
+export function createTestContainer(options: TestContainerOptions = {}): TestContainer {
+  const turnstileEnforce = options.turnstile?.enforce ?? true;
+  const turnstileTestSecret = options.turnstile?.testSecret ?? false;
   const clock = new FakeClock('2026-10-24T10:00:00Z');
   const timeZones = new IntlTimeZoneAdapter();
   const tasks = new InMemoryTaskRepository();
@@ -155,13 +173,21 @@ export function createTestContainer(): TestContainer {
   const csrfTokens = new InMemoryCsrfTokenRepository();
   const loginAttempts = new InMemoryLoginAttemptRepository();
   const passwordHasher = new FakePasswordHasher();
+  // Verificación de Turnstile con Cloudflare simulado, como en dependency.container.ts (spec 005)
+  const turnstileVerifier = new FakeTurnstileVerifier();
+  const turnstileTokens = new InMemoryTurnstileTokenRepository();
+  const verifyTurnstile = new VerifyTurnstileUseCase(turnstileVerifier, turnstileTokens, tokens, clock, {
+    allowedHostnames: [FAKE_TURNSTILE_HOSTNAME],
+    checkReplayAndAction: !turnstileTestSecret,
+  });
   const authRouter = createAuthRouter({
     controller: new AuthController(
       new IssueCsrfTokenUseCase(tokens, csrfTokens, clock),
       new RegisterUserUseCase(users, passwordHasher),
-      new LoginUseCase(users, sessions, loginAttempts, passwordHasher, tokens, secretCipher, clock),
+      new LoginUseCase(users, sessions, loginAttempts, passwordHasher, tokens, secretCipher, clock, verifyTurnstile),
       new LogoutUseCase(sessions, tokens, verifyCsrf),
       new RefreshSessionUseCase(sessions, tokens, new AesGcmGraceCipher(secretCipher), verifyCsrf, clock),
+      createAuthBodySchemas({ turnstileRequired: turnstileEnforce }),
     ),
     presessionCsrf: createPresessionCsrfMiddleware({ tokens, csrfTokens, clock }),
   });
@@ -221,6 +247,8 @@ export function createTestContainer(): TestContainer {
     loginAttempts,
     pomodoros,
     settlePomodoros,
+    turnstileVerifier,
+    turnstileTokens,
     corsOrigin: FRONTEND_ORIGIN,
     routers: [authRouter, meRouter, taskRouter, streakRouter, alertRouter, pomodoroRouter],
   };
@@ -278,7 +306,8 @@ export function cookiesFrom(response: Response): string {
     .join('; ');
 }
 
-// Pide el token previo, registra la cuenta (si ya existe, sigue) e inicia sesión con ella (RF-22, RF-01, RF-07)
+// Pide el token previo, registra la cuenta (si ya existe, sigue) e inicia sesión con ella (RF-22, RF-01, RF-07),
+// con un token de Turnstile válido en cada petición (spec 005)
 export async function signIn(server: TestServer, email = 'ana@example.com'): Promise<SessionHeaders> {
   const csrf = (await (await server.request('/auth/csrf')).json()) as { data: { csrfToken: string } };
   const init = (body: unknown): RequestInit => ({
@@ -286,8 +315,15 @@ export async function signIn(server: TestServer, email = 'ana@example.com'): Pro
     headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf.data.csrfToken },
     body: JSON.stringify(body),
   });
-  await server.request('/auth/register', init({ email, password: TEST_PASSWORD, name: 'Ana' }));
-  const response = await server.request('/auth/login', init({ email, password: TEST_PASSWORD }));
+  // Un token de Turnstile distinto en cada petición: son de un solo uso (RF-20 de la 005)
+  await server.request(
+    '/auth/register',
+    init({ email, password: TEST_PASSWORD, name: 'Ana', turnstileToken: turnstileTokenFor('register') }),
+  );
+  const response = await server.request(
+    '/auth/login',
+    init({ email, password: TEST_PASSWORD, turnstileToken: turnstileTokenFor('login') }),
+  );
   if (response.status !== 200) {
     throw new Error(`signIn: el login de ${email} respondió ${response.status}`);
   }
@@ -302,4 +338,13 @@ export async function userIdOf(container: TestContainer, email = 'ana@example.co
     throw new Error(`userIdOf: no hay ninguna cuenta con el email ${email}`);
   }
   return user.id;
+}
+
+// Añade un token de Turnstile único para la acción si el cuerpo no trae el campo; si lo trae, aunque sea
+// `undefined` (que JSON omite), se respeta tal cual (spec 005)
+export function withTurnstileToken(body: unknown, action: 'login' | 'register'): unknown {
+  if (typeof body !== 'object' || body === null || 'turnstileToken' in body) {
+    return body;
+  }
+  return { ...body, turnstileToken: turnstileTokenFor(action) };
 }

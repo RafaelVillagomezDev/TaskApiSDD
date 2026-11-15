@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import type { PrismaClient } from '@prisma/client';
 
-// Tablas que cada `*.int.test.ts` vacía por su cuenta (sección 4 de los planes de la 001, la 002 y la 004).
+// Tablas que cada `*.int.test.ts` vacía por su cuenta (sección 4 de los planes de la 001, la 002, la 004 y la 005).
 // `users` no está: con las claves foráneas en cascada, vaciarla borraría los datos de los demás ficheros,
 // que se ejecutan en paralelo. Se vacía una sola vez por ejecución en global.setup.ts (R-12 de la 002)
 const TABLES = [
@@ -17,6 +17,7 @@ const TABLES = [
   'pomodoros',
   'pomodoro_tasks',
   'pomodoro_achievements',
+  'turnstile_tokens',
 ] as const;
 type Table = (typeof TABLES)[number];
 

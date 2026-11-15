@@ -18,7 +18,7 @@ import type { RefreshSessionUseCase } from '../application/refresh-session.use-c
 import type { RegisterUserUseCase } from '../application/register-user.use-case.js';
 import { requireCsrfHeader } from './session.middleware.js';
 import { toSessionUserResponse, toUserResponse } from './user.mapper.js';
-import { loginBodySchema, registerBodySchema } from './user.schema.js';
+import type { AuthBodySchemas } from './user.schema.js';
 
 // Errores de la renovación con los que la sesión ya no existe: se borran sus cookies (contrato, POST /auth/refresh)
 const CLOSED_SESSION_ERRORS: ReadonlySet<ErrorCode> = new Set(['INVALID_REFRESH_TOKEN', 'SESSION_EXPIRED']);
@@ -31,6 +31,8 @@ export class AuthController {
     private readonly loginUser: LoginUseCase,
     private readonly logoutUser: LogoutUseCase,
     private readonly refreshSession: RefreshSessionUseCase,
+    // Construidos al arrancar según el modo de Turnstile (plan de la 005, D-11)
+    private readonly schemas: AuthBodySchemas,
   ) {}
 
   csrf: RequestHandler = async (_req, res) => {
@@ -40,14 +42,15 @@ export class AuthController {
 
   // Responde solo con la cuenta: no abre sesión (RF-06)
   register: RequestHandler = async (req, res) => {
-    const input = parseOrThrow(registerBodySchema, req.body);
+    const input = parseOrThrow(this.schemas.registerBodySchema, req.body);
     const user = await this.registerUser.execute(input);
     sendSuccess(res, 201, 'Cuenta creada con éxito', toUserResponse(user));
   };
 
-  // Los tokens de sesión van solo en cookies; en el cuerpo, la cuenta y el token CSRF (RF-07, RF-24, RNF-05)
+  // Los tokens de sesión van solo en cookies; en el cuerpo, la cuenta y el token CSRF (RF-07, RF-24, RNF-05). El
+  // token de Turnstile, si llega, se verifica en el caso de uso (RF-03 de la 005)
   login: RequestHandler = async (req, res) => {
-    const input = parseOrThrow(loginBodySchema, req.body);
+    const input = parseOrThrow(this.schemas.loginBodySchema, req.body);
     const result = await this.loginUser.execute(input);
     setSessionCookies(res, {
       accessToken: result.accessToken,

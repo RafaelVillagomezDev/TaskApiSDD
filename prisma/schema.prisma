@@ -164,6 +164,17 @@ model CsrfToken {
   @@map("csrf_tokens")
 }
 
+// Huellas de los tokens de Cloudflare Turnstile recibidos en los últimos 300 s, sin el token en claro ni
+// relación con el email o la cuenta: cada token se acepta una sola vez (RF-20 a RF-23 de la 005; plan, D-3).
+// Una fila caducada cuenta como libre y la limpieza de cada minuto la borra (RF-31)
+model TurnstileToken {
+  tokenHash String   @id @map("token_hash") @db.Char(64)
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+
+  @@index([expiresAt])
+  @@map("turnstile_tokens")
+}
+
 // Fallos de login por email normalizado, exista o no la cuenta (RF-09, D-10)
 model LoginAttempt {
   email       String     @id @db.VarChar(254)

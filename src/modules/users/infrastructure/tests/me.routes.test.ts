@@ -7,6 +7,7 @@ import {
   startTestServer,
   type TestContainer,
   type TestServer,
+  withTurnstileToken,
 } from '../../../../../tests/support/test.container.js';
 import { createApp } from '../../../../app.factory.js';
 
@@ -52,7 +53,7 @@ describe('rutas de /me', () => {
     const response = await server.request('/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': presession.data.csrfToken },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify(withTurnstileToken({ email, password }, 'login')),
     });
     return { status: response.status, body: (await response.json()) as Envelope };
   };

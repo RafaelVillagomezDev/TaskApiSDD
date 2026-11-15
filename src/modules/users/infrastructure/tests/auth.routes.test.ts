@@ -6,9 +6,13 @@ import {
   startTestServer,
   TEST_PASSWORD,
   type TestContainer,
+  type TestContainerOptions,
   type TestServer,
+  withTurnstileToken,
 } from '../../../../../tests/support/test.container.js';
+import { turnstileTokenFor } from '../../../../../tests/support/fake-turnstile-verifier.adapter.js';
 import { createApp } from '../../../../app.factory.js';
+import type { SiteverifyOutcome } from '../../domain/turnstile-verifier.port.js';
 
 interface Envelope {
   success: boolean;
@@ -33,18 +37,25 @@ describe('rutas de /auth', () => {
     return { response, status: response.status, body: (text ? JSON.parse(text) : undefined) as Envelope };
   };
   const csrfToken = async () => (await call('/auth/csrf')).body.data.csrfToken as string;
+  // Añaden un token de Turnstile válido y único si el cuerpo no trae `turnstileToken` (spec 005)
   const register = (body: unknown, token?: string) =>
     call('/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(token ? { 'X-CSRF-Token': token } : {}) },
-      body: JSON.stringify(body),
+      body: JSON.stringify(withTurnstileToken(body, 'register')),
     });
   const login = (body: unknown, token?: string) =>
     call('/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(token ? { 'X-CSRF-Token': token } : {}) },
-      body: JSON.stringify(body),
+      body: JSON.stringify(withTurnstileToken(body, 'login')),
     });
+  // Recrea el contenedor y el servidor con otras opciones de Turnstile
+  const restartWith = async (options: TestContainerOptions) => {
+    await server.close();
+    container = createTestContainer(options);
+    server = await startTestServer(createApp(container));
+  };
   const logout = (headers: Record<string, string>) => call('/auth/logout', { method: 'POST', headers });
   const me = (headers: Record<string, string>) => call('/me', { headers });
   // Cuenta registrada con el token previo, lista para iniciar sesión
@@ -244,6 +255,153 @@ describe('rutas de /auth', () => {
       expect(otherDevice.Cookie).not.toBe(ana.Cookie);
       expect((await me(ana)).status).toBe(200);
       expect((await me(otherDevice)).status).toBe(200);
+    });
+  });
+
+  describe('POST /auth/login con Cloudflare Turnstile (spec 005)', () => {
+    const credentials = { email: 'ana@example.com', password: PASSWORD };
+    const rejectedOutcome: SiteverifyOutcome = {
+      kind: 'answered',
+      success: false,
+      hostname: null,
+      action: null,
+      errorCodes: ['invalid-input-response'],
+    };
+
+    it('con un token válido para el login → 200 sin cambios en la respuesta, tras una consulta (RF-03)', async () => {
+      const token = await registered();
+      container.turnstileVerifier.reset();
+      const { status, body } = await login(credentials, token);
+      expect(status).toBe(200);
+      expect(Object.keys(body.data).sort()).toEqual(['csrfToken', 'user']);
+      expect(container.turnstileVerifier.requests).toHaveLength(1);
+    });
+
+    it('un token rechazado → 403 TURNSTILE_FAILED con el sobre de error, sin cookies ni sesión (RF-05, RF-10)', async () => {
+      const token = await registered();
+      container.turnstileVerifier.rejectNext();
+      const { response, status, body } = await login(credentials, token);
+      expect(status).toBe(403);
+      expect(body).toEqual({
+        success: false,
+        status: 403,
+        error: { code: 'TURNSTILE_FAILED', message: 'No se ha podido verificar que eres una persona.' },
+      });
+      expect(response.headers.getSetCookie()).toEqual([]);
+      expect(container.sessions.count()).toBe(0);
+    });
+
+    it('el mismo cuerpo de error para cualquier motivo y exista o no el email (RF-11, RF-13)', async () => {
+      const token = await registered();
+      const verifier = container.turnstileVerifier;
+      const reused = turnstileTokenFor('login');
+      await login({ ...credentials, turnstileToken: reused }, token);
+
+      verifier.rejectNext();
+      const rejected = await login(credentials, token);
+      verifier.rejectNext();
+      const missingEmail = await login({ ...credentials, email: 'nadie@example.com' }, token);
+      const wrongAction = await login({ ...credentials, turnstileToken: turnstileTokenFor('register') }, token);
+      verifier.respondWith({ kind: 'answered', success: true, hostname: 'otra-web.com', action: 'login', errorCodes: [] });
+      const wrongHost = await login(credentials, token);
+      const replayed = await login({ ...credentials, turnstileToken: reused }, token);
+
+      const bodies = [rejected, missingEmail, wrongAction, wrongHost, replayed].map((result) => JSON.stringify(result.body));
+      expect(new Set(bodies).size).toBe(1);
+      expect(rejected.body.error?.code).toBe('TURNSTILE_FAILED');
+    });
+
+    it('Cloudflare inaccesible en los dos intentos → 503 TURNSTILE_UNAVAILABLE con el sobre de error (RF-28)', async () => {
+      const token = await registered();
+      container.turnstileVerifier.respondWith({ kind: 'unreachable' }, { kind: 'http-error', status: 502 });
+      const { status, body } = await login(credentials, token);
+      expect(status).toBe(503);
+      expect(body).toEqual({
+        success: false,
+        status: 503,
+        error: {
+          code: 'TURNSTILE_UNAVAILABLE',
+          message: 'No se ha podido verificar que eres una persona; inténtalo de nuevo en unos minutos.',
+        },
+      });
+    });
+
+    it('un token ya usado → 403 sin consultar a Cloudflare otra vez (RF-21, RF-32)', async () => {
+      const token = await registered();
+      const turnstileToken = turnstileTokenFor('login');
+      expect((await login({ ...credentials, turnstileToken }, token)).status).toBe(200);
+      container.turnstileVerifier.reset();
+      const { status, body } = await login({ ...credentials, turnstileToken }, token);
+      expect(status).toBe(403);
+      expect(body.error?.code).toBe('TURNSTILE_FAILED');
+      expect(container.turnstileVerifier.requests).toHaveLength(0);
+    });
+
+    it('dos logins con tokens distintos → dos sesiones; cada petición se procesa de nuevo (RF-27)', async () => {
+      const token = await registered();
+      expect((await login(credentials, token)).status).toBe(200);
+      expect((await login(credentials, token)).status).toBe(200);
+      expect(container.sessions.count()).toBe(2);
+    });
+
+    it.each([
+      ['sin token, en modo obligatorio (RF-17)', undefined],
+      ['con un token vacío (RF-02)', ''],
+      ['con un token de 2049 caracteres (RF-02)', 'x'.repeat(2049)],
+      ['con un token numérico (RF-02)', 12345],
+    ])('%s → 400 VALIDATION_ERROR en turnstileToken, sin consultar a Cloudflare', async (_case, turnstileToken) => {
+      const token = await registered();
+      container.turnstileVerifier.reset();
+      const { status, body } = await login({ ...credentials, turnstileToken }, token);
+      expect(status).toBe(400);
+      expect(body.error?.code).toBe('VALIDATION_ERROR');
+      expect(body.error?.details?.map((detail) => detail.field)).toEqual(['turnstileToken']);
+      expect(container.turnstileVerifier.requests).toHaveLength(0);
+    });
+
+    describe('precedencia (RF-14)', () => {
+      it('sin X-CSRF-Token y con un token rechazado → INVALID_CSRF_TOKEN, sin consultar a Cloudflare', async () => {
+        await registered();
+        container.turnstileVerifier.reset();
+        container.turnstileVerifier.respondWith(rejectedOutcome);
+        expect((await login(credentials)).body.error?.code).toBe('INVALID_CSRF_TOKEN');
+        expect(container.turnstileVerifier.requests).toHaveLength(0);
+      });
+
+      it('email mal formado y token rechazado → VALIDATION_ERROR, sin consultar a Cloudflare', async () => {
+        const token = await registered();
+        container.turnstileVerifier.reset();
+        container.turnstileVerifier.respondWith(rejectedOutcome);
+        expect((await login({ ...credentials, email: 'no-es-un-email' }, token)).body.error?.code).toBe('VALIDATION_ERROR');
+        expect(container.turnstileVerifier.requests).toHaveLength(0);
+      });
+
+      it('email bloqueado y token rechazado → TURNSTILE_FAILED, que va antes que TOO_MANY_ATTEMPTS', async () => {
+        const token = await registered();
+        for (let attempt = 0; attempt < 5; attempt++) {
+          await login({ ...credentials, password: 'contraseña equivocada' }, token);
+        }
+        container.turnstileVerifier.rejectNext();
+        expect((await login(credentials, token)).body.error?.code).toBe('TURNSTILE_FAILED');
+        expect((await login(credentials, token)).body.error?.code).toBe('TOO_MANY_ATTEMPTS');
+      });
+
+      it('10 rechazos de Turnstile no bloquean el email: el dueño entra después (RF-12, CE-02)', async () => {
+        const token = await registered();
+        for (let attempt = 0; attempt < 10; attempt++) {
+          container.turnstileVerifier.rejectNext();
+          await login({ ...credentials, password: 'contraseña equivocada' }, token);
+        }
+        expect((await login(credentials, token)).status).toBe(200);
+      });
+    });
+
+    it('con una clave secreta de prueba, el mismo token ficticio vale en dos logins seguidos (RF-33)', async () => {
+      await restartWith({ turnstile: { testSecret: true } });
+      const token = await registered();
+      const dummy = { ...credentials, turnstileToken: 'XXXX.DUMMY.TOKEN.XXXX' };
+      expect((await login(dummy, token)).status).toBe(200);
+      expect((await login(dummy, token)).status).toBe(200);
     });
   });
 

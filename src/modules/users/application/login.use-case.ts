@@ -8,11 +8,14 @@ import type { SessionRepository } from '../domain/session.repository.js';
 import type { TokenService } from '../domain/token.port.js';
 import type { User } from '../domain/user.entity.js';
 import type { UserRepository } from '../domain/user.repository.js';
+import type { VerifyTurnstileUseCase } from './verify-turnstile.use-case.js';
 
 export interface LoginInput {
   // Ya recortado y en minúsculas por el schema (RF-03)
   email: string;
   password: string;
+  // Token de Cloudflare Turnstile; solo falta en el modo opcional (RF-15 de la 005)
+  turnstileToken?: string;
 }
 
 export interface LoginResult {
@@ -25,7 +28,8 @@ export interface LoginResult {
   csrfToken: string;
 }
 
-// Inicia sesión con bloqueo por fuerza bruta, sin revelar si el email existe (RF-07 a RF-10, RF-16, RF-24)
+// Inicia sesión con bloqueo por fuerza bruta, sin revelar si el email existe (RF-07 a RF-10, RF-16, RF-24). Si llega
+// un token de Turnstile, lo verifica antes que nada (RF-03, RF-12 y RF-13 de la 005; plan de la 005, D-1)
 export class LoginUseCase {
   constructor(
     private readonly users: UserRepository,
@@ -35,9 +39,14 @@ export class LoginUseCase {
     private readonly tokens: TokenService,
     private readonly secretCipher: SecretCipher,
     private readonly clock: Clock,
+    private readonly verifyTurnstile: Pick<VerifyTurnstileUseCase, 'execute'>,
   ) {}
 
   async execute(input: LoginInput): Promise<LoginResult> {
+    // Antes de leer el bloqueo: un rechazo no cuenta como fallo ni revela si el email existe
+    if (input.turnstileToken !== undefined) {
+      await this.verifyTurnstile.execute({ token: input.turnstileToken, action: 'login' });
+    }
     const now = this.clock.now();
     const throttle = await this.loginAttempts.find(input.email);
     // Bloqueado, ni se comprueba la contraseña ni cuenta otro fallo (RF-09)

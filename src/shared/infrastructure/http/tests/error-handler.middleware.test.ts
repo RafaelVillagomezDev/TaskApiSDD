@@ -119,6 +119,9 @@ describe('sobre de error y middlewares transversales (principio VII, RF-46)', ()
     ['POMODORO_TASK_IN_SESSION', 409],
     ['POMODORO_TASK_NOT_IN_SESSION', 409],
     ['POMODORO_TASK_COMPLETED', 409],
+    // Cloudflare Turnstile (spec 005, tabla de códigos de error nuevos)
+    ['TURNSTILE_FAILED', 403],
+    ['TURNSTILE_UNAVAILABLE', 503],
   ])('%s → %i con el sobre y su mensaje en español (RF-34, RNF-02)', async (code, status) => {
     const response = await server.request(`/fail/${code}`);
     const body = (await response.json()) as { status: number; error: { code: string; message: string; details?: unknown } };
@@ -132,7 +135,7 @@ describe('sobre de error y middlewares transversales (principio VII, RF-46)', ()
     expect(Object.keys(ERROR_CODES)).not.toContain('MISSING_USER');
   });
 
-  it('la precedencia sigue el orden de RF-34 de la 002, ampliado por RF-63 de la 004', () => {
+  it('la precedencia sigue el orden de RF-34 de la 002, ampliado por RF-63 de la 004 y RF-14 de la 005', () => {
     const precedenceOf = (code: ErrorCode) => ERROR_CODES[code].precedence;
     const order: ErrorCode[][] = [
       ['ROUTE_NOT_FOUND'],
@@ -141,6 +144,8 @@ describe('sobre de error y middlewares transversales (principio VII, RF-46)', ()
       ['INVALID_CLIENT_TIME'],
       ['INVALID_TIMEZONE'],
       ['VALIDATION_ERROR'],
+      // Verificación humana de la 005 (RF-14; plan de la 005, D-9)
+      ['TURNSTILE_FAILED', 'TURNSTILE_UNAVAILABLE'],
       [
         'TOO_MANY_ATTEMPTS',
         'INVALID_CREDENTIALS',

@@ -1,10 +1,13 @@
 import {
   changePasswordBodySchema,
+  createAuthBodySchemas,
   deleteAccountBodySchema,
-  loginBodySchema,
-  registerBodySchema,
   updateProfileBodySchema,
 } from '../user.schema.js';
+
+// En modo opcional, el registro y el login aceptan los mismos cuerpos que en la 002 (RF-15 de la 005)
+const { registerBodySchema, loginBodySchema } = createAuthBodySchemas({ turnstileRequired: false });
+const required = createAuthBodySchemas({ turnstileRequired: true });
 
 const LOCAL_PART = 'a'.repeat(64);
 // 254 caracteres en total, con etiquetas de dominio de 63 como máximo
@@ -82,6 +85,57 @@ describe('loginBodySchema', () => {
 
   it('ignora el nombre y cualquier otro campo desconocido', () => {
     expect(loginBodySchema.parse({ ...credentials, name: 'Ana' })).toEqual(credentials);
+  });
+});
+
+describe('turnstileToken en el registro y el login (RF-01, RF-02, RF-15 y RF-17 de la 005)', () => {
+  const bodies = {
+    register: { email: 'ana@example.com', password: 'correct horse battery', name: 'Ana' },
+    login: { email: 'ana@example.com', password: 'correct horse battery' },
+  };
+  const schemasOf = (turnstileRequired: boolean) => {
+    const schemas = createAuthBodySchemas({ turnstileRequired });
+    return { register: schemas.registerBodySchema, login: schemas.loginBodySchema };
+  };
+
+  describe.each(['register', 'login'] as const)('%s', (route) => {
+    const body = bodies[route];
+
+    it.each([true, false])('con turnstileRequired=%p acepta tokens de 1 y de 2048 caracteres tal cual', (turnstileRequired) => {
+      const schema = schemasOf(turnstileRequired)[route];
+      expect(schema.parse({ ...body, turnstileToken: 'x' }).turnstileToken).toBe('x');
+      expect(schema.parse({ ...body, turnstileToken: ' t'.repeat(1024) }).turnstileToken).toBe(' t'.repeat(1024));
+    });
+
+    it.each([
+      ['vacío', ''],
+      ['de 2049 caracteres', 'x'.repeat(2049)],
+      ['numérico', 12345],
+      ['null', null],
+      ['un objeto', { token: 'x' }],
+    ])('rechaza un token %s en los dos modos, nombrando el campo (RF-02)', (_case, turnstileToken) => {
+      for (const turnstileRequired of [true, false]) {
+        const result = schemasOf(turnstileRequired)[route].safeParse({ ...body, turnstileToken });
+        expect(result.success).toBe(false);
+        expect(result.error?.issues.map((issue) => issue.path.join('.'))).toEqual(['turnstileToken']);
+      }
+    });
+
+    it('sin token: error en modo obligatorio (RF-17) y aceptado en modo opcional (RF-15)', () => {
+      expect(schemasOf(true)[route].safeParse(body).success).toBe(false);
+      expect(schemasOf(false)[route].safeParse(body).success).toBe(true);
+    });
+
+    it('sigue ignorando los campos desconocidos, como en la 002', () => {
+      const parsed = schemasOf(true)[route].parse({ ...body, turnstileToken: 'x', rol: 'admin' });
+      expect(parsed).not.toHaveProperty('rol');
+    });
+  });
+
+  it('el modo obligatorio sigue aplicando el resto de reglas del cuerpo', () => {
+    expect(required.loginBodySchema.safeParse({ email: 'no-es-email', password: 'x', turnstileToken: 't' }).success).toBe(
+      false,
+    );
   });
 });
 
