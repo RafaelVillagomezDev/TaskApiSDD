@@ -236,17 +236,22 @@ Spec: `sdd/005-turnstile-bot-protection/spec.md` (Aprobada) · Plan: `sdd/005-tu
 
 ## Fase R — Robustez y documentación
 
-- [ ] T028 [P] [Rob] Rendimiento: login y registro medidos con un token distinto por petición y el verificador simulado, p95 < 300 ms (RNF-01) — `tests/performance/api.perf.test.ts`
+- [x] T028 [P] [Rob] Rendimiento: login y registro medidos con un token distinto por petición y el verificador simulado, p95 < 300 ms (RNF-01) — `tests/performance/api.perf.test.ts`
   - Verifica: `dce pnpm test:perf` pasa.
-- [ ] T029 [P] [Rob] Colecciones de Postman de la 001, la 002 y la 004: login y registro envían `"turnstileToken": "XXXX.DUMMY.TOKEN.XXXX"` (S-01, RF-33, R-7) — `sdd/001-taskApiSDD-mvp/mvp-p1.postman-collection.json`, `sdd/002-user-accounts/user-accounts.postman-collection.json`, `sdd/004-pomodoro-sessions/pomodoro-sessions.postman-collection.json`
+  - Hecho (2026-11-15): `createContainer` acepta un `turnstileVerifier` opcional (`ContainerOverrides`), que solo pasa el test de rendimiento; en producción se usa siempre el de Cloudflare. El test usa una clave inventada que no es de prueba, así que también mide la reserva en `turnstile_tokens`. p95: registro 15,0 ms y login 15,7 ms (límite 300 ms); `dce pnpm test:perf` → 27 tests en verde.
+- [x] T029 [P] [Rob] Colecciones de Postman de la 001, la 002 y la 004: login y registro envían `"turnstileToken": "XXXX.DUMMY.TOKEN.XXXX"` (S-01, RF-33, R-7) — `sdd/001-taskApiSDD-mvp/mvp-p1.postman-collection.json`, `sdd/002-user-accounts/user-accounts.postman-collection.json`, `sdd/004-pomodoro-sessions/pomodoro-sessions.postman-collection.json`
   - Verifica: con `TURNSTILE_SECRET=1x…AA` y `TURNSTILE_ENFORCE=true`, Newman sobre las tres colecciones (comandos del README) sin fallos.
-- [ ] T030 [P] [Rob] Colección de Postman de la 005: flujo (registro y login con el token ficticio, y repetirlos) y errores (`turnstileToken` vacío, de 2049 caracteres, numérico y ausente → `VALIDATION_ERROR`, y precedencia de CSRF) (RF-01, RF-02, RF-17, RF-33) — `sdd/005-turnstile-bot-protection/turnstile-bot-protection.postman-collection.json`
+  - Hecho (2026-11-15): variable de colección `turnstileToken` (`XXXX.DUMMY.TOKEN.XXXX`) en 24 cuerpos y en los 4 scripts que inician sesión solos (carpetas «Mis tareas» y «Mi cuenta»); la descripción de cada colección lo explica. Newman con `1x…AA` y modo obligatorio, sin fallos: 001 → 60 peticiones y 63 comprobaciones; 002 → 68 y 69; 004 → 48 y 48.
+- [x] T030 [P] [Rob] Colección de Postman de la 005: flujo (registro y login con el token ficticio, y repetirlos) y errores (`turnstileToken` vacío, de 2049 caracteres, numérico y ausente → `VALIDATION_ERROR`, y precedencia de CSRF) (RF-01, RF-02, RF-17, RF-33) — `sdd/005-turnstile-bot-protection/turnstile-bot-protection.postman-collection.json`
   - Verifica: `docker run --rm -v "$PWD/sdd/005-turnstile-bot-protection":/etc/newman postman/newman:6-alpine run turnstile-bot-protection.postman-collection.json --env-var baseUrl=http://host.docker.internal:3000` sin fallos.
-- [ ] T031 [P] [Rob] Guía manual con QS-01 a QS-07 y QS-R. Explica cómo cambiar de clave de prueba (editar `.env.dev` y reiniciar `api`) y cómo simular Cloudflare inaccesible (QS-08: una clave de prueba con la red del contenedor cortada → `503`, si es viable; si no, se anota que lo cubren los tests) — `sdd/005-turnstile-bot-protection/quickstart.md`
+  - Hecho (2026-11-15): 13 peticiones y 13 comprobaciones sin fallos con Newman. Incluye además «email repetido con token válido → 409» y «campo desconocido → se ignora».
+- [x] T031 [P] [Rob] Guía manual con QS-01 a QS-07 y QS-R. Explica cómo cambiar de clave de prueba (editar `.env.dev` y reiniciar `api`) y cómo simular Cloudflare inaccesible (QS-08: una clave de prueba con la red del contenedor cortada → `503`, si es viable; si no, se anota que lo cubren los tests) — `sdd/005-turnstile-bot-protection/quickstart.md`
   - Verifica: ejecutar QS-01 a QS-07 a mano.
-- [ ] T032 [Rob] AGENTS.md §3, *Configuración inicial*: las tres variables nuevas, sus valores de desarrollo y producción, que la API no arranca sin ellas, que la clave real va solo en `.env.prod` y el orden de despliegue de S-06 (R-1, R-2) — `AGENTS.md`
+  - Hecho (2026-11-15): QS-01 a QS-08 y QS-R. Los casos que necesitan otra configuración usan APIs temporales en el puerto 3002 que sobrescriben las variables solo en su contenedor (función `temp_api`, con `pnpm prisma generate` antes de arrancar). QS-08 simula Cloudflare inaccesible apuntando `challenges.cloudflare.com` a una IP que no responde en el `/etc/hosts` del contenedor (`docker compose run` no admite `--add-host`): `503` a los 5,1 s. Guía ejecutada entera con bash tal como está escrita, con todos los resultados esperados.
+- [x] T032 [Rob] AGENTS.md §3, *Configuración inicial*: las tres variables nuevas, sus valores de desarrollo y producción, que la API no arranca sin ellas, que la clave real va solo en `.env.prod` y el orden de despliegue de S-06 (R-1, R-2) — `AGENTS.md`
   - Verifica: `grep -n "TURNSTILE" AGENTS.md` muestra las tres variables y el orden de despliegue.
-- [ ] T033 [Rob] README:
+  - Hecho (2026-11-15): además, la forma `CLAVE=valor` sin guiones ni espacios, porque un `.env.dev` con `- CLAVE=valor` impide a Docker Compose cargarlo.
+- [x] T033 [Rob] README:
   - Estado de la 005.
   - Cuerpo de `POST /auth/login` y `POST /auth/register` con `turnstileToken`.
   - Códigos de error nuevos y precedencia actualizada.
@@ -256,6 +261,7 @@ Spec: `sdd/005-turnstile-bot-protection/spec.md` (Aprobada) · Plan: `sdd/005-tu
 
   (Gobierno 7) — `README.md`
   - Verifica: `git diff --stat README.md` muestra cambios en el mismo commit que AGENTS.md y `sdd/005-…`.
+  - Hecho (2026-11-15): secciones *Qué hace la API* (protección frente a bots), *Puesta en marcha* (las tres variables en el ejemplo de `.env.dev`), *Endpoints disponibles* (`turnstileToken` en el registro y el login), *Códigos de error* (los dos nuevos en el orden 7 y la precedencia desplazada), *Probar con Postman* (clave de prueba y colección de la 005), *Estructura de carpetas* y *Estado del proyecto*. Checkpoint Robustez: `dce pnpm test:coverage` → 90 suites y 1232 tests en verde; `dce pnpm test:perf` en verde; `./scripts/sonar-scan.sh` → quality gate PASSED (`taskapisdd-005-cloudfare_turnstile`); principio V sin resultados. El porcentaje de cobertura no se lee desde Claude Code (los permisos bloquean `coverage/`); lo mide el quality gate.
 - [ ] T034 [Rob] Guía QS-R contra producción, con la clave real solo en `.env.prod`:
   1. `run --rm migrate` y `up --build -d` con `TURNSTILE_ENFORCE=false`. La API no arranca si `.env.prod` tiene una clave de prueba o `localhost` (RF-19).
   2. Con el frontend desplegado en `https://kompitu.yandrydev.cloud`, el login con el widget → `200`, y un token reenviado → `403`.

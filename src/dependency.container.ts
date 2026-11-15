@@ -60,6 +60,7 @@ import { UpdateProfileUseCase } from './modules/users/application/update-profile
 import { RegisterUserUseCase } from './modules/users/application/register-user.use-case.js';
 import { VerifySessionCsrfUseCase } from './modules/users/application/verify-session-csrf.use-case.js';
 import { VerifyTurnstileUseCase } from './modules/users/application/verify-turnstile.use-case.js';
+import type { TurnstileVerifier } from './modules/users/domain/turnstile-verifier.port.js';
 import { AesGcmGraceCipher } from './modules/users/infrastructure/aes-gcm-grace-cipher.adapter.js';
 import { AesGcmSecretCipher } from './modules/users/infrastructure/aes-gcm-secret-cipher.adapter.js';
 import { Argon2PasswordHasher } from './modules/users/infrastructure/argon2-password-hasher.adapter.js';
@@ -97,7 +98,13 @@ export interface Container extends AppContainer {
   pomodoroScheduler: PomodoroScheduler;
 }
 
-export function createContainer(): Container {
+// Piezas que se pueden sustituir sin cambiar el resto del cableado. Solo para los tests de rendimiento, que miden
+// la API sin el tiempo de Cloudflare (RNF-01 de la 005); en producción no se pasa ninguna
+export interface ContainerOverrides {
+  turnstileVerifier?: TurnstileVerifier;
+}
+
+export function createContainer(overrides: ContainerOverrides = {}): Container {
   // Falla al arrancar si falta o es inválida alguna variable de .env (D-11 de la 002)
   const config = loadAppConfig();
   const clock = new SystemClockAdapter();
@@ -193,7 +200,7 @@ export function createContainer(): Container {
   // Verificación con Cloudflare antes del login y el registro. Con una clave de prueba ni se reserva el token ni
   // se comprueba la acción (RF-06b, RF-33); producción no arranca con una (RF-19)
   const verifyTurnstile = new VerifyTurnstileUseCase(
-    new CloudflareTurnstileVerifier(config.turnstile.secret),
+    overrides.turnstileVerifier ?? new CloudflareTurnstileVerifier(config.turnstile.secret),
     turnstileTokens,
     tokens,
     clock,

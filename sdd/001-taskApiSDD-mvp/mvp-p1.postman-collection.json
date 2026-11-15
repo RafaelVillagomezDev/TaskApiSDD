@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "TaskApiSDD — MVP (H1–H6)",
-    "description": "Flujo del MVP (H1 tareas del día, H2 completar, H3 racha, H4 filtros de estado y rango y consulta por id, H5 editar y borrar, H6 consulta de avisos) y casos de error, con la sesión de la funcionalidad 002: el flujo crea una cuenta nueva e inicia sesión, y cada petición envía su cookie y su token CSRF (X-User-Id ya no existe). X-Client-Time y las fechas se calculan solas. Ejecuta la carpeta '1. Flujo MVP' en orden (Run folder) antes de '2. Errores'. La carpeta '3. Mis tareas' entra con la cuenta de las variables myEmail y myPassword. Las cookies se guardan en variables y se envían en la cabecera Cookie, con las cookies automáticas desactivadas, porque Newman y Postman no reenvían cookies Secure por http a un host distinto de localhost.",
+    "description": "Flujo del MVP (H1 tareas del día, H2 completar, H3 racha, H4 filtros de estado y rango y consulta por id, H5 editar y borrar, H6 consulta de avisos) y casos de error, con la sesión de la funcionalidad 002: el flujo crea una cuenta nueva e inicia sesión, y cada petición envía su cookie y su token CSRF (X-User-Id ya no existe). X-Client-Time y las fechas se calculan solas. Ejecuta la carpeta '1. Flujo MVP' en orden (Run folder) antes de '2. Errores'. La carpeta '3. Mis tareas' entra con la cuenta de las variables myEmail y myPassword. Las cookies se guardan en variables y se envían en la cabecera Cookie, con las cookies automáticas desactivadas, porque Newman y Postman no reenvían cookies Secure por http a un host distinto de localhost. Login y registro envían turnstileToken (spec 005) con el token ficticio de Cloudflare, en la variable turnstileToken: la API tiene que usar la clave secreta de prueba que siempre pasa (TURNSTILE_SECRET=1x0000000000000000000000000000000AA), que no reserva el token y permite repetirlo (RF-33).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "event": [
@@ -53,6 +53,10 @@
     {
       "key": "password",
       "value": "correct horse battery"
+    },
+    {
+      "key": "turnstileToken",
+      "value": "XXXX.DUMMY.TOKEN.XXXX"
     },
     {
       "key": "email",
@@ -196,7 +200,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"turnstileToken\": \"{{turnstileToken}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -255,7 +259,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"turnstileToken\": \"{{turnstileToken}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1610,7 +1614,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{otherEmail}}\",\n  \"password\": \"{{password}}\"\n}",
+              "raw": "{\n  \"email\": \"{{otherEmail}}\",\n  \"password\": \"{{password}}\",\n  \"turnstileToken\": \"{{turnstileToken}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1669,7 +1673,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{otherEmail}}\",\n  \"password\": \"{{password}}\"\n}",
+              "raw": "{\n  \"email\": \"{{otherEmail}}\",\n  \"password\": \"{{password}}\",\n  \"turnstileToken\": \"{{turnstileToken}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -3562,9 +3566,9 @@
               "    if (csrfError) throw csrfError;",
               "    const presession = csrfResponse.json().data.csrfToken;",
               "    // 201 si la cuenta es nueva, 409 si ya existía: en los dos casos se sigue con el login",
-              "    pm.sendRequest(post('/auth/register', presession, { email, password }), (registerError) => {",
+              "    pm.sendRequest(post('/auth/register', presession, { email, password, turnstileToken: pm.collectionVariables.get('turnstileToken') }), (registerError) => {",
               "      if (registerError) throw registerError;",
-              "      pm.sendRequest(post('/auth/login', presession, { email, password }), (loginError, login) => {",
+              "      pm.sendRequest(post('/auth/login', presession, { email, password, turnstileToken: pm.collectionVariables.get('turnstileToken') }), (loginError, login) => {",
               "        if (loginError) throw loginError;",
               "        if (login.code !== 200) throw new Error(`No se pudo iniciar sesión con myEmail (${login.code}): revisa myEmail y myPassword`);",
               "        const cookies = login.headers.all().filter((header) => header.key.toLowerCase() === 'set-cookie');",

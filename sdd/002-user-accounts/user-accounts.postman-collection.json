@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "TaskApiSDD — Cuentas de usuario (002)",
-    "description": "Funcionalidad 002 (sdd/002-user-accounts). Implementado por ahora: H1 (token CSRF previo a la sesión y registro) H2 (login, GET /me y logout) H3 (renovación con el refresh token y su margen de gracia) H5 (cambiar el nombre con PATCH /me) H6 (cambiar la contraseña con PATCH /me/password) y H7 (borrar la cuenta con DELETE /me, en la carpeta '4. Borrar la cuenta', que va al final). Ejecuta '1. Flujo' en orden (Run folder) antes de '2. Errores': la primera petición genera un email nuevo en cada ejecución. Las cookies de sesión se guardan en la variable sessionCookie y se envían en la cabecera Cookie, con las cookies automáticas desactivadas en cada petición, porque Newman y Postman no reenvían cookies Secure por http a un host que no sea localhost. La carpeta '5. Mi cuenta' usa tu propia cuenta (variables myEmail y myPassword): sus peticiones funcionan sueltas porque inician sesión solas cuando hace falta.",
+    "description": "Funcionalidad 002 (sdd/002-user-accounts). Implementado por ahora: H1 (token CSRF previo a la sesión y registro) H2 (login, GET /me y logout) H3 (renovación con el refresh token y su margen de gracia) H5 (cambiar el nombre con PATCH /me) H6 (cambiar la contraseña con PATCH /me/password) y H7 (borrar la cuenta con DELETE /me, en la carpeta '4. Borrar la cuenta', que va al final). Ejecuta '1. Flujo' en orden (Run folder) antes de '2. Errores': la primera petición genera un email nuevo en cada ejecución. Las cookies de sesión se guardan en la variable sessionCookie y se envían en la cabecera Cookie, con las cookies automáticas desactivadas en cada petición, porque Newman y Postman no reenvían cookies Secure por http a un host que no sea localhost. La carpeta '5. Mi cuenta' usa tu propia cuenta (variables myEmail y myPassword): sus peticiones funcionan sueltas porque inician sesión solas cuando hace falta. Login y registro envían turnstileToken (spec 005) con el token ficticio de Cloudflare, en la variable turnstileToken: la API tiene que usar la clave secreta de prueba que siempre pasa (TURNSTILE_SECRET=1x0000000000000000000000000000000AA), que no reserva el token y permite repetirlo (RF-33).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -16,6 +16,10 @@
     {
       "key": "password",
       "value": "correct horse battery"
+    },
+    {
+      "key": "turnstileToken",
+      "value": "XXXX.DUMMY.TOKEN.XXXX"
     },
     {
       "key": "email",
@@ -199,7 +203,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"  {{email}} \",\n  \"password\": \"{{password}}\",\n  \"name\": \"  Ana  \"\n}",
+              "raw": "{\n  \"email\": \"  {{email}} \",\n  \"password\": \"{{password}}\",\n  \"name\": \"  Ana  \",\n  \"turnstileToken\": \"{{turnstileToken}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -271,7 +275,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{emailUpper}}\",\n  \"password\": \"{{password}}\"\n}",
+              "raw": "{\n  \"email\": \"{{emailUpper}}\",\n  \"password\": \"{{password}}\",\n  \"turnstileToken\": \"{{turnstileToken}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -656,7 +660,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"turnstileToken\": \"{{turnstileToken}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -843,7 +847,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"turnstileToken\": \"{{turnstileToken}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -892,7 +896,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{newPassword}}\"\n}",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{newPassword}}\",\n  \"turnstileToken\": \"{{turnstileToken}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1097,7 +1101,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{emailUpper}}\",\n  \"password\": \"{{password}}\"\n}",
+              "raw": "{\n  \"email\": \"{{emailUpper}}\",\n  \"password\": \"{{password}}\",\n  \"turnstileToken\": \"{{turnstileToken}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1152,7 +1156,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"otra-{{$timestamp}}@example.com\",\n  \"password\": \"abcdefghijk\"\n}",
+              "raw": "{\n  \"email\": \"otra-{{$timestamp}}@example.com\",\n  \"password\": \"abcdefghijk\",\n  \"turnstileToken\": \"{{turnstileToken}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1207,7 +1211,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"no-es-un-email\",\n  \"password\": \"{{password}}\"\n}",
+              "raw": "{\n  \"email\": \"no-es-un-email\",\n  \"password\": \"{{password}}\",\n  \"turnstileToken\": \"{{turnstileToken}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1257,7 +1261,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"sin-csrf-{{$timestamp}}@example.com\",\n  \"password\": \"{{password}}\"\n}",
+              "raw": "{\n  \"email\": \"sin-csrf-{{$timestamp}}@example.com\",\n  \"password\": \"{{password}}\",\n  \"turnstileToken\": \"{{turnstileToken}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1311,7 +1315,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"inventado-{{$timestamp}}@example.com\",\n  \"password\": \"{{password}}\"\n}",
+              "raw": "{\n  \"email\": \"inventado-{{$timestamp}}@example.com\",\n  \"password\": \"{{password}}\",\n  \"turnstileToken\": \"{{turnstileToken}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1361,7 +1365,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"no-es-un-email\"\n}",
+              "raw": "{\n  \"email\": \"no-es-un-email\",\n  \"turnstileToken\": \"{{turnstileToken}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1416,7 +1420,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"contraseña equivocada\"\n}",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"contraseña equivocada\",\n  \"turnstileToken\": \"{{turnstileToken}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1473,7 +1477,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"nadie-{{$timestamp}}@example.com\",\n  \"password\": \"contraseña equivocada\"\n}",
+              "raw": "{\n  \"email\": \"nadie-{{$timestamp}}@example.com\",\n  \"password\": \"contraseña equivocada\",\n  \"turnstileToken\": \"{{turnstileToken}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1523,7 +1527,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{emailUpper}}\",\n  \"password\": \"{{password}}\"\n}",
+              "raw": "{\n  \"email\": \"{{emailUpper}}\",\n  \"password\": \"{{password}}\",\n  \"turnstileToken\": \"{{turnstileToken}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2699,7 +2703,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{deleteEmail}}\",\n  \"password\": \"{{password}}\"\n}",
+              "raw": "{\n  \"email\": \"{{deleteEmail}}\",\n  \"password\": \"{{password}}\",\n  \"turnstileToken\": \"{{turnstileToken}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2753,7 +2757,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{deleteEmail}}\",\n  \"password\": \"{{password}}\"\n}",
+              "raw": "{\n  \"email\": \"{{deleteEmail}}\",\n  \"password\": \"{{password}}\",\n  \"turnstileToken\": \"{{turnstileToken}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -3056,7 +3060,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{deleteEmail}}\",\n  \"password\": \"{{password}}\"\n}",
+              "raw": "{\n  \"email\": \"{{deleteEmail}}\",\n  \"password\": \"{{password}}\",\n  \"turnstileToken\": \"{{turnstileToken}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -3105,7 +3109,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{deleteEmail}}\",\n  \"password\": \"{{password}}\"\n}",
+              "raw": "{\n  \"email\": \"{{deleteEmail}}\",\n  \"password\": \"{{password}}\",\n  \"turnstileToken\": \"{{turnstileToken}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -3149,9 +3153,9 @@
               "    if (csrfError) throw csrfError;",
               "    const presession = csrfResponse.json().data.csrfToken;",
               "    // 201 si la cuenta es nueva, 409 si ya existía: en los dos casos se sigue con el login",
-              "    pm.sendRequest(post('/auth/register', presession, { email, password }), (registerError) => {",
+              "    pm.sendRequest(post('/auth/register', presession, { email, password, turnstileToken: pm.collectionVariables.get('turnstileToken') }), (registerError) => {",
               "      if (registerError) throw registerError;",
-              "      pm.sendRequest(post('/auth/login', presession, { email, password }), (loginError, login) => {",
+              "      pm.sendRequest(post('/auth/login', presession, { email, password, turnstileToken: pm.collectionVariables.get('turnstileToken') }), (loginError, login) => {",
               "        if (loginError) throw loginError;",
               "        if (login.code !== 200) throw new Error(`No se pudo iniciar sesión con myEmail (${login.code}): revisa myEmail y myPassword`);",
               "        const cookies = login.headers.all().filter((header) => header.key.toLowerCase() === 'set-cookie');",

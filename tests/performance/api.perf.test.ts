@@ -14,6 +14,7 @@ import { LocalDate } from '../../src/shared/domain/local-date.value-object.js';
 import { IntlTimeZoneAdapter } from '../../src/shared/infrastructure/time/intl-time-zone.adapter.js';
 import { truncateTables } from '../integration/test-database.helper.js';
 import { FakeClock } from '../support/fake-clock.adapter.js';
+import { FakeTurnstileVerifier, turnstileTokenFor } from '../support/fake-turnstile-verifier.adapter.js';
 import { startTestServer, type TestServer } from '../support/test.container.js';
 
 // Rendimiento (RNF-01, CE-05, R-1) con el cableado real y PostgreSQL (esquema `test`).
@@ -45,6 +46,10 @@ const SESSION_MINUTES = 25;
 
 const ZONE = 'Etc/UTC';
 
+// RNF-01 de la 005: el login y el registro se miden con Cloudflare simulado (su tiempo no cuenta) y con una clave
+// inventada que no es de prueba, para medir también la reserva del token en turnstile_tokens (RF-20, RF-33)
+const PERF_TURNSTILE_SECRET = 'clave-inventada-para-el-rendimiento';
+
 // Hora actual con desfase ±HH:MM, como la envía un dispositivo en UTC (RF-31)
 const clientTime = () => `${new Date().toISOString().slice(0, 19)}+00:00`;
 // Cuenta y sesión del usuario de las pruebas HTTP: se registra e inicia sesión en beforeAll, y cada petición
@@ -75,8 +80,11 @@ const signIn = async (server: TestServer) => {
     body: JSON.stringify(body),
   });
   const email = `perf-${Date.now()}@test.local`;
-  await server.request('/auth/register', init({ email, password: PASSWORD }));
-  const login = await server.request('/auth/login', init({ email, password: PASSWORD }));
+  await server.request('/auth/register', init({ email, password: PASSWORD, turnstileToken: turnstileTokenFor('register') }));
+  const login = await server.request(
+    '/auth/login',
+    init({ email, password: PASSWORD, turnstileToken: turnstileTokenFor('login') }),
+  );
   if (login.status !== 200) throw new Error(`login de rendimiento: respuesta ${login.status}`);
   const { data } = (await login.json()) as { data: { user: { id: string }; csrfToken: string } };
   userId = data.user.id;
@@ -139,7 +147,8 @@ describe('rendimiento (RNF-01, CE-05, R-1)', () => {
   };
 
   beforeAll(async () => {
-    container = createContainer();
+    process.env.TURNSTILE_SECRET = PERF_TURNSTILE_SECRET;
+    container = createContainer({ turnstileVerifier: new FakeTurnstileVerifier() });
     await truncateTables(container.prisma);
     server = await startTestServer(createApp(container));
     await signIn(server);
@@ -249,8 +258,14 @@ describe('rendimiento (RNF-01, CE-05, R-1)', () => {
     let authCsrf = '';
 
     beforeAll(async () => {
-      await server.request('/auth/register', auth({ email: authEmail, password: PASSWORD }));
-      const login = await server.request('/auth/login', auth({ email: authEmail, password: PASSWORD }));
+      await server.request(
+        '/auth/register',
+        auth({ email: authEmail, password: PASSWORD, turnstileToken: turnstileTokenFor('register') }),
+      );
+      const login = await server.request(
+        '/auth/login',
+        auth({ email: authEmail, password: PASSWORD, turnstileToken: turnstileTokenFor('login') }),
+      );
       if (login.status !== 200) throw new Error(`login de la cuenta de rendimiento: respuesta ${login.status}`);
       authCsrf = ((await login.json()) as { data: { csrfToken: string } }).data.csrfToken;
       authCookie = cookiesFrom(login);
@@ -260,14 +275,21 @@ describe('rendimiento (RNF-01, CE-05, R-1)', () => {
       expect(
         await measure('POST /auth/register', async (index) => [
           '/auth/register',
-          auth({ email: `perf-registro-${stamp}-${index}@test.local`, password: PASSWORD }),
+          auth({
+            email: `perf-registro-${stamp}-${index}@test.local`,
+            password: PASSWORD,
+            turnstileToken: turnstileTokenFor('register'),
+          }),
         ]),
       ).toBeLessThan(P95_LIMIT_MS);
     });
 
     it('POST /auth/login', async () => {
       expect(
-        await measure('POST /auth/login', async () => ['/auth/login', auth({ email: authEmail, password: PASSWORD })]),
+        await measure('POST /auth/login', async () => [
+          '/auth/login',
+          auth({ email: authEmail, password: PASSWORD, turnstileToken: turnstileTokenFor('login') }),
+        ]),
       ).toBeLessThan(P95_LIMIT_MS);
     });
 

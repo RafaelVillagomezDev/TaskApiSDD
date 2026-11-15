@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "TaskApiSDD — Sesiones pomodoro (004)",
-    "description": "Funcionalidad 004 (sdd/004-pomodoro-sessions): los 11 endpoints del pomodoro. Ejecuta '1. Flujo' en orden (Run folder) antes de '2. Errores': la primera petición crea una cuenta nueva, así la racha y los logros empiezan en 0. Las cookies de sesión se guardan en la variable sessionCookie y se envían en la cabecera Cookie, con las cookies automáticas desactivadas, porque Newman y Postman no reenvían cookies Secure por http a un host que no sea localhost. La variable timeZone debe ser la zona IANA de la máquina que ejecuta la colección (X-Client-Time sale de su reloj). Las sesiones terminadas por tiempo, la racha y los logros que dependen de ellas no se prueban aquí, porque exigirían esperar el minuto de la sesión: los cubren los tests y la guía quickstart.md.",
+    "description": "Funcionalidad 004 (sdd/004-pomodoro-sessions): los 11 endpoints del pomodoro. Ejecuta '1. Flujo' en orden (Run folder) antes de '2. Errores': la primera petición crea una cuenta nueva, así la racha y los logros empiezan en 0. Las cookies de sesión se guardan en la variable sessionCookie y se envían en la cabecera Cookie, con las cookies automáticas desactivadas, porque Newman y Postman no reenvían cookies Secure por http a un host que no sea localhost. La variable timeZone debe ser la zona IANA de la máquina que ejecuta la colección (X-Client-Time sale de su reloj). Las sesiones terminadas por tiempo, la racha y los logros que dependen de ellas no se prueban aquí, porque exigirían esperar el minuto de la sesión: los cubren los tests y la guía quickstart.md. Login y registro envían turnstileToken (spec 005) con el token ficticio de Cloudflare, en la variable turnstileToken: la API tiene que usar la clave secreta de prueba que siempre pasa (TURNSTILE_SECRET=1x0000000000000000000000000000000AA), que no reserva el token y permite repetirlo (RF-33).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "event": [
@@ -114,7 +114,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"turnstileToken\": \"{{turnstileToken}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -170,7 +170,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"turnstileToken\": \"{{turnstileToken}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2785,6 +2785,10 @@
     {
       "key": "password",
       "value": "correct horse battery"
+    },
+    {
+      "key": "turnstileToken",
+      "value": "XXXX.DUMMY.TOKEN.XXXX"
     },
     {
       "key": "email",
