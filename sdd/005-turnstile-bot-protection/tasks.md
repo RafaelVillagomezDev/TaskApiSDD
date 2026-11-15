@@ -180,9 +180,10 @@ Spec: `sdd/005-turnstile-bot-protection/spec.md` (Aprobada) · Plan: `sdd/005-tu
 ## Fase H2 — Registrarme demostrando que soy una persona (HU-02, P1)
 
 ### Tests (deben fallar)
-- [ ] T023 [P] [H2] Test del registro con token: token rechazado y email ya registrado → `TURNSTILE_FAILED`, sin buscar el email ni crear la cuenta; con token válido, crea la cuenta; se verifica con la acción `register` (RF-04, RF-10, RF-13, CE-01) — `users/application/tests/register-user.use-case.test.ts`
+- [x] T023 [P] [H2] Test del registro con token: token rechazado y email ya registrado → `TURNSTILE_FAILED`, sin buscar el email ni crear la cuenta; con token válido, crea la cuenta; se verifica con la acción `register` (RF-04, RF-10, RF-13, CE-01) — `users/application/tests/register-user.use-case.test.ts`
   - Verifica: `dce pnpm test users/application/tests/register-user` **falla**.
-- [ ] T024 [H2] Tests HTTP de `POST /auth/register`:
+  - Hecho (2026-11-15): 7 casos nuevos con el caso de uso real de verificación; «sin buscar el email» se comprueba con un espía sobre `findByEmail`. 10 tests en verde tras T025.
+- [x] T024 [H2] Tests HTTP de `POST /auth/register`:
   - Con token válido → `201` sin cambios en la respuesta.
   - Token rechazado y email existente → `403 TURNSTILE_FAILED`.
   - Token ya usado en un login → `403` sin consultar a Cloudflare.
@@ -193,10 +194,12 @@ Spec: `sdd/005-turnstile-bot-protection/spec.md` (Aprobada) · Plan: `sdd/005-tu
 
   (RF-01, RF-02, RF-04 a RF-11, RF-13, RF-14, RF-20, RF-21, RF-27, RF-32, CE-04) — `users/infrastructure/tests/auth.routes.test.ts`
   - Verifica: `dce pnpm test users/infrastructure/tests/auth.routes` **falla** solo en los casos nuevos.
+  - Hecho (2026-11-15): 13 casos nuevos en un `describe` del registro con Turnstile; en rojo solo los que necesitan la verificación del registro.
 
 ### Implementación
-- [ ] T025 [H2] `RegisterUserInput.turnstileToken?`; si llega, `RegisterUserUseCase` verifica con la acción `register` antes de `findByEmail`. `AuthController.register` pasa el token; cableado en los dos contenedores (RF-04, RF-10, RF-13, D-1) — `users/application/register-user.use-case.ts`, `users/infrastructure/auth.controller.ts`, `src/dependency.container.ts`, `tests/support/test.container.ts`
+- [x] T025 [H2] `RegisterUserInput.turnstileToken?`; si llega, `RegisterUserUseCase` verifica con la acción `register` antes de `findByEmail`. `AuthController.register` pasa el token; cableado en los dos contenedores (RF-04, RF-10, RF-13, D-1) — `users/application/register-user.use-case.ts`, `users/infrastructure/auth.controller.ts`, `src/dependency.container.ts`, `tests/support/test.container.ts`
   - Verifica: `dce pnpm test users/application/tests/register-user` y `dce pnpm test users/infrastructure/tests/auth.routes` pasan.
+  - Hecho (2026-11-15): checkpoint H2: `dce pnpm test` → 90 suites y 1226 tests en verde. QS-05 a mano contra desarrollo con `1x…AA` y Cloudflare real: registro con el token ficticio → `201`; el mismo email otra vez → `409`. Observado: `1x…AA` también acepta un token inventado (`0.token-inventado` → `201`), al contrario de lo que dice la documentación de Cloudflare y S-02; no afecta a producción, que no arranca con claves de prueba (RF-19).
 
 ### Checkpoint H2
 - `dce pnpm test` pasa entero.
@@ -208,7 +211,7 @@ Spec: `sdd/005-turnstile-bot-protection/spec.md` (Aprobada) · Plan: `sdd/005-tu
 ## Fase H3 — Desplegar sin cortar el acceso (HU-03, P1)
 
 ### Tests (deben fallar)
-- [ ] T026 [H3] Tests HTTP del modo opcional (contenedor con `enforce: false`):
+- [x] T026 [H3] Tests HTTP del modo opcional (contenedor con `enforce: false`):
   - Login y registro sin `turnstileToken` → como en la 002 (`200` y `201`), sin consultar a Cloudflare.
   - Con token rechazado → `403 TURNSTILE_FAILED`, sin procesarse como si no hubiera token.
   - Con token válido → `200`.
@@ -216,10 +219,12 @@ Spec: `sdd/005-turnstile-bot-protection/spec.md` (Aprobada) · Plan: `sdd/005-tu
 
   (RF-15, RF-16, CE-03) — `users/infrastructure/tests/auth.routes.test.ts`
   - Verifica: `dce pnpm test users/infrastructure/tests/auth.routes` **falla** solo en los casos nuevos, o pasa directamente si T020 a T025 ya cubren el modo opcional. En ese caso se anota aquí.
+  - Hecho (2026-11-15): 6 casos con el contenedor en `enforce: false` (helper `restartWith`); pasan directamente, porque T020 a T025 ya cubren el modo opcional.
 
 ### Implementación
-- [ ] T027 [H3] Ajustes que pidan los tests de T026 en los schemas o los casos de uso (RF-15, RF-16) — `users/infrastructure/user.schema.ts`, `users/application/login.use-case.ts`, `users/application/register-user.use-case.ts`
+- [x] T027 [H3] Ajustes que pidan los tests de T026 en los schemas o los casos de uso (RF-15, RF-16) — `users/infrastructure/user.schema.ts`, `users/application/login.use-case.ts`, `users/application/register-user.use-case.ts`
   - Verifica: `dce pnpm test users/infrastructure/tests/auth.routes` pasa.
+  - Hecho (2026-11-15): sin cambios de código (T026 pasó en verde). Checkpoint H3: `dce pnpm test` → 90 suites y 1232 tests en verde. A mano, con APIs temporales en el puerto 3002 que sobrescriben las variables solo en el contenedor (`docker compose run -e …`, sin tocar `.env.dev`) y Cloudflare real: QS-07 `TURNSTILE_ENFORCE` vacía → no arranca («Debe ser true o false»); QS-02 `2x…AA` → `403`; QS-03 `3x…AA` → `403`; QS-06 opcional sin token → `200` y con el token ficticio y `2x…AA` → `403`; tras los rechazos, el login con `1x…AA` → `200` (RF-12). Aviso para la guía (T031): un contenedor creado con `docker compose run` tiene un volumen de `node_modules` nuevo con el cliente de Prisma de la imagen, anterior a la 002; hay que ejecutar `pnpm prisma generate` antes de arrancarlo o todo responde `INTERNAL_ERROR`.
 
 ### Checkpoint H3
 - `dce pnpm test` pasa entero.

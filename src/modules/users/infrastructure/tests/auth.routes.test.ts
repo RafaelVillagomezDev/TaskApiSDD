@@ -405,6 +405,157 @@ describe('rutas de /auth', () => {
     });
   });
 
+  describe('POST /auth/register con Cloudflare Turnstile (spec 005)', () => {
+    const account = { email: 'ana@example.com', password: PASSWORD, name: 'Ana' };
+
+    it('con un token válido para el registro → 201 sin cambios en la respuesta, tras una consulta (RF-04)', async () => {
+      const { status, body } = await register(account, await csrfToken());
+      expect(status).toBe(201);
+      expect(Object.keys(body.data).sort()).toEqual(['createdAt', 'email', 'id', 'name']);
+      expect(container.turnstileVerifier.requests).toHaveLength(1);
+    });
+
+    it('token rechazado y email ya registrado → 403 TURNSTILE_FAILED, no 409 (RF-13, CE-01)', async () => {
+      const token = await registered();
+      container.turnstileVerifier.rejectNext();
+      const { status, body } = await register(account, token);
+      expect(status).toBe(403);
+      expect(body.error?.code).toBe('TURNSTILE_FAILED');
+    });
+
+    it('un token rechazado no crea la cuenta (RF-10, CE-01)', async () => {
+      container.turnstileVerifier.rejectNext();
+      expect((await register(account, await csrfToken())).status).toBe(403);
+      expect(container.users.count()).toBe(0);
+    });
+
+    it('Cloudflare inaccesible → 503 TURNSTILE_UNAVAILABLE sin crear la cuenta (RF-28)', async () => {
+      container.turnstileVerifier.respondWith({ kind: 'unreachable' }, { kind: 'unreachable' });
+      const { status, body } = await register(account, await csrfToken());
+      expect(status).toBe(503);
+      expect(body.error?.code).toBe('TURNSTILE_UNAVAILABLE');
+      expect(container.users.count()).toBe(0);
+    });
+
+    it('un token ya usado en un login → 403 sin consultar a Cloudflare (RF-21)', async () => {
+      const token = await registered();
+      const turnstileToken = turnstileTokenFor('register');
+      await login({ email: 'ana@example.com', password: PASSWORD, turnstileToken }, token);
+      container.turnstileVerifier.reset();
+      const { status } = await register({ ...account, email: 'bea@example.com', turnstileToken }, token);
+      expect(status).toBe(403);
+      expect(container.turnstileVerifier.requests).toHaveLength(0);
+    });
+
+    it('dos registros simultáneos con el mismo token → una sola consulta a Cloudflare y una cuenta (RF-20, CE-04)', async () => {
+      const token = await csrfToken();
+      const turnstileToken = turnstileTokenFor('register');
+      const results = await Promise.all([
+        register({ ...account, email: 'ana@example.com', turnstileToken }, token),
+        register({ ...account, email: 'bea@example.com', turnstileToken }, token),
+      ]);
+      expect(results.map((result) => result.status).sort()).toEqual([201, 403]);
+      expect(container.turnstileVerifier.requests).toHaveLength(1);
+      expect(container.users.count()).toBe(1);
+    });
+
+    it('un campo desconocido se ignora y el token se verifica igualmente', async () => {
+      const { status } = await register({ ...account, rol: 'admin' }, await csrfToken());
+      expect(status).toBe(201);
+      expect(container.turnstileVerifier.requests).toHaveLength(1);
+    });
+
+    it('token válido y email ya registrado → 409; reintentar con un token nuevo → 409 de nuevo (RF-27, RF-32)', async () => {
+      const token = await registered();
+      expect((await register(account, token)).status).toBe(409);
+      expect((await register(account, token)).body.error?.code).toBe('EMAIL_ALREADY_REGISTERED');
+    });
+
+    it.each([
+      ['sin token, en modo obligatorio (RF-17)', undefined],
+      ['con un token de 2049 caracteres (RF-02)', 'x'.repeat(2049)],
+    ])('%s → 400 VALIDATION_ERROR en turnstileToken, sin consultar a Cloudflare', async (_case, turnstileToken) => {
+      const { status, body } = await register({ ...account, turnstileToken }, await csrfToken());
+      expect(status).toBe(400);
+      expect(body.error?.details?.map((detail) => detail.field)).toEqual(['turnstileToken']);
+      expect(container.turnstileVerifier.requests).toHaveLength(0);
+    });
+
+    describe('precedencia (RF-14)', () => {
+      it('sin X-CSRF-Token y con un token rechazado → INVALID_CSRF_TOKEN, sin consultar a Cloudflare', async () => {
+        container.turnstileVerifier.rejectNext();
+        expect((await register(account)).body.error?.code).toBe('INVALID_CSRF_TOKEN');
+        expect(container.turnstileVerifier.requests).toHaveLength(0);
+      });
+
+      it('email mal formado y token rechazado → VALIDATION_ERROR, sin consultar a Cloudflare', async () => {
+        container.turnstileVerifier.rejectNext();
+        const { body } = await register({ ...account, email: 'no-es-un-email' }, await csrfToken());
+        expect(body.error?.code).toBe('VALIDATION_ERROR');
+        expect(container.turnstileVerifier.requests).toHaveLength(0);
+      });
+    });
+  });
+
+  describe('modo opcional de Turnstile, TURNSTILE_ENFORCE=false (HU-03 de la 005)', () => {
+    const credentials = { email: 'ana@example.com', password: PASSWORD };
+    // `turnstileToken: undefined` hace que el helper no añada token y que JSON lo omita
+    const withoutToken = { turnstileToken: undefined };
+
+    beforeEach(() => restartWith({ turnstile: { enforce: false } }));
+
+    it('registro y login sin turnstileToken → 201 y 200, como en la 002, sin consultar a Cloudflare (RF-15)', async () => {
+      const token = await csrfToken();
+      expect((await register({ ...credentials, name: 'Ana', ...withoutToken }, token)).status).toBe(201);
+      expect((await login({ ...credentials, ...withoutToken }, token)).status).toBe(200);
+      expect(container.turnstileVerifier.requests).toHaveLength(0);
+    });
+
+    it('con un token válido → 201 y 200, tras verificarlo (RF-16)', async () => {
+      const token = await csrfToken();
+      expect((await register({ ...credentials, name: 'Ana' }, token)).status).toBe(201);
+      expect((await login(credentials, token)).status).toBe(200);
+      expect(container.turnstileVerifier.requests).toHaveLength(2);
+    });
+
+    it('con un token rechazado → 403 TURNSTILE_FAILED: no se procesa como si no hubiera token (RF-16)', async () => {
+      const token = await csrfToken();
+      await register({ ...credentials, name: 'Ana', ...withoutToken }, token);
+      container.turnstileVerifier.rejectNext();
+      const { status, body } = await login(credentials, token);
+      expect(status).toBe(403);
+      expect(body.error?.code).toBe('TURNSTILE_FAILED');
+      container.turnstileVerifier.rejectNext();
+      expect((await register({ ...credentials, email: 'bea@example.com', name: 'Bea' }, token)).status).toBe(403);
+      expect(container.users.count()).toBe(1);
+    });
+
+    it('un token no válido sigue siendo VALIDATION_ERROR (RF-02)', async () => {
+      const token = await csrfToken();
+      const { status, body } = await login({ ...credentials, turnstileToken: '' }, token);
+      expect(status).toBe(400);
+      expect(body.error?.details?.map((detail) => detail.field)).toEqual(['turnstileToken']);
+    });
+
+    it('sin token y con la contraseña incorrecta → INVALID_CREDENTIALS, que sí cuenta para el bloqueo (RF-09 de la 002)', async () => {
+      const token = await csrfToken();
+      await register({ ...credentials, name: 'Ana', ...withoutToken }, token);
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const { body } = await login({ ...credentials, password: 'contraseña equivocada', ...withoutToken }, token);
+        expect(body.error?.code).toBe('INVALID_CREDENTIALS');
+      }
+      expect((await login({ ...credentials, ...withoutToken }, token)).body.error?.code).toBe('TOO_MANY_ATTEMPTS');
+    });
+
+    it('cambiar al modo obligatorio deja de aceptar peticiones sin token (RF-17, CE-03)', async () => {
+      await restartWith({ turnstile: { enforce: true } });
+      const token = await csrfToken();
+      const { status, body } = await register({ ...credentials, name: 'Ana', ...withoutToken }, token);
+      expect(status).toBe(400);
+      expect(body.error?.details?.map((detail) => detail.field)).toEqual(['turnstileToken']);
+    });
+  });
+
   describe('POST /auth/logout', () => {
     it('cierra la sesión → 200 con data null y borra las cookies; después GET /me → 401 INVALID_TOKEN (RF-15, RF-19)', async () => {
       const session = await signIn(server);

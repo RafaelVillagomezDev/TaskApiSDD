@@ -183,7 +183,7 @@ export function createTestContainer(options: TestContainerOptions = {}): TestCon
   const authRouter = createAuthRouter({
     controller: new AuthController(
       new IssueCsrfTokenUseCase(tokens, csrfTokens, clock),
-      new RegisterUserUseCase(users, passwordHasher),
+      new RegisterUserUseCase(users, passwordHasher, verifyTurnstile),
       new LoginUseCase(users, sessions, loginAttempts, passwordHasher, tokens, secretCipher, clock, verifyTurnstile),
       new LogoutUseCase(sessions, tokens, verifyCsrf),
       new RefreshSessionUseCase(sessions, tokens, new AesGcmGraceCipher(secretCipher), verifyCsrf, clock),
