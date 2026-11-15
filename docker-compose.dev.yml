@@ -1,0 +1,37 @@
+# Entorno de desarrollo: api (Dockerfile.dev) + PostgreSQL, ambos con .env.dev
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    env_file: .env.dev
+    ports:
+      # Debe coincidir con PORT de .env.dev
+      - "3000:3000"
+      # Prisma Studio
+      - "5555:5555"
+    volumes:
+      # Código montado para la recarga en caliente
+      - .:/app
+      # Evita que el volumen general pise las dependencias del contenedor
+      - /app/node_modules
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    env_file: .env.dev
+    ports:
+      # Expone PostgreSQL a tu máquina anfitriona (para Database Client)
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  db-data:

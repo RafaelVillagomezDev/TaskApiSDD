@@ -147,3 +147,12 @@ vite.config.ts.timestamp-*
 
 # Turbo Repo
 .turbo
+
+
+# Graphify local output
+graphify-out/
+# Copias de seguridad que graphify deja al tocar la configuración
+*.graphify-bak
+
+# SonarQube: directorio de trabajo del scanner
+.scannerwork/

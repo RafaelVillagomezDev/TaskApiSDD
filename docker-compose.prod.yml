@@ -1,0 +1,50 @@
+# Producción (T029): api (Dockerfile.prod, etapa runtime) + PostgreSQL, ambos con .env.prod.
+# Proyecto propio: con el nombre por defecto (el de la carpeta) sus servicios sustituirían a los de desarrollo
+name: taskapisdd-prod
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+      target: runtime
+    image: taskapisdd:latest
+    env_file: .env.prod
+    ports:
+      # PORT de .env.prod debe ser 3000; API_HOST_PORT permite publicarla en otro puerto del host
+      - "${API_HOST_PORT:-3000}:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Migraciones bajo demanda: docker compose -f docker-compose.prod.yml run --rm migrate
+  # Usa la etapa de build, que conserva el CLI de prisma (dependencia de desarrollo), y termina al aplicarlas
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+      target: build
+    image: taskapisdd-migrate:latest
+    env_file: .env.prod
+    command: ["pnpm", "prisma", "migrate", "deploy"]
+    profiles: ["tools"]
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    env_file: .env.prod
+    # Sin puertos publicados: solo la API y el servicio migrate llegan a la base de datos
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  db-data:

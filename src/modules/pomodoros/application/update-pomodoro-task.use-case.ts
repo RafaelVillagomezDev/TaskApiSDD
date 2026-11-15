@@ -1,0 +1,48 @@
+import type { RequestContext } from '../../../shared/application/request-context.type.js';
+import { AppError } from '../../../shared/domain/app.error.js';
+import type { Clock } from '../../../shared/domain/clock.port.js';
+import type { PomodoroTask, PomodoroTaskEdit } from '../domain/pomodoro-task.entity.js';
+import type { PomodoroRepository } from '../domain/pomodoro.repository.js';
+import { lockTaskWithSession } from './pomodoro-task.helper.js';
+import { UnlockPomodoroAchievementUseCase } from './unlock-pomodoro-achievement.use-case.js';
+import type { SettleDuePomodoroUseCase } from './settle-due-pomodoro.use-case.js';
+
+// Cuerpo de PATCH /pomodoro-tasks/{id} ya validado: al menos un campo (RF-54)
+export interface UpdatePomodoroTaskInput extends PomodoroTaskEdit {
+  completed?: boolean;
+}
+
+// Edita el título y la descripción de una tarea en espera o de la sesión activa, y la completa o desmarca
+// solo dentro de una sesión activa, sea cual sea su fecha (RF-13, RF-36, RF-48, RF-57). Errores en el orden
+// de RF-63: tarea no encontrada, sesión terminada y tarea en espera; si alguno falla, no cambia nada
+export class UpdatePomodoroTaskUseCase {
+  constructor(
+    private readonly pomodoros: PomodoroRepository,
+    private readonly settle: SettleDuePomodoroUseCase,
+    private readonly clock: Clock,
+    private readonly unlockAchievements = new UnlockPomodoroAchievementUseCase(),
+  ) {}
+
+  async execute(context: RequestContext, taskId: string, input: UpdatePomodoroTaskInput): Promise<PomodoroTask> {
+    // Una sesión vencida ya está terminada: sus tareas pendientes están en espera (RF-15, RF-23)
+    await this.settle.forUser(context.userId);
+    const now = this.clock.now();
+
+    return this.pomodoros.transaction(async (unit) => {
+      const { task, pomodoro } = await lockTaskWithSession(unit, context.userId, taskId);
+      // Una tarea de una sesión terminada ya no admite cambios (RF-34, RF-35)
+      if (pomodoro && !pomodoro.isActive()) throw new AppError('INVALID_POMODORO_STATE');
+      if (task.pomodoroId === null && input.completed !== undefined) {
+        throw new AppError('POMODORO_TASK_NOT_IN_SESSION');
+      }
+
+      task.edit(input);
+      if (input.completed === true) task.complete(now);
+      if (input.completed === false) task.uncomplete();
+      await unit.saveTasks([task]);
+      // Completar puede alcanzar los logros de tareas, con el instante en que se completó (RF-44, RF-46)
+      if (input.completed === true) await this.unlockAchievements.execute(unit, context.userId, task.completedAt ?? now);
+      return task;
+    });
+  }
+}

@@ -1,0 +1,287 @@
+// Modelo de datos de TaskApiSDD (plan, sección 4)
+// Los días se guardan como DATE (sin hora ni zona) y los instantes como TIMESTAMPTZ(3) en UTC
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Tipo de aviso: diario, semanal o mensual
+enum AlertType {
+  daily
+  weekly
+  monthly
+
+  @@map("alert_type")
+}
+
+// Tarea de un usuario para un día concreto
+model Task {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  // Cuenta propietaria (sdd/002); se borra con ella
+  userId      String   @map("user_id") @db.Uuid
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Ya recortado (RF-38)
+  title       String   @db.VarChar(200)
+  // Ya recortada; vacía se guarda como NULL (RF-38)
+  description String?  @db.VarChar(1000)
+  // Día al que pertenece la tarea
+  date        DateTime @db.Date
+  completed   Boolean  @default(false)
+  // Orden de creación exacto, aunque dos tareas se creen en el mismo milisegundo (RF-41, D-24)
+  sequence    BigInt   @unique @default(autoincrement())
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  // Listados por día y por rango, en orden de creación
+  @@index([userId, date, sequence])
+  // Días productivos y tareas pendientes
+  @@index([userId, completed, date])
+  @@map("tasks")
+}
+
+// Aviso registrado: copia inmutable de las tareas pendientes en el momento del aviso (RF-30)
+model Alert {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        AlertType
+  // Día, lunes o día 1 según el tipo
+  periodStart DateTime  @map("period_start") @db.Date
+  // Día, domingo o último día del mes según el tipo
+  periodEnd   DateTime  @map("period_end") @db.Date
+  // [{ "id": "<uuid>", "title": "...", "date": "AAAA-MM-DD" }], sin clave foránea para sobrevivir al borrado
+  tasks       Json      @db.JsonB
+  // Instante real de registro (RNF-02)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  // Como máximo un aviso de cada tipo por usuario y periodo (RF-28)
+  @@unique([userId, type, periodStart])
+  // Listado del más reciente al más antiguo (RF-29)
+  @@index([userId, createdAt(sort: Desc), id])
+  @@map("alerts")
+}
+
+// Periodo ya evaluado por el planificador, haya generado aviso o no (RF-27, RF-28, D-7)
+model AlertPeriodCheck {
+  userId      String    @map("user_id") @db.Uuid
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        AlertType
+  periodStart DateTime  @map("period_start") @db.Date
+  checkedAt   DateTime  @default(now()) @map("checked_at") @db.Timestamptz(3)
+
+  @@id([userId, type, periodStart])
+  @@map("alert_period_checks")
+}
+
+// Última zona horaria IANA válida recibida de cada usuario (RF-34)
+model UserTimeZone {
+  userId    String   @id @map("user_id") @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  timeZone  String   @map("time_zone") @db.VarChar(64)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("user_time_zones")
+}
+
+// Cuenta de usuario (sdd/002). Borrarla borra en cascada todos sus datos (RF-29, D-9)
+model User {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  // Recortado y en minúsculas: el índice único garantiza la unicidad sin mayúsculas (RF-03)
+  email        String   @unique @db.VarChar(254)
+  // Cadena PHC de Argon2id: $argon2id$v=19$m=19456,p=1,t=2$<sal>$<hash> (D-2)
+  passwordHash String   @map("password_hash") @db.VarChar(255)
+  // Recortado; vacío → NULL (RF-05)
+  name         String?  @db.VarChar(100)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  tasks                Task[]
+  alerts               Alert[]
+  alertPeriodChecks    AlertPeriodCheck[]
+  timeZone             UserTimeZone?
+  sessions             Session[]
+  pomodoros            Pomodoro[]
+  pomodoroTasks        PomodoroTask[]
+  pomodoroAchievements PomodoroAchievement[]
+
+  @@map("users")
+}
+
+// Sesión abierta en un login. Solo se guardan huellas SHA-256 de sus tokens (RNF-06, D-1)
+model Session {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String    @map("user_id") @db.Uuid
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Sube 1 en cada rotación (RF-11)
+  generation       Int       @default(0)
+  // Huella del token de acceso vigente; solo vale el de la generación actual (D-14)
+  accessTokenHash  String    @unique @map("access_token_hash") @db.Char(64)
+  // Huella del token CSRF de la sesión, fijo durante toda la sesión (RF-24)
+  csrfTokenHash    String    @map("csrf_token_hash") @db.Char(64)
+  // Copia AES-256-GCM del token CSRF de la sesión, para devolverlo en GET /me (RF-02 y RNF-04 de la 003)
+  csrfTokenSealed  String    @map("csrf_token_sealed")
+  accessExpiresAt  DateTime  @map("access_expires_at") @db.Timestamptz(3)
+  refreshExpiresAt DateTime  @map("refresh_expires_at") @db.Timestamptz(3)
+  // Login + 30 días: tope absoluto (RF-11, RF-12)
+  expiresAt        DateTime  @map("expires_at") @db.Timestamptz(3)
+  // Última rotación, para el margen de gracia de 30 s (RF-13)
+  rotatedAt        DateTime? @map("rotated_at") @db.Timestamptz(3)
+  // Copia AES-256-GCM de los tokens de la última rotación; se borra a los 30 s (D-1, D-12)
+  graceTokens      String?   @map("grace_tokens")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  refreshTokens RefreshToken[]
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([refreshExpiresAt])
+  @@map("sessions")
+}
+
+// Cada refresh token emitido, vigente (rotatedAt NULL) o ya rotado, para detectar reutilizaciones (RF-13)
+model RefreshToken {
+  tokenHash  String    @id @map("token_hash") @db.Char(64)
+  sessionId  String    @map("session_id") @db.Uuid
+  session    Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  generation Int
+  rotatedAt  DateTime? @map("rotated_at") @db.Timestamptz(3)
+
+  @@index([sessionId])
+  @@map("refresh_tokens")
+}
+
+// Tokens CSRF previos a la sesión, reutilizables durante 30 minutos (RF-22)
+model CsrfToken {
+  tokenHash String   @id @map("token_hash") @db.Char(64)
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+
+  @@index([expiresAt])
+  @@map("csrf_tokens")
+}
+
+// Huellas de los tokens de Cloudflare Turnstile recibidos en los últimos 300 s, sin el token en claro ni
+// relación con el email o la cuenta: cada token se acepta una sola vez (RF-20 a RF-23 de la 005; plan, D-3).
+// Una fila caducada cuenta como libre y la limpieza de cada minuto la borra (RF-31)
+model TurnstileToken {
+  tokenHash String   @id @map("token_hash") @db.Char(64)
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+
+  @@index([expiresAt])
+  @@map("turnstile_tokens")
+}
+
+// Fallos de login por email normalizado, exista o no la cuenta (RF-09, D-10)
+model LoginAttempt {
+  email       String     @id @db.VarChar(254)
+  // Instantes de los últimos fallos, como mucho 5 (ventana deslizante)
+  failedAt    DateTime[] @map("failed_at") @db.Timestamptz(3)
+  lockedUntil DateTime?  @map("locked_until") @db.Timestamptz(3)
+
+  @@map("login_attempts")
+}
+
+// Estado de una sesión pomodoro (RF-14 de la 004)
+enum PomodoroStatus {
+  running
+  paused
+  finished
+
+  @@map("pomodoro_status")
+}
+
+// Motivo de fin de una sesión pomodoro (RF-33 de la 004)
+enum PomodoroEndReason {
+  time
+  manual
+
+  @@map("pomodoro_end_reason")
+}
+
+// Sesión pomodoro (sdd/004). El estado se calcula con ends_at y el reloj del servidor (RNF-02); una sesión
+// vencida se asienta al pedir y en el barrido cada 60 s (plan de la 004, D-2)
+model Pomodoro {
+  id              String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String             @map("user_id") @db.Uuid
+  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // = user_id mientras está en curso o pausada y NULL al terminar: una sola sesión activa por usuario (RF-12, D-3)
+  activeUserId    String?            @unique @map("active_user_id") @db.Uuid
+  // Entre 1 y 120, comprobado también con un CHECK en la migración (RF-09)
+  durationMinutes Int                @map("duration_minutes") @db.SmallInt
+  status          PomodoroStatus
+  startedAt       DateTime           @map("started_at") @db.Timestamptz(3)
+  // Fin previsto; NULL mientras está pausada o terminada (RF-30, RF-31)
+  endsAt          DateTime?          @map("ends_at") @db.Timestamptz(3)
+  // Tiempo que queda mientras está pausada (RF-30)
+  remainingMs     Int?               @map("remaining_ms")
+  // Por tiempo, = ends_at (RF-15); a mano, el instante de la petición (RF-32)
+  finishedAt      DateTime?          @map("finished_at") @db.Timestamptz(3)
+  // Día local del fin en la zona recordada del usuario (RF-40): base de la racha y de MARATHON
+  finishedOn      DateTime?          @map("finished_on") @db.Date
+  endReason       PomodoroEndReason? @map("end_reason")
+  // Duración menos el tiempo restante al terminar, sin pausas (RF-33, RF-47)
+  focusedSeconds  Int?               @map("focused_seconds")
+  // Foto de las tareas al terminar, en orden de position (RF-16, RF-64, D-9):
+  // [{ "id", "title", "description", "date": "AAAA-MM-DD", "completed", "completedAt" }], sin clave foránea
+  tasksSnapshot   Json?              @map("tasks_snapshot") @db.JsonB
+  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  tasks PomodoroTask[]
+
+  // Listado de la más reciente a la más antigua (RF-18)
+  @@index([userId, startedAt(sort: Desc), id(sort: Desc)])
+  // Barrido de las sesiones vencidas (D-2)
+  @@index([status, endsAt])
+  // Racha y logros (RF-38 a RF-47)
+  @@index([userId, endReason, finishedOn])
+  @@map("pomodoros")
+}
+
+// Tarea del pomodoro (sdd/004), independiente de las tareas de la 001 (RF-02, D-1).
+// pomodoro_id NULL y pendiente = en espera (RF-23); en una sesión terminada solo quedan las completadas (RF-35)
+model PomodoroTask {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pomodoroId  String?   @map("pomodoro_id") @db.Uuid
+  pomodoro    Pomodoro? @relation(fields: [pomodoroId], references: [id], onDelete: SetNull)
+  // Ya recortado (RF-53)
+  title       String    @db.VarChar(200)
+  // Ya recortada; vacía se guarda como NULL (RF-53)
+  description String?   @db.VarChar(1000)
+  date        DateTime  @db.Date
+  completed   Boolean   @default(false)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(3)
+  // Lugar en la sesión: mayor position de la sesión + 1 al añadirla; NULL en espera (RF-64, D-12)
+  position    Int?
+  // Orden de creación exacto, como tasks.sequence (RF-24; D-24 de la 001)
+  sequence    BigInt    @unique @default(autoincrement())
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  // Tareas en espera en orden (RF-24)
+  @@index([userId, pomodoroId, completed, date, sequence])
+  // Tareas de una sesión en orden (RF-64)
+  @@index([pomodoroId, position])
+  // Progreso de los logros de tareas (RF-46)
+  @@index([userId, completed])
+  @@map("pomodoro_tasks")
+}
+
+// Logro del pomodoro conseguido (RF-43, RF-44 de la 004). Solo se guardan los conseguidos y nunca se
+// borran ni se actualizan; el progreso se calcula al leer (plan de la 004, D-5)
+model PomodoroAchievement {
+  userId     String   @map("user_id") @db.Uuid
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Código del catálogo de RF-43
+  code       String   @db.VarChar(32)
+  // Instante del evento que alcanzó la meta (RF-44)
+  unlockedAt DateTime @map("unlocked_at") @db.Timestamptz(3)
+
+  @@id([userId, code])
+  @@map("pomodoro_achievements")
+}

@@ -1,0 +1,350 @@
+import { randomBytes } from 'node:crypto';
+import type { Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
+
+import type { Express } from 'express';
+
+import type { AppContainer } from '../../src/app.factory.js';
+import { GetUserTimeZoneUseCase } from '../../src/modules/alerts/alert.facade.js';
+import { GenerateDueAlertUseCase } from '../../src/modules/alerts/application/generate-due-alert.use-case.js';
+import { ListAlertsUseCase } from '../../src/modules/alerts/application/list-alert.use-case.js';
+import { RecordUserTimeZoneUseCase } from '../../src/modules/alerts/application/record-user-time-zone.use-case.js';
+import { AlertController } from '../../src/modules/alerts/infrastructure/alert.controller.js';
+import { createAlertRouter } from '../../src/modules/alerts/infrastructure/alert.routes.js';
+import { PendingTaskAdapter } from '../../src/modules/alerts/infrastructure/pending-task.adapter.js';
+import { AddPomodoroTaskUseCase } from '../../src/modules/pomodoros/application/add-pomodoro-task.use-case.js';
+import { ChangePomodoroStatusUseCase } from '../../src/modules/pomodoros/application/change-pomodoro-status.use-case.js';
+import { DeletePomodoroTaskUseCase } from '../../src/modules/pomodoros/application/delete-pomodoro-task.use-case.js';
+import { GetPomodoroStreakUseCase } from '../../src/modules/pomodoros/application/get-pomodoro-streak.use-case.js';
+import { GetPomodoroUseCase } from '../../src/modules/pomodoros/application/get-pomodoro.use-case.js';
+import { ListPomodoroAchievementsUseCase } from '../../src/modules/pomodoros/application/list-pomodoro-achievement.use-case.js';
+import { ListPomodorosUseCase } from '../../src/modules/pomodoros/application/list-pomodoro.use-case.js';
+import { ListWaitingPomodoroTasksUseCase } from '../../src/modules/pomodoros/application/list-waiting-pomodoro-task.use-case.js';
+import { RemovePomodoroTaskUseCase } from '../../src/modules/pomodoros/application/remove-pomodoro-task.use-case.js';
+import { SettleDuePomodoroUseCase } from '../../src/modules/pomodoros/application/settle-due-pomodoro.use-case.js';
+import { StartPomodoroUseCase } from '../../src/modules/pomodoros/application/start-pomodoro.use-case.js';
+import { UpdatePomodoroTaskUseCase } from '../../src/modules/pomodoros/application/update-pomodoro-task.use-case.js';
+import { PomodoroProgressController } from '../../src/modules/pomodoros/infrastructure/pomodoro-progress.controller.js';
+import { PomodoroTaskController } from '../../src/modules/pomodoros/infrastructure/pomodoro-task.controller.js';
+import { PomodoroController } from '../../src/modules/pomodoros/infrastructure/pomodoro.controller.js';
+import { createPomodoroRouter } from '../../src/modules/pomodoros/infrastructure/pomodoro.routes.js';
+import { UserTimeZoneAdapter } from '../../src/modules/pomodoros/infrastructure/user-time-zone.adapter.js';
+import { GetStreakUseCase } from '../../src/modules/streaks/application/get-streak.use-case.js';
+import { ProductiveDateAdapter } from '../../src/modules/streaks/infrastructure/productive-date.adapter.js';
+import { StreakController } from '../../src/modules/streaks/infrastructure/streak.controller.js';
+import { createStreakRouter } from '../../src/modules/streaks/infrastructure/streak.routes.js';
+import { CreateTaskUseCase } from '../../src/modules/tasks/application/create-task.use-case.js';
+import { DeleteTaskUseCase } from '../../src/modules/tasks/application/delete-task.use-case.js';
+import { GetTaskUseCase } from '../../src/modules/tasks/application/get-task.use-case.js';
+import { ListTasksUseCase } from '../../src/modules/tasks/application/list-task.use-case.js';
+import { UpdateTaskUseCase } from '../../src/modules/tasks/application/update-task.use-case.js';
+import { TaskController } from '../../src/modules/tasks/infrastructure/task.controller.js';
+import { createTaskRouter } from '../../src/modules/tasks/infrastructure/task.routes.js';
+import { GetPendingTaskUseCase, GetProductiveDateUseCase } from '../../src/modules/tasks/task.facade.js';
+import { AuthenticateSessionUseCase } from '../../src/modules/users/application/authenticate-session.use-case.js';
+import { ChangePasswordUseCase } from '../../src/modules/users/application/change-password.use-case.js';
+import { ConfirmPasswordUseCase } from '../../src/modules/users/application/confirm-password.use-case.js';
+import { DeleteAccountUseCase } from '../../src/modules/users/application/delete-account.use-case.js';
+import { GetProfileUseCase } from '../../src/modules/users/application/get-profile.use-case.js';
+import { GetSessionCsrfTokenUseCase } from '../../src/modules/users/application/get-session-csrf-token.use-case.js';
+import { IssueCsrfTokenUseCase } from '../../src/modules/users/application/issue-csrf-token.use-case.js';
+import { LoginUseCase } from '../../src/modules/users/application/login.use-case.js';
+import { LogoutUseCase } from '../../src/modules/users/application/logout.use-case.js';
+import { RefreshSessionUseCase } from '../../src/modules/users/application/refresh-session.use-case.js';
+import { UpdateProfileUseCase } from '../../src/modules/users/application/update-profile.use-case.js';
+import { RegisterUserUseCase } from '../../src/modules/users/application/register-user.use-case.js';
+import { VerifySessionCsrfUseCase } from '../../src/modules/users/application/verify-session-csrf.use-case.js';
+import { VerifyTurnstileUseCase } from '../../src/modules/users/application/verify-turnstile.use-case.js';
+import { AesGcmGraceCipher } from '../../src/modules/users/infrastructure/aes-gcm-grace-cipher.adapter.js';
+import { AesGcmSecretCipher } from '../../src/modules/users/infrastructure/aes-gcm-secret-cipher.adapter.js';
+import { AuthController } from '../../src/modules/users/infrastructure/auth.controller.js';
+import { createAuthRouter } from '../../src/modules/users/infrastructure/auth.routes.js';
+import { CryptoTokenService } from '../../src/modules/users/infrastructure/crypto-token.adapter.js';
+import { createAuthBodySchemas } from '../../src/modules/users/infrastructure/user.schema.js';
+import { MeController } from '../../src/modules/users/infrastructure/me.controller.js';
+import { createMeRouter } from '../../src/modules/users/infrastructure/me.routes.js';
+import { createPresessionCsrfMiddleware } from '../../src/modules/users/infrastructure/presession-csrf.middleware.js';
+import { createSessionMiddleware } from '../../src/modules/users/infrastructure/session.middleware.js';
+import { createRequestContextMiddleware } from '../../src/shared/infrastructure/http/request-context.middleware.js';
+import { IntlTimeZoneAdapter } from '../../src/shared/infrastructure/time/intl-time-zone.adapter.js';
+import { FakeClock } from './fake-clock.adapter.js';
+import { FakePasswordHasher } from './fake-password-hasher.adapter.js';
+import { FAKE_TURNSTILE_HOSTNAME, FakeTurnstileVerifier, turnstileTokenFor } from './fake-turnstile-verifier.adapter.js';
+import { InMemoryAlertRepository } from './in-memory-alert.repository.js';
+import { InMemoryCsrfTokenRepository } from './in-memory-csrf-token.repository.js';
+import { InMemoryLoginAttemptRepository } from './in-memory-login-attempt.repository.js';
+import { InMemoryPomodoroRepository } from './in-memory-pomodoro.repository.js';
+import { InMemorySessionRepository } from './in-memory-session.repository.js';
+import { InMemoryTaskRepository } from './in-memory-task.repository.js';
+import { InMemoryTurnstileTokenRepository } from './in-memory-turnstile-token.repository.js';
+import { InMemoryUserTimeZoneRepository } from './in-memory-user-time-zone.repository.js';
+import { InMemoryUserRepository } from './in-memory-user.repository.js';
+
+// Origen del frontend permitido por CORS en los tests, el mismo que en .env.dev (RF-35 de la 002)
+export const FRONTEND_ORIGIN = 'http://localhost:5173';
+// Contraseña de las cuentas que crea signIn
+export const TEST_PASSWORD = 'correct horse battery';
+
+// Mismo cableado que dependency.container.ts pero con fakes en memoria (plan, D-21).
+// Reloj por defecto: 2026-10-24T10:00:00Z (12:00 en Madrid)
+export interface TestContainer extends AppContainer {
+  clock: FakeClock;
+  timeZones: IntlTimeZoneAdapter;
+  tasks: InMemoryTaskRepository;
+  alerts: InMemoryAlertRepository;
+  userTimeZones: InMemoryUserTimeZoneRepository;
+  // Una pasada del planificador, para ejecutarla a mano tras mover el reloj
+  generateAlerts: GenerateDueAlertUseCase;
+  users: InMemoryUserRepository;
+  csrfTokens: InMemoryCsrfTokenRepository;
+  sessions: InMemorySessionRepository;
+  loginAttempts: InMemoryLoginAttemptRepository;
+  pomodoros: InMemoryPomodoroRepository;
+  // Una pasada del barrido de sesiones pomodoro, para ejecutarla a mano tras mover el reloj (D-2 de la 004)
+  settlePomodoros: SettleDuePomodoroUseCase;
+  // Cloudflare simulado y huellas de los tokens recibidos (RNF-04 de la 005)
+  turnstileVerifier: FakeTurnstileVerifier;
+  turnstileTokens: InMemoryTurnstileTokenRepository;
+}
+
+export interface TestContainerOptions {
+  turnstile?: {
+    // Modo obligatorio (true, por defecto) u opcional (RF-15 a RF-17 de la 005)
+    enforce?: boolean;
+    // Clave secreta de prueba: ni se reserva el token ni se comprueba la acción (RF-06b, RF-33). Por defecto, false
+    testSecret?: boolean;
+  };
+}
+
+export function createTestContainer(options: TestContainerOptions = {}): TestContainer {
+  const turnstileEnforce = options.turnstile?.enforce ?? true;
+  const turnstileTestSecret = options.turnstile?.testSecret ?? false;
+  const clock = new FakeClock('2026-10-24T10:00:00Z');
+  const timeZones = new IntlTimeZoneAdapter();
+  const tasks = new InMemoryTaskRepository();
+  const alerts = new InMemoryAlertRepository(clock);
+  const userTimeZones = new InMemoryUserTimeZoneRepository();
+  const recordUserTimeZone = new RecordUserTimeZoneUseCase(userTimeZones);
+
+  // Sesión antes que las rutas protegidas, como en dependency.container.ts
+  const tokens = new CryptoTokenService();
+  const sessions = new InMemorySessionRepository();
+  // Clave aleatoria por contenedor: los tests no dependen de ningún secreto
+  const secretCipher = new AesGcmSecretCipher(randomBytes(32));
+  const verifyCsrf = new VerifySessionCsrfUseCase(tokens);
+  const session = createSessionMiddleware(new AuthenticateSessionUseCase(sessions, tokens, verifyCsrf, clock));
+
+  const requestContext = createRequestContextMiddleware({
+    clock,
+    timeZones,
+    onAcceptedTimeZone: (userId, timeZone) => recordUserTimeZone.execute(userId, timeZone),
+  });
+
+  const taskController = new TaskController(
+    new CreateTaskUseCase(tasks),
+    new ListTasksUseCase(tasks),
+    new UpdateTaskUseCase(tasks),
+    new GetTaskUseCase(tasks),
+    new DeleteTaskUseCase(tasks),
+  );
+  const taskRouter = createTaskRouter({ controller: taskController, session, requestContext });
+
+  const productiveDates = new ProductiveDateAdapter(new GetProductiveDateUseCase(tasks));
+  const streakRouter = createStreakRouter({
+    controller: new StreakController(new GetStreakUseCase(productiveDates)),
+    session,
+    requestContext,
+  });
+
+  const generateAlerts = new GenerateDueAlertUseCase(
+    clock,
+    timeZones,
+    userTimeZones,
+    alerts,
+    new PendingTaskAdapter(new GetPendingTaskUseCase(tasks)),
+  );
+  const alertRouter = createAlertRouter({
+    controller: new AlertController(new ListAlertsUseCase(alerts)),
+    session,
+    requestContext,
+  });
+
+  const users = new InMemoryUserRepository();
+  const csrfTokens = new InMemoryCsrfTokenRepository();
+  const loginAttempts = new InMemoryLoginAttemptRepository();
+  const passwordHasher = new FakePasswordHasher();
+  // Verificación de Turnstile con Cloudflare simulado, como en dependency.container.ts (spec 005)
+  const turnstileVerifier = new FakeTurnstileVerifier();
+  const turnstileTokens = new InMemoryTurnstileTokenRepository();
+  const verifyTurnstile = new VerifyTurnstileUseCase(turnstileVerifier, turnstileTokens, tokens, clock, {
+    allowedHostnames: [FAKE_TURNSTILE_HOSTNAME],
+    checkReplayAndAction: !turnstileTestSecret,
+  });
+  const authRouter = createAuthRouter({
+    controller: new AuthController(
+      new IssueCsrfTokenUseCase(tokens, csrfTokens, clock),
+      new RegisterUserUseCase(users, passwordHasher, verifyTurnstile),
+      new LoginUseCase(users, sessions, loginAttempts, passwordHasher, tokens, secretCipher, clock, verifyTurnstile),
+      new LogoutUseCase(sessions, tokens, verifyCsrf),
+      new RefreshSessionUseCase(sessions, tokens, new AesGcmGraceCipher(secretCipher), verifyCsrf, clock),
+      createAuthBodySchemas({ turnstileRequired: turnstileEnforce }),
+    ),
+    presessionCsrf: createPresessionCsrfMiddleware({ tokens, csrfTokens, clock }),
+  });
+  // Cambiar la contraseña y borrar la cuenta la comprueban con el mismo bloqueo que el login (RF-09, RF-28)
+  const confirmPassword = new ConfirmPasswordUseCase(users, loginAttempts, passwordHasher, clock);
+  const meRouter = createMeRouter({
+    controller: new MeController(
+      new GetProfileUseCase(users),
+      new UpdateProfileUseCase(users),
+      new ChangePasswordUseCase(confirmPassword, users, sessions, passwordHasher),
+      new DeleteAccountUseCase(confirmPassword, users, loginAttempts),
+      new GetSessionCsrfTokenUseCase(sessions, secretCipher),
+    ),
+    session,
+  });
+
+  // Módulo pomodoros (spec 004), con la zona recordada a través de la fachada de alerts (D-7)
+  const pomodoros = new InMemoryPomodoroRepository();
+  const settlePomodoros = new SettleDuePomodoroUseCase(
+    pomodoros,
+    new UserTimeZoneAdapter(new GetUserTimeZoneUseCase(userTimeZones)),
+    timeZones,
+    clock,
+  );
+  const pomodoroRouter = createPomodoroRouter({
+    pomodoros: new PomodoroController(
+      new StartPomodoroUseCase(pomodoros, settlePomodoros, clock),
+      new GetPomodoroUseCase(pomodoros, settlePomodoros, clock),
+      new ListPomodorosUseCase(pomodoros, settlePomodoros, clock),
+      new ChangePomodoroStatusUseCase(pomodoros, settlePomodoros, timeZones, clock),
+      new AddPomodoroTaskUseCase(pomodoros, settlePomodoros, clock),
+      new RemovePomodoroTaskUseCase(pomodoros, settlePomodoros, clock),
+    ),
+    pomodoroTasks: new PomodoroTaskController(
+      new UpdatePomodoroTaskUseCase(pomodoros, settlePomodoros, clock),
+      new ListWaitingPomodoroTasksUseCase(pomodoros, settlePomodoros),
+      new DeletePomodoroTaskUseCase(pomodoros, settlePomodoros),
+    ),
+    pomodoroProgress: new PomodoroProgressController(
+      new GetPomodoroStreakUseCase(pomodoros, settlePomodoros),
+      new ListPomodoroAchievementsUseCase(pomodoros.achievements, settlePomodoros),
+    ),
+    session,
+    requestContext,
+  });
+
+  return {
+    clock,
+    timeZones,
+    tasks,
+    alerts,
+    userTimeZones,
+    generateAlerts,
+    users,
+    csrfTokens,
+    sessions,
+    loginAttempts,
+    pomodoros,
+    settlePomodoros,
+    turnstileVerifier,
+    turnstileTokens,
+    corsOrigin: FRONTEND_ORIGIN,
+    routers: [authRouter, meRouter, taskRouter, streakRouter, alertRouter, pomodoroRouter],
+  };
+}
+
+export interface ClientHeaderOptions {
+  clientTime?: string;
+  timeZone?: string;
+}
+
+// Cabeceras de hora y zona coherentes con el reloj por defecto del contenedor de test. El usuario sale de
+// la sesión: se combinan con las de signIn (RF-17 y RF-32 de la 002)
+export function clientHeaders(options: ClientHeaderOptions = {}): Record<string, string> {
+  return {
+    'Content-Type': 'application/json',
+    'X-Client-Time': options.clientTime ?? '2026-10-24T12:00:00+02:00',
+    'X-Timezone': options.timeZone ?? 'Europe/Madrid',
+  };
+}
+
+export interface TestServer {
+  request(path: string, init?: RequestInit): Promise<Response>;
+  close(): Promise<void>;
+}
+
+// Arranca la app en un puerto libre para los tests HTTP con fetch nativo (plan, D-12)
+export async function startTestServer(app: Express): Promise<TestServer> {
+  const server = await new Promise<Server>((resolve) => {
+    const listening = app.listen(0, () => resolve(listening));
+  });
+  const { port } = server.address() as AddressInfo;
+
+  return {
+    request: (path, init) => fetch(`http://127.0.0.1:${port}${path}`, init),
+    close: () =>
+      new Promise<void>((resolve, reject) => {
+        server.closeAllConnections();
+        server.close((error) => (error ? reject(error) : resolve()));
+      }),
+  };
+}
+
+// Cabeceras de una sesión abierta: las cookies como las reenviaría el navegador y el token CSRF de la sesión
+// Alias y no interfaz: así se puede pasar donde se espera Record<string, string>
+export type SessionHeaders = {
+  Cookie: string;
+  'X-CSRF-Token': string;
+};
+
+// Convierte los Set-Cookie de una respuesta en la cabecera Cookie que enviaría el navegador
+export function cookiesFrom(response: Response): string {
+  return response.headers
+    .getSetCookie()
+    .map((cookie) => cookie.split(';')[0])
+    .join('; ');
+}
+
+// Pide el token previo, registra la cuenta (si ya existe, sigue) e inicia sesión con ella (RF-22, RF-01, RF-07),
+// con un token de Turnstile válido en cada petición (spec 005)
+export async function signIn(server: TestServer, email = 'ana@example.com'): Promise<SessionHeaders> {
+  const csrf = (await (await server.request('/auth/csrf')).json()) as { data: { csrfToken: string } };
+  const init = (body: unknown): RequestInit => ({
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf.data.csrfToken },
+    body: JSON.stringify(body),
+  });
+  // Un token de Turnstile distinto en cada petición: son de un solo uso (RF-20 de la 005)
+  await server.request(
+    '/auth/register',
+    init({ email, password: TEST_PASSWORD, name: 'Ana', turnstileToken: turnstileTokenFor('register') }),
+  );
+  const response = await server.request(
+    '/auth/login',
+    init({ email, password: TEST_PASSWORD, turnstileToken: turnstileTokenFor('login') }),
+  );
+  if (response.status !== 200) {
+    throw new Error(`signIn: el login de ${email} respondió ${response.status}`);
+  }
+  const body = (await response.json()) as { data: { csrfToken: string } };
+  return { Cookie: cookiesFrom(response), 'X-CSRF-Token': body.data.csrfToken };
+}
+
+// Id de la cuenta de un email registrado, para sembrar sus datos directamente en los repositorios en memoria
+export async function userIdOf(container: TestContainer, email = 'ana@example.com'): Promise<string> {
+  const user = await container.users.findByEmail(email);
+  if (!user) {
+    throw new Error(`userIdOf: no hay ninguna cuenta con el email ${email}`);
+  }
+  return user.id;
+}
+
+// Añade un token de Turnstile único para la acción si el cuerpo no trae el campo; si lo trae, aunque sea
+// `undefined` (que JSON omite), se respeta tal cual (spec 005)
+export function withTurnstileToken(body: unknown, action: 'login' | 'register'): unknown {
+  if (typeof body !== 'object' || body === null || 'turnstileToken' in body) {
+    return body;
+  }
+  return { ...body, turnstileToken: turnstileTokenFor(action) };
+}

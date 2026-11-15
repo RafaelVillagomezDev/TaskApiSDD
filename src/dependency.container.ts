@@ -1,0 +1,252 @@
+import type { PrismaClient } from '@prisma/client';
+import type { RequestHandler } from 'express';
+
+import type { AppContainer } from './app.factory.js';
+import { GetUserTimeZoneUseCase } from './modules/alerts/alert.facade.js';
+import { GenerateDueAlertUseCase } from './modules/alerts/application/generate-due-alert.use-case.js';
+import { ListAlertsUseCase } from './modules/alerts/application/list-alert.use-case.js';
+import { RecordUserTimeZoneUseCase } from './modules/alerts/application/record-user-time-zone.use-case.js';
+import { AlertController } from './modules/alerts/infrastructure/alert.controller.js';
+import { createAlertRouter } from './modules/alerts/infrastructure/alert.routes.js';
+import { AlertScheduler } from './modules/alerts/infrastructure/alert.scheduler.js';
+import { PendingTaskAdapter } from './modules/alerts/infrastructure/pending-task.adapter.js';
+import { PrismaAlertRepository } from './modules/alerts/infrastructure/prisma-alert.repository.js';
+import { PrismaUserTimeZoneRepository } from './modules/alerts/infrastructure/prisma-user-time-zone.repository.js';
+import { AddPomodoroTaskUseCase } from './modules/pomodoros/application/add-pomodoro-task.use-case.js';
+import { ChangePomodoroStatusUseCase } from './modules/pomodoros/application/change-pomodoro-status.use-case.js';
+import { DeletePomodoroTaskUseCase } from './modules/pomodoros/application/delete-pomodoro-task.use-case.js';
+import { GetPomodoroStreakUseCase } from './modules/pomodoros/application/get-pomodoro-streak.use-case.js';
+import { GetPomodoroUseCase } from './modules/pomodoros/application/get-pomodoro.use-case.js';
+import { ListPomodoroAchievementsUseCase } from './modules/pomodoros/application/list-pomodoro-achievement.use-case.js';
+import { ListPomodorosUseCase } from './modules/pomodoros/application/list-pomodoro.use-case.js';
+import { ListWaitingPomodoroTasksUseCase } from './modules/pomodoros/application/list-waiting-pomodoro-task.use-case.js';
+import { RemovePomodoroTaskUseCase } from './modules/pomodoros/application/remove-pomodoro-task.use-case.js';
+import { SettleDuePomodoroUseCase } from './modules/pomodoros/application/settle-due-pomodoro.use-case.js';
+import { StartPomodoroUseCase } from './modules/pomodoros/application/start-pomodoro.use-case.js';
+import { UpdatePomodoroTaskUseCase } from './modules/pomodoros/application/update-pomodoro-task.use-case.js';
+import { PomodoroProgressController } from './modules/pomodoros/infrastructure/pomodoro-progress.controller.js';
+import { PomodoroTaskController } from './modules/pomodoros/infrastructure/pomodoro-task.controller.js';
+import { PomodoroController } from './modules/pomodoros/infrastructure/pomodoro.controller.js';
+import { createPomodoroRouter } from './modules/pomodoros/infrastructure/pomodoro.routes.js';
+import { PomodoroScheduler } from './modules/pomodoros/infrastructure/pomodoro.scheduler.js';
+import { PrismaAchievementRepository } from './modules/pomodoros/infrastructure/prisma-achievement.repository.js';
+import { PrismaPomodoroRepository } from './modules/pomodoros/infrastructure/prisma-pomodoro.repository.js';
+import { UserTimeZoneAdapter } from './modules/pomodoros/infrastructure/user-time-zone.adapter.js';
+import { GetStreakUseCase } from './modules/streaks/application/get-streak.use-case.js';
+import { ProductiveDateAdapter } from './modules/streaks/infrastructure/productive-date.adapter.js';
+import { StreakController } from './modules/streaks/infrastructure/streak.controller.js';
+import { createStreakRouter } from './modules/streaks/infrastructure/streak.routes.js';
+import { CreateTaskUseCase } from './modules/tasks/application/create-task.use-case.js';
+import { DeleteTaskUseCase } from './modules/tasks/application/delete-task.use-case.js';
+import { GetTaskUseCase } from './modules/tasks/application/get-task.use-case.js';
+import { ListTasksUseCase } from './modules/tasks/application/list-task.use-case.js';
+import { UpdateTaskUseCase } from './modules/tasks/application/update-task.use-case.js';
+import { PrismaTaskRepository } from './modules/tasks/infrastructure/prisma-task.repository.js';
+import { TaskController } from './modules/tasks/infrastructure/task.controller.js';
+import { createTaskRouter } from './modules/tasks/infrastructure/task.routes.js';
+import { GetPendingTaskUseCase, GetProductiveDateUseCase } from './modules/tasks/task.facade.js';
+import { AuthenticateSessionUseCase } from './modules/users/application/authenticate-session.use-case.js';
+import { ChangePasswordUseCase } from './modules/users/application/change-password.use-case.js';
+import { ConfirmPasswordUseCase } from './modules/users/application/confirm-password.use-case.js';
+import { DeleteAccountUseCase } from './modules/users/application/delete-account.use-case.js';
+import { GetProfileUseCase } from './modules/users/application/get-profile.use-case.js';
+import { GetSessionCsrfTokenUseCase } from './modules/users/application/get-session-csrf-token.use-case.js';
+import { IssueCsrfTokenUseCase } from './modules/users/application/issue-csrf-token.use-case.js';
+import { LoginUseCase } from './modules/users/application/login.use-case.js';
+import { LogoutUseCase } from './modules/users/application/logout.use-case.js';
+import { PurgeExpiredAuthDataUseCase } from './modules/users/application/purge-expired-auth-data.use-case.js';
+import { RefreshSessionUseCase } from './modules/users/application/refresh-session.use-case.js';
+import { UpdateProfileUseCase } from './modules/users/application/update-profile.use-case.js';
+import { RegisterUserUseCase } from './modules/users/application/register-user.use-case.js';
+import { VerifySessionCsrfUseCase } from './modules/users/application/verify-session-csrf.use-case.js';
+import { VerifyTurnstileUseCase } from './modules/users/application/verify-turnstile.use-case.js';
+import type { TurnstileVerifier } from './modules/users/domain/turnstile-verifier.port.js';
+import { AesGcmGraceCipher } from './modules/users/infrastructure/aes-gcm-grace-cipher.adapter.js';
+import { AesGcmSecretCipher } from './modules/users/infrastructure/aes-gcm-secret-cipher.adapter.js';
+import { Argon2PasswordHasher } from './modules/users/infrastructure/argon2-password-hasher.adapter.js';
+import { AuthCleanupScheduler } from './modules/users/infrastructure/auth-cleanup.scheduler.js';
+import { AuthController } from './modules/users/infrastructure/auth.controller.js';
+import { createAuthRouter } from './modules/users/infrastructure/auth.routes.js';
+import { CloudflareTurnstileVerifier } from './modules/users/infrastructure/cloudflare-turnstile-verifier.adapter.js';
+import { CryptoTokenService } from './modules/users/infrastructure/crypto-token.adapter.js';
+import { MeController } from './modules/users/infrastructure/me.controller.js';
+import { createMeRouter } from './modules/users/infrastructure/me.routes.js';
+import { createPresessionCsrfMiddleware } from './modules/users/infrastructure/presession-csrf.middleware.js';
+import { PrismaCsrfTokenRepository } from './modules/users/infrastructure/prisma-csrf-token.repository.js';
+import { PrismaLoginAttemptRepository } from './modules/users/infrastructure/prisma-login-attempt.repository.js';
+import { PrismaSessionRepository } from './modules/users/infrastructure/prisma-session.repository.js';
+import { PrismaTurnstileTokenRepository } from './modules/users/infrastructure/prisma-turnstile-token.repository.js';
+import { PrismaUserRepository } from './modules/users/infrastructure/prisma-user.repository.js';
+import { createSessionMiddleware } from './modules/users/infrastructure/session.middleware.js';
+import { createAuthBodySchemas } from './modules/users/infrastructure/user.schema.js';
+import type { Clock } from './shared/domain/clock.port.js';
+import type { TimeZoneService } from './shared/domain/time-zone.port.js';
+import { createRequestContextMiddleware } from './shared/infrastructure/http/request-context.middleware.js';
+import { loadAppConfig } from './shared/infrastructure/config/app.config.js';
+import { getPrismaClient } from './shared/infrastructure/prisma/prisma.client.js';
+import { IntlTimeZoneAdapter } from './shared/infrastructure/time/intl-time-zone.adapter.js';
+import { SystemClockAdapter } from './shared/infrastructure/time/system-clock.adapter.js';
+
+// Composition root: el único sitio que conoce las implementaciones concretas
+export interface Container extends AppContainer {
+  clock: Clock;
+  timeZones: TimeZoneService;
+  prisma: PrismaClient;
+  requestContext: RequestHandler;
+  alertScheduler: AlertScheduler;
+  authCleanupScheduler: AuthCleanupScheduler;
+  pomodoroScheduler: PomodoroScheduler;
+}
+
+// Piezas que se pueden sustituir sin cambiar el resto del cableado. Solo para los tests de rendimiento, que miden
+// la API sin el tiempo de Cloudflare (RNF-01 de la 005); en producción no se pasa ninguna
+export interface ContainerOverrides {
+  turnstileVerifier?: TurnstileVerifier;
+}
+
+export function createContainer(overrides: ContainerOverrides = {}): Container {
+  // Falla al arrancar si falta o es inválida alguna variable de .env (D-11 de la 002)
+  const config = loadAppConfig();
+  const clock = new SystemClockAdapter();
+  const timeZones = new IntlTimeZoneAdapter();
+  const prisma = getPrismaClient();
+
+  // Sesión del módulo users (spec 002): la usan las rutas protegidas de todos los módulos, que la reciben
+  // inyectada sin importar users (principio V). Exige X-CSRF-Token en POST, PATCH y DELETE (RF-17, RF-23)
+  const tokens = new CryptoTokenService();
+  const sessions = new PrismaSessionRepository(prisma);
+  // Una sola clave para las copias cifradas: tokens del margen de gracia y token CSRF de la sesión (plan de la 003, D-4)
+  const secretCipher = new AesGcmSecretCipher(config.sessionEncryptionKey);
+  const verifyCsrf = new VerifySessionCsrfUseCase(tokens);
+  const session = createSessionMiddleware(new AuthenticateSessionUseCase(sessions, tokens, verifyCsrf, clock));
+
+  // Módulo alerts: la zona se recuerda con la sesión y las cabeceras válidas (RF-31 de la 002, D-1)
+  const userTimeZones = new PrismaUserTimeZoneRepository(prisma);
+  const recordUserTimeZone = new RecordUserTimeZoneUseCase(userTimeZones);
+
+  const requestContext = createRequestContextMiddleware({
+    clock,
+    timeZones,
+    onAcceptedTimeZone: (userId, timeZone) => recordUserTimeZone.execute(userId, timeZone),
+  });
+
+  // Módulo tasks
+  const taskRepository = new PrismaTaskRepository(prisma);
+  const taskController = new TaskController(
+    new CreateTaskUseCase(taskRepository),
+    new ListTasksUseCase(taskRepository),
+    new UpdateTaskUseCase(taskRepository),
+    new GetTaskUseCase(taskRepository),
+    new DeleteTaskUseCase(taskRepository),
+  );
+  const taskRouter = createTaskRouter({ controller: taskController, session, requestContext });
+
+  // Módulo streaks: lee los días productivos a través de la fachada de tasks
+  const productiveDates = new ProductiveDateAdapter(new GetProductiveDateUseCase(taskRepository));
+  const streakRouter = createStreakRouter({
+    controller: new StreakController(new GetStreakUseCase(productiveDates)),
+    session,
+    requestContext,
+  });
+
+  // Módulo alerts: lee las tareas pendientes a través de la fachada de tasks
+  const alertRepository = new PrismaAlertRepository(prisma);
+  const pendingTasks = new PendingTaskAdapter(new GetPendingTaskUseCase(taskRepository));
+  const alertScheduler = new AlertScheduler(
+    new GenerateDueAlertUseCase(clock, timeZones, userTimeZones, alertRepository, pendingTasks),
+  );
+  const alertRouter = createAlertRouter({
+    controller: new AlertController(new ListAlertsUseCase(alertRepository)),
+    session,
+    requestContext,
+  });
+
+  // Módulo pomodoros (spec 004): la zona recordada se lee con la fachada de alerts (D-7), y las sesiones vencidas
+  // se asientan al pedir y en un barrido cada 60 s (D-2)
+  const pomodoroRepository = new PrismaPomodoroRepository(prisma);
+  const pomodoroZones = new UserTimeZoneAdapter(new GetUserTimeZoneUseCase(userTimeZones));
+  const settlePomodoros = new SettleDuePomodoroUseCase(pomodoroRepository, pomodoroZones, timeZones, clock);
+  const pomodoroScheduler = new PomodoroScheduler(settlePomodoros);
+  const pomodoroRouter = createPomodoroRouter({
+    pomodoros: new PomodoroController(
+      new StartPomodoroUseCase(pomodoroRepository, settlePomodoros, clock),
+      new GetPomodoroUseCase(pomodoroRepository, settlePomodoros, clock),
+      new ListPomodorosUseCase(pomodoroRepository, settlePomodoros, clock),
+      new ChangePomodoroStatusUseCase(pomodoroRepository, settlePomodoros, timeZones, clock),
+      new AddPomodoroTaskUseCase(pomodoroRepository, settlePomodoros, clock),
+      new RemovePomodoroTaskUseCase(pomodoroRepository, settlePomodoros, clock),
+    ),
+    pomodoroTasks: new PomodoroTaskController(
+      new UpdatePomodoroTaskUseCase(pomodoroRepository, settlePomodoros, clock),
+      new ListWaitingPomodoroTasksUseCase(pomodoroRepository, settlePomodoros),
+      new DeletePomodoroTaskUseCase(pomodoroRepository, settlePomodoros),
+    ),
+    pomodoroProgress: new PomodoroProgressController(
+      new GetPomodoroStreakUseCase(pomodoroRepository, settlePomodoros),
+      new ListPomodoroAchievementsUseCase(new PrismaAchievementRepository(prisma), settlePomodoros),
+    ),
+    session,
+    requestContext,
+  });
+
+  // Módulo users (spec 002): registro y login con token CSRF previo a la sesión, renovación, logout y perfil.
+  // Un solo hasher para que el hash ficticio del login se calcule una vez (D-3)
+  const csrfTokens = new PrismaCsrfTokenRepository(prisma);
+  const users = new PrismaUserRepository(prisma);
+  const loginAttempts = new PrismaLoginAttemptRepository(prisma);
+  const passwordHasher = new Argon2PasswordHasher();
+  // Huellas de los tokens de Turnstile recibidos: un solo uso (RF-20 a RF-23 de la 005)
+  const turnstileTokens = new PrismaTurnstileTokenRepository(prisma);
+  // Verificación con Cloudflare antes del login y el registro. Con una clave de prueba ni se reserva el token ni
+  // se comprueba la acción (RF-06b, RF-33); producción no arranca con una (RF-19)
+  const verifyTurnstile = new VerifyTurnstileUseCase(
+    overrides.turnstileVerifier ?? new CloudflareTurnstileVerifier(config.turnstile.secret),
+    turnstileTokens,
+    tokens,
+    clock,
+    {
+      allowedHostnames: config.turnstile.allowedHostnames,
+      checkReplayAndAction: !config.turnstile.usesTestSecret,
+    },
+  );
+  const authRouter = createAuthRouter({
+    controller: new AuthController(
+      new IssueCsrfTokenUseCase(tokens, csrfTokens, clock),
+      new RegisterUserUseCase(users, passwordHasher, verifyTurnstile),
+      new LoginUseCase(users, sessions, loginAttempts, passwordHasher, tokens, secretCipher, clock, verifyTurnstile),
+      new LogoutUseCase(sessions, tokens, verifyCsrf),
+      new RefreshSessionUseCase(sessions, tokens, new AesGcmGraceCipher(secretCipher), verifyCsrf, clock),
+      // Token de Turnstile obligatorio u opcional según TURNSTILE_ENFORCE (RF-15 a RF-17 de la 005)
+      createAuthBodySchemas({ turnstileRequired: config.turnstile.enforce }),
+    ),
+    presessionCsrf: createPresessionCsrfMiddleware({ tokens, csrfTokens, clock }),
+  });
+  // Cambiar la contraseña y borrar la cuenta la comprueban con el mismo bloqueo que el login (RF-09, RF-28)
+  const confirmPassword = new ConfirmPasswordUseCase(users, loginAttempts, passwordHasher, clock);
+  const meRouter = createMeRouter({
+    controller: new MeController(
+      new GetProfileUseCase(users),
+      new UpdateProfileUseCase(users),
+      new ChangePasswordUseCase(confirmPassword, users, sessions, passwordHasher),
+      new DeleteAccountUseCase(confirmPassword, users, loginAttempts),
+      new GetSessionCsrfTokenUseCase(sessions, secretCipher),
+    ),
+    session,
+  });
+  // Limpieza de copias cifradas, tokens previos, sesiones y bloqueos caducados (D-12)
+  const authCleanupScheduler = new AuthCleanupScheduler(
+    new PurgeExpiredAuthDataUseCase(sessions, csrfTokens, loginAttempts, turnstileTokens, clock),
+  );
+
+  return {
+    clock,
+    timeZones,
+    prisma,
+    requestContext,
+    alertScheduler,
+    authCleanupScheduler,
+    pomodoroScheduler,
+    corsOrigin: config.corsOrigin,
+    routers: [authRouter, meRouter, taskRouter, streakRouter, alertRouter, pomodoroRouter],
+  };
+}
